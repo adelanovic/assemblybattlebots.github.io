@@ -65,6 +65,15 @@
       this.countsKey = '';
       this.listeners = [];
       this.gutterListeners = [];
+      // Hover help: `helpProvider(word)` returns tooltip HTML or null.
+      this.helpProvider = null;
+      this.tip = document.createElement('div');
+      this.tip.className = 'ce-tip';
+      this.tip.hidden = true;
+      document.body.appendChild(this.tip);
+      this.tipKey = '';
+      this.input.addEventListener('mousemove', (ev) => this.onHover(ev));
+      for (const type of ['mouseleave', 'mousedown', 'keydown', 'scroll']) this.input.addEventListener(type, () => this.hideTip());
 
       this.input.addEventListener('input', () => { this.render(); this.listeners.forEach((f) => f(this.value)); });
       this.gutter.addEventListener('click', (ev) => {
@@ -87,6 +96,70 @@
 
     /** `fn(line)` runs when a line number is clicked. */
     onGutterClick(fn) { this.gutterListeners.push(fn); }
+
+    /** `fn(word)` returns tooltip HTML for a hovered word, or null for none. */
+    setHelp(fn) { this.helpProvider = fn; }
+
+    charWidth() {
+      if (!this.cw) {
+        const cs = getComputedStyle(this.input);
+        const g = document.createElement('canvas').getContext('2d');
+        g.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        this.cw = g.measureText('M'.repeat(20)).width / 20 || 7.8;
+      }
+      return this.cw;
+    }
+
+    /** The identifier under the mouse, as { word, line }, ignoring the name line and comments. */
+    wordAt(ev) {
+      const ta = this.input, cs = getComputedStyle(ta), rect = ta.getBoundingClientRect();
+      const x = ev.clientX - rect.left - parseFloat(cs.paddingLeft) + ta.scrollLeft;
+      const y = ev.clientY - rect.top - parseFloat(cs.paddingTop) + ta.scrollTop;
+      if (x < 0 || y < 0) return null;
+      const row = Math.floor(y / this.lineHeight());
+      const lines = this.value.split('\n');
+      if (row < 1 || row >= lines.length) return null;
+      const text = lines[row];
+      // Visual column of each character, expanding tabs (tab-size 4).
+      const vis = [];
+      let v = 0;
+      for (const ch of text) { vis.push(v); v += ch === '\t' ? 4 - (v % 4) : 1; }
+      vis.push(v);
+      const col = x / this.charWidth();
+      const comment = text.search(/[;#]/);
+      const re = /[A-Za-z_][A-Za-z0-9_]*/g;
+      let m;
+      while ((m = re.exec(text))) {
+        if (comment >= 0 && m.index > comment) break;
+        if (col >= vis[m.index] && col < vis[m.index + m[0].length]) return { word: m[0], line: row + 1 };
+      }
+      return null;
+    }
+
+    onHover(ev) {
+      const hit = this.helpProvider && this.wordAt(ev);
+      const key = hit ? `${hit.line}:${hit.word}` : '';
+      if (key === this.tipKey) return;
+      this.hideTip();
+      this.tipKey = key;
+      if (!hit) return;
+      const at = { x: ev.clientX, y: ev.clientY };
+      this.tipTimer = setTimeout(() => {
+        const html = this.helpProvider(hit.word);
+        if (!html) return;
+        this.tip.innerHTML = html;
+        this.tip.hidden = false;
+        const w = this.tip.offsetWidth, h = this.tip.offsetHeight;
+        this.tip.style.left = `${Math.max(8, Math.min(at.x + 12, innerWidth - w - 8))}px`;
+        this.tip.style.top = `${at.y + 20 + h < innerHeight ? at.y + 20 : Math.max(8, at.y - h - 10)}px`;
+      }, 350);
+    }
+
+    hideTip() {
+      clearTimeout(this.tipTimer);
+      this.tip.hidden = true;
+      this.tipKey = '';
+    }
 
     setErrors(lines) { this.errorLines = new Set(lines); this.renderGutter(); }
 

@@ -240,6 +240,51 @@ main {
 .trace-list li.bad .note { color: var(--bad); }
 .trace-list li.end { grid-template-columns: 32px 1fr; color: var(--muted); font-style: italic; cursor: default; }
 .trace-list li.end.bp { color: var(--bad); cursor: pointer; }
+/* Simple view: plain sentences are longer, so they get the room and may wrap. */
+.trace-list.simple li { grid-template-columns: 32px minmax(90px, auto) 1fr; }
+.trace-list.simple .note { font-family: system-ui, sans-serif; color: #c3cad8; }
+
+/* ---------- editor hover help ---------- */
+.ce-tip {
+  position: fixed; z-index: 50; max-width: 320px; padding: 8px 10px;
+  background: #1d2330; border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45); font-size: 12.5px; line-height: 1.45;
+  color: var(--text); pointer-events: none;
+}
+.ce-tip .tip-head { margin-bottom: 4px; }
+.ce-tip .tip-head code { color: #6cb6ff; font-weight: 700; }
+.ce-tip .tip-kind, .ce-tip .tip-ex { color: var(--muted); }
+.ce-tip .tip-ex { margin-top: 4px; }
+.ce-tip .tip-cost { margin-left: 8px; font-size: 11px; color: var(--warn); }
+.ce-tip .tip-live { margin-top: 4px; color: var(--good); }
+
+/* ---------- missions ---------- */
+.mission-bar {
+  margin-bottom: 8px; padding: 8px 10px; border: 1px solid rgba(102, 209, 122, .45);
+  border-radius: 6px; background: rgba(102, 209, 122, .07); font-size: 13px;
+}
+.mission-bar .mb-tag { color: var(--good); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-right: 6px; }
+.mission-bar .mb-done { color: var(--good); margin-left: 6px; }
+.mission-bar .mb-goal { margin: 4px 0; }
+.mission-bar .mb-hint summary { cursor: pointer; color: var(--warn); }
+.mission-bar .mb-hint p { margin: 4px 0; }
+.mission-bar .mb-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.missions { padding: 4px 2px; font-size: 13px; }
+.missions-intro { color: var(--muted); margin: 0 0 10px; line-height: 1.5; }
+.mission-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mission-list li {
+  display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel);
+}
+.mission-list li.active { border-color: var(--good); }
+.mission-list .m-num {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: #232a36; font-weight: 700;
+}
+.mission-list li.done .m-num { background: rgba(102, 209, 122, .2); color: var(--good); }
+.mission-list .m-goal { color: #c3cad8; margin-top: 2px; }
+.mission-list .m-teaches { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
+.missions-done { margin-top: 12px; color: var(--good); }
 .kv.sensors { grid-template-columns: repeat(3, 1fr); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 
 /* ---------- reference ---------- */

@@ -240,7 +240,8 @@
 
     // ------------------------------------------------------------ frame
 
-    draw(world, selectedEntryId) {
+    /** `paused`: the match is not running, so intention labels are worth reading. */
+    draw(world, selectedEntryId, { paused = false } = {}) {
       const ctx = this.ctx;
       if (world !== this.world) { this.world = world; this.floor = null; this.clearEffects(); }
       if (!this.floor) this.floor = this.renderFloor(world);
@@ -255,6 +256,7 @@
       this.lastTick = world.tick;
       this.updateMud(world);
       this.drawTracks(ctx, world.tick);
+      if (world.mission && world.mission.zone) this.drawZone(ctx, world.mission.zone, now);
       this.drawFires(ctx, now);
       this.drawCasings(ctx, ticks);
       for (const r of world.robots) if (!r.alive) this.drawWreck(ctx, r);
@@ -265,8 +267,13 @@
       this.emitAmbientSmoke(world);
       this.drawParticles(ctx);
       for (const r of world.robots) if (r.alive) this.drawLabel(ctx, r, now);
+      const selected = world.robots.find((r) => r.alive && r.entryId === selectedEntryId);
+      if (selected && !world.over) this.drawIntent(ctx, selected, paused);
 
-      if (world.over) this.drawBanner(ctx, world, now);
+      if (world.over) {
+        if (world.mission && world.mission.result) this.drawMissionCard(ctx, world, now);
+        else this.drawBanner(ctx, world, now);
+      }
       for (const f of this.robotFx.values()) { if (f.flash > 0) f.flash--; if (f.muzzle > 0) f.muzzle--; }
     }
 
@@ -1019,6 +1026,113 @@
       ctx.restore();
     }
 
+    /** A mission's goal zone: a softly pulsing green pad. */
+    drawZone(ctx, z, now) {
+      const pulse = 0.5 + 0.5 * Math.sin(now / 400);
+      ctx.save();
+      ctx.fillStyle = `rgba(102,209,122,${(0.1 + 0.06 * pulse).toFixed(3)})`;
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = `rgba(140,230,150,${(0.5 + 0.4 * pulse).toFixed(3)})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeRect(z.x, z.y, z.w, z.h);
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#b8f0c0';
+      ctx.font = '700 13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('GOAL', z.x + z.w / 2, z.y + z.h / 2 + 5);
+      ctx.restore();
+    }
+
+    /**
+     * What the selected robot has been told to do, so commands have a visible
+     * effect: an arc to the heading it is turning toward and a dotted line
+     * where the turret is turning. While paused, labels spell it out.
+     */
+    drawIntent(ctx, r, paused) {
+      const R = C.ROBOT_RADIUS;
+      const turnBy = BB.geo.angleDiff(r.targetHeading, r.heading);
+      const aimBy = BB.geo.angleDiff(r.targetTurret, r.turret);
+      ctx.save();
+      ctx.translate(r.x, r.y);
+      // Light blue, outside the white selection ring, so the two never blur together.
+      ctx.strokeStyle = ctx.fillStyle = 'rgba(127,211,255,0.95)';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      if (Math.abs(turnBy) > 0.5) {
+        const a0 = r.heading * DEG, a1 = r.targetHeading * DEG, rad = R + 17;
+        ctx.beginPath(); ctx.arc(0, 0, rad, a0, a0 + turnBy * DEG, turnBy < 0); ctx.stroke();
+        const tx = Math.cos(a1) * rad, ty = Math.sin(a1) * rad, s = Math.sign(turnBy);
+        const bx = Math.cos(a1 + s * Math.PI / 2), by = Math.sin(a1 + s * Math.PI / 2);
+        ctx.beginPath(); // arrowhead pointing along the turn
+        ctx.moveTo(tx + bx * 3, ty + by * 3);
+        ctx.lineTo(tx - bx * 7 + Math.cos(a1) * 5, ty - by * 7 + Math.sin(a1) * 5);
+        ctx.lineTo(tx - bx * 7 - Math.cos(a1) * 5, ty - by * 7 - Math.sin(a1) * 5);
+        ctx.closePath(); ctx.fill();
+      }
+      if (Math.abs(aimBy) > 0.5) {
+        const a = r.targetTurret * DEG;
+        ctx.strokeStyle = 'rgba(255,214,120,0.85)';
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath(); ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R); ctx.lineTo(Math.cos(a) * (R + 60), Math.sin(a) * (R + 60)); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+      if (!paused) return;
+      const lines = [];
+      if (Math.abs(r.targetSpeed - r.speed) > 0.01) lines.push(`speed ${round1(r.speed)} → ${round1(r.targetSpeed)}`);
+      else if (r.speed) lines.push(`speed ${round1(r.speed)}`);
+      if (Math.abs(turnBy) > 0.5) lines.push(`turning to ${Math.round(r.targetHeading) % 360}°`);
+      if (Math.abs(aimBy) > 0.5) lines.push(`aiming at ${Math.round(r.targetTurret) % 360}°`);
+      if (!lines.length) return;
+      ctx.save();
+      ctx.font = '11px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 10, h = lines.length * 14 + 6;
+      // Beside the robot, flipped to the left near the right wall, kept inside the arena.
+      const bx = r.x + R + 14 + w > C.ARENA_W ? r.x - R - 14 - w : r.x + R + 14;
+      const by = Math.max(4, Math.min(C.ARENA_H - h - 4, r.y - h / 2));
+      ctx.fillStyle = 'rgba(10,12,18,0.78)';
+      roundRect(ctx, bx, by, w, h, 4); ctx.fill();
+      ctx.fillStyle = '#e8ecf3';
+      lines.forEach((l, i) => ctx.fillText(l, bx + 5, by + 15 + i * 14));
+      ctx.restore();
+    }
+
+    /** End of a mission: a green "complete" or amber "not yet" card with the reason. */
+    drawMissionCard(ctx, world, now) {
+      if (this.overAt === undefined) this.overAt = now;
+      const ease = 1 - (1 - Math.min(1, (now - this.overAt) / 500)) ** 3;
+      const { ok, text } = world.mission.result;
+      const W = C.ARENA_W, H = C.ARENA_H, color = ok ? '#66d17a' : '#ffc94d';
+      const pw = 420, ph = 170, px = (W - pw) / 2, py = (H - ph) / 2 + (1 - ease) * 16;
+      ctx.save();
+      ctx.globalAlpha = ease;
+      ctx.fillStyle = 'rgba(6,7,10,0.55)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.shadowColor = hexA(color, 0.45);
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = 'rgba(16,19,26,0.95)';
+      roundRect(ctx, px, py, pw, ph, 12); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = hexA(color, 0.75);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = color;
+      ctx.font = '700 12px system-ui, sans-serif';
+      ctx.fillText(ok ? 'M I S S I O N   C O M P L E T E' : 'N O T   Y E T', W / 2, py + 40);
+      ctx.font = '700 26px system-ui, sans-serif';
+      ctx.fillText(fitText(ctx, ok ? `✓ ${text}` : text, pw - 40), W / 2, py + 82);
+      ctx.fillStyle = '#9aa4b8';
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillText(ok ? 'Try the next mission, or make this one even better.' : 'Change your code, press Apply, then Start to try again.', W / 2, py + 120);
+      ctx.fillStyle = '#7d8696';
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillText(`tick ${world.tick}`, W / 2, py + ph - 18);
+      ctx.restore();
+    }
+
     /** Health bar and a 2×2 grid of shots, hits, accuracy and damage dealt. */
     drawWinnerStats(ctx, r, x, y) {
       const hp = Math.max(0, r.health / C.MAX_HEALTH);
@@ -1068,6 +1182,8 @@
     while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
     return t + '…';
   }
+
+  const round1 = (v) => Math.round(v * 10) / 10;
 
   function roundRect(ctx, x, y, w, h, r) {
     r = Math.min(r, w / 2, h / 2);

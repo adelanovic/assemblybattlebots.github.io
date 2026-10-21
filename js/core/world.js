@@ -466,6 +466,7 @@
       }
       this.moveProjectiles();
       this.checkVictory();
+      if (this.mission) this.mission.update(this); // see missions.js
     }
 
     runCpu(r) {

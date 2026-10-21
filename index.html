@@ -34,6 +34,7 @@
     </div>
     <div class="group">
       <label title="Draw each robot's scan cone"><input id="show-scans" type="checkbox" checked> Scans</label>
+      <label title="Plain-language help and a simpler CPU inspector. Untick for every detail."><input id="simple-view" type="checkbox" checked> Simple view</label>
     </div>
     <div class="group grow"></div>
     <div class="group stat">Tick <b id="tick" class="mono">0</b></div>
@@ -58,12 +59,14 @@
     <section class="right">
       <nav class="tabs">
         <button data-tab="editor" class="active">Editor</button>
+        <button data-tab="missions">🎯 Missions</button>
         <button data-tab="reference">Reference</button>
         <button data-tab="log">Match log</button>
       </nav>
 
       <div id="tab-editor" class="tab-panel">
         <div id="editor-pane">
+          <div id="mission-bar" class="mission-bar" hidden></div>
           <div class="editor-head">
             <div class="editor-title"><b id="editor-name"></b> <span id="editor-file" class="muted mono"></span></div>
             <label class="opt" title="Show how many times each line has run this match; lines that never ran are dimmed"><input id="show-counts" type="checkbox"> Run counts</label>
@@ -80,6 +83,10 @@
           </details>
           <div class="empty-msg">Select or create a robot to edit its program.</div>
         </div>
+      </div>
+
+      <div id="tab-missions" class="tab-panel" hidden>
+        <div id="missions" class="missions"></div>
       </div>
 
       <div id="tab-reference" class="tab-panel" hidden>
@@ -102,7 +109,9 @@
   <script src="js/core/vm.js"></script>
   <script src="js/core/world.js"></script>
   <script src="js/core/examples.js"></script>
+  <script src="js/core/missions.js"></script>
   <!-- UI -->
+  <script src="js/ui/explain.js"></script>
   <script src="js/ui/terrain.js"></script>
   <script src="js/ui/renderer.js"></script>
   <script src="js/ui/editor.js"></script>

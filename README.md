@@ -10,6 +10,7 @@ There is nothing to install and no build step.
 
 1. Open `index.html` in a modern browser (Chrome, Edge or Firefox). Double-clicking the file works.
 2. Five example robots are preloaded. Press **▶ Start**.
+3. New to programming? Open the **🎯 Missions** tab for five short guided challenges.
 
 If you prefer to serve it, any static server works, for example `python -m http.server` and then http://localhost:8000.
 
@@ -39,6 +40,8 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **Arena** | **Classic** is the fixed default layout, with four mud patches. **Random** generates a mirrored layout of obstacles and mud from the seed, so 🎲 gives a new map and the same seed always gives the same map. **Open** has no obstacles or mud, which is useful for testing aim and dodging. |
 | **Speed** | 0.1× to 60× (6 to 3600 ticks per second). |
 | **Scans** | Show or hide each robot's scan cone. |
+| **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
+| **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |
 | **+ New robot / 📂 Load .asm files… / + Add example** | Add robots. Loading accepts several files at once, and you can also drag and drop `.asm` files onto the page. **Each file becomes one robot.** |
 | **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. |
 | **💾 Save .asm** (Ctrl+S) | Download the editor contents as a `.asm` file. |
@@ -47,6 +50,26 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 The editor checks your code as you type. Errors appear under the editor and in the line gutter, and clicking an error jumps to that line. Robots with syntax errors stay in the roster but are left out of the arena until fixed. The **CPU inspector** under the editor shows the selected robot's registers and sensors live. Click its heading to collapse it and give the editor more room.
 
 **Debugging tools.** Click a line number to set a breakpoint (a red dot); click it again to clear it. When that robot reaches the line, the match pauses just *before* the line runs, the robot is selected, and the yellow marker and the CPU inspector show the state going into that line. Press Step or Start to carry on. The robot gives up the rest of that tick's CPU cycles when it stops, and runs the line on the next tick. Breakpoints are saved with the robot and can only go on lines that hold an instruction. Tick **Run counts** to see how many times each line has run this match, with lines that never ran dimmed: a quick way to spot a routine that never gets called. Whenever the match is paused, the inspector also lists the selected robot's **last tick** instruction by instruction, with what each one did (`R0 = 42`, `5 < 100`, `jump to line 12`) and why the turn ended (WAIT, a breakpoint, or running out of cycles). Click a row to jump to that line.
+
+**Seeing what the robot is told to do.** For the selected robot, a light-blue arrow shows the direction its body is turning toward and a dotted line shows where its turret is turning. While paused, a label spells it out (`speed 2.5 → 4`, `turning to 270°`, `aiming at 315°`).
+
+### Missions and Simple view
+
+The app is built for middle-school beginners and experienced programmers alike, and **Simple view** (in the toolbar) switches between the two:
+
+- **Hover help:** point at any instruction, sensor or register in the editor. Simple view explains it in plain words, using the same terms as the Student Field Guide ("boxes" for registers, "coins" for cycles), and shows the live value of a register or sensor. With Simple view off, the tooltip shows the technical summary instead.
+- **Trace notes:** Simple view words the last-tick trace as sentences, for example `80 is not less than 30, so keep going` or `Look in a 10° cone: enemy 560 away!`.
+- **Inspector:** Simple view shows only the registers and sensors your program uses. Untick it to see all 8 registers, the common sensors, the stack, the compare result and cycle use.
+
+The **🎯 Missions** tab has five short challenges that come before the Field Guide's Wanderer challenges. Each one has starter code with one thing to fix, a goal, a hint that points to the right page of the guide, and a pass check:
+
+1. **Full speed ahead** (`SPEED`): drive into the goal zone.
+2. **Which way is up?** (`HEAD` and angles): face up and reach the goal.
+3. **Hit the target** (`AIM`, `FIRE`): work out the angle to a target.
+4. **Find it with SCAN** (`SCAN`, `CMP`, jumps): add the missing shot to a scanning robot.
+5. **Dodge!** (`RADAR`): survive a turret for 600 ticks with at least 50 health.
+
+While a mission runs, your own robots sit out. Click a robot card or **Exit mission** to return to them. Mission code and progress are saved in the browser. The tests check that every mission's starter code fails and its reference solution passes.
 
 Apply rejects drafts with syntax errors and keeps the robot's previously applied program. The draft remains in the editor so you can fix it. Single-robot command-line practice runs stop after 6000 ticks and report a practice result; browser practice mode continues until paused.
 
@@ -217,9 +240,11 @@ js/core/              pure logic, no DOM: runs in the browser and in Node
   geometry.js         angles, ray/rect tests, collision push-out, seeded RNG
   world.js            arena simulation: tick loop, physics, sensors, damage, victory
   examples.js         built-in example robots
+  missions.js         guided missions: starter code, goals, pass checks, mission worlds
 js/ui/
+  explain.js          plain-language help and trace notes for Simple view
   renderer.js         canvas drawing and visual effects (read-only view of the world)
-  editor.js           textarea editor with highlighting, gutter, error and exec markers
+  editor.js           textarea editor with highlighting, gutter, markers, hover help
   app.js              roster, controls, editor wiring, inspector, persistence, main loop
 tools/                Node CLI: headless matches, doc and example generation
 tests/run-tests.js    dependency-free test suite
@@ -227,4 +252,4 @@ examples/*.asm        example robots as loadable files
 docs/LANGUAGE.md      generated language reference
 ```
 
-Data flows one way: **source → `assemble()` → program → `VM` (one per robot) → `World.step()` → `Renderer.draw()`**. To add an instruction, add a row to `INSTRUCTIONS` in `isa.js` and a `case` in `VM.exec`. The assembler, the in-app reference and `docs/LANGUAGE.md` (after `npm run build`) pick it up automatically.
+Data flows one way: **source → `assemble()` → program → `VM` (one per robot) → `World.step()` → `Renderer.draw()`**. To add an instruction, add a row to `INSTRUCTIONS` in `isa.js`, a `case` in `VM.exec`, and a plain-language sentence in `js/ui/explain.js` (a test checks that every instruction and sensor has one). The assembler, the in-app reference and `docs/LANGUAGE.md` (after `npm run build`) pick it up automatically.

@@ -477,6 +477,7 @@ test('single-robot CLI runs and tournaments terminate with practice results', ()
 const fs = require('fs');
 const path = require('path');
 const scriptVm = require('vm');
+require('../js/ui/explain.js'); // pure strings, used by the app's Simple view
 const uiBB = { ...BB };
 // Capture the controller rather than booting the page and animation loop.
 scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui/app.js'), 'utf8').replace('BB.app = new App();', 'BB.App = App;'), {
@@ -581,6 +582,96 @@ test('breakpoints pause the match before the line and resume past it', () => {
   app.stepOnce(); // INC again, then stops before line 3
   assert.match(app.message, /about to run line 3/);
   assert.strictEqual(robot.vm.regs[0], 2);
+});
+
+test('trace facts let Simple view explain comparisons, jumps and sensor reads', () => {
+  const src = 'T\nGET R0, HEALTH\nCMP R0, 30\nJL low\nSCAN 20\nRADAR\nFIRE\nWAIT\nlow: SPEED 5';
+  const sense = (id) => ({ HEALTH: 80, SCAN_DIST: 230, THREAT_DIST: -1, COOLDOWN: 4 })[BB.ISA.SENSORS[id].name];
+  const vm = new BB.VM(BB.assemble(src).program, { sense, scan() {}, radar() {}, fire() {} });
+  vm.trace = [];
+  vm.run(50);
+  const t = vm.trace;
+  assert.deepStrictEqual([t[0].sensor, t[0].dst, t[0].value], ['HEALTH', 'R0', 80]);
+  assert.deepStrictEqual([t[1].x, t[1].y, t[2].taken, t[2].to], [80, 30, false, 5]);
+  assert.deepStrictEqual([t[3].found, t[3].note, t[4].found, t[5].cooldown], [230, 'found at 230', -1, 4]);
+  assert.deepStrictEqual(BB.explain.traceNotes(t), [
+    'Read HEALTH: R0 is now 80',
+    'Compare 80 with 30: 80 is greater than 30',
+    '80 is not less than 30, so keep going',
+    'Look in a 20° cone: enemy 230 away!',
+    'No bullets coming',
+    'Gun still reloading (4 more ticks)',
+    'Done for this tick',
+  ]);
+});
+
+test('plain notes for jumps without a CMP in the same tick, crashes and angles', () => {
+  const X = BB.explain;
+  assert.strictEqual(X.traceNote({ op: 'JE', taken: true, to: 9 }, null), 'The last CMP said yes, so jump to line 9');
+  assert.strictEqual(X.traceNote({ op: 'JGE', taken: true, to: 4 }, { x: 3, y: 3 }), '3 is greater than or equal to 3, so jump to line 4');
+  assert.strictEqual(X.traceNote({ op: 'DIV', fault: 'division by zero.' }, null), 'Crash! division by zero.');
+  assert.strictEqual(X.traceNote({ op: 'HEAD', value: 270 }, null), 'Turn to face 270° (up)');
+  assert.strictEqual(X.traceNote({ op: 'TURN', value: -45 }, null), 'Turn 45° left');
+  for (const ins of BB.ISA.INSTRUCTIONS) assert.ok(X.instruction(ins.op), `plain help for ${ins.op}`);
+  for (const s of BB.ISA.SENSORS) assert.ok(X.sensor(s.name), `plain help for ${s.name}`);
+});
+
+test('every mission: starter assembles but does not pass, solution passes in time', () => {
+  const ids = new Set();
+  for (const def of BB.MISSIONS) {
+    assert.ok(!ids.has(def.id), `duplicate mission id ${def.id}`);
+    ids.add(def.id);
+    for (const which of ['starter', 'solution']) {
+      const c = BB.assemble(def[which]);
+      assert.deepStrictEqual(c.errors, [], `${def.id} ${which}`);
+      const w = BB.buildMission(def, c);
+      assert.deepStrictEqual([w.robots[0].x, w.robots[0].y, w.robots[0].entryId], [def.start.x, def.start.y, BB.MISSION_ENTRY_ID]);
+      for (let i = 0; i <= def.maxTicks && !w.over; i++) w.step();
+      assert.ok(w.mission.result, `${def.id} ${which} ends by maxTicks`);
+      assert.strictEqual(w.mission.result.ok, which === 'solution', `${def.id} ${which}: ${w.mission.result.text}`);
+    }
+  }
+});
+
+test('Dodge accepts any turn-and-drive answer but not half of one', () => {
+  const def = BB.MISSIONS.find((m) => m.id === 'dodge');
+  const run = (body) => {
+    const w = BB.buildMission(def, BB.assemble(`D\nmain:\n    RADAR\n    GET R0, THREAT_DIST\n    CMP R0, -1\n    JE safe\n${body}safe:\n    WAIT\n    JMP main`));
+    while (!w.over) w.step();
+    return w.mission.result.ok;
+  };
+  for (const body of ['    TURN -90\n    SPEED 5\n', '    TURN 45\n    SPEED 5\n', '    TURN 90\n    SPEED 3\n']) assert.ok(run(body), body);
+  for (const body of ['    SPEED 5\n', '    TURN 90\n']) assert.ok(!run(body), body);
+});
+
+test('a mission result is reported once and a pass is remembered', () => {
+  const app = uiHarness();
+  const def = BB.MISSIONS[0];
+  app.mission = def;
+  app.missionState = { done: [], code: {} };
+  app.renderMissionBar = app.renderMissions = () => {};
+  app.world = BB.buildMission(def, BB.assemble(def.solution));
+  app.missionReported = false;
+  app.running = true;
+  while (!app.world.over) app.world.step();
+  app.checkMissionResult();
+  app.checkMissionResult();
+  assert.deepStrictEqual([[...app.missionState.done], app.running], [[def.id], false]);
+  assert.match(app.message, /Mission complete/);
+});
+
+test('editor hover help is plain in Simple view, technical otherwise, with live values', () => {
+  const app = uiHarness();
+  app.simple = true;
+  assert.match(app.helpFor('cmp'), /just remembers which one is bigger/);
+  assert.match(app.helpFor('SCAN'), /3 coins/);
+  assert.match(app.helpFor('HEALTH'), /How much health I have left[\s\S]*Right now: <b>100<\/b>/);
+  app.world.step();
+  assert.match(app.helpFor('r0'), /A box that holds one number[\s\S]*Right now: <b>1<\/b>/);
+  assert.strictEqual(app.helpFor('loop'), null);
+  app.simple = false;
+  assert.ok(app.helpFor('CMP').includes(BB.ISA.INSTRUCTION_MAP.CMP.summary.slice(0, 30)));
+  assert.match(app.helpFor('SCAN'), /3 cycles/);
 });
 
 test('Step records a trace for the selected robot only', () => {

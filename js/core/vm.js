@@ -16,6 +16,12 @@
 
   const toInt = (v) => v | 0;
 
+  /** When each conditional jump is taken, given the last CMP result (-1, 0, 1). */
+  const JUMP_IF = {
+    JE: (c) => c === 0, JNE: (c) => c !== 0, JL: (c) => c < 0,
+    JLE: (c) => c <= 0, JG: (c) => c > 0, JGE: (c) => c >= 0,
+  };
+
   class VM {
     /**
      * @param {Array} program  output of BB.assemble
@@ -92,7 +98,7 @@
           this.halted = true;
           stop = 'fault';
         }
-        if (trace) trace.push({ line: ins.line, asm: ins.asm, note: faultMsg || this.describe(ins, at) });
+        if (trace) trace.push({ line: ins.line, asm: ins.asm, op: ins.op, ...(faultMsg ? { note: faultMsg, fault: faultMsg } : this.describe(ins, at)) });
         if (yielded) { stop = ins.op === 'HALT' ? 'halt' : 'wait'; break; }
       }
       this.lastStop = stop;
@@ -100,27 +106,54 @@
       return used;
     }
 
-    /** One-line summary of what `ins` (at index `at`) just did, for the trace. */
+    /**
+     * What `ins` (at index `at`) just did, for the trace: a short `note` plus
+     * the facts it came from, so the UI can word it for beginners:
+     *   CMP: x, y · jumps: taken, to · CALL/RET: to · dst ops: dst, value (GET: sensor)
+     *   src ops: value · SCAN/RADAR: found (distance, -1 = none) · FIRE: cooldown
+     */
     describe(ins, at) {
       const a = ins.args;
+      const sense = (name) => (this.io.sense ? this.io.sense(BB.ISA.SENSOR_MAP[name].id) : -1);
       switch (ins.op) {
         case 'CMP': {
           const x = this.read(a[0]), y = this.read(a[1]);
-          return `${x} ${x < y ? '<' : x > y ? '>' : '='} ${y}`;
+          return { note: `${x} ${x < y ? '<' : x > y ? '>' : '='} ${y}`, x, y };
         }
-        case 'CALL': return `call line ${this.lineAt(this.pc)}`;
-        case 'RET': return `return to line ${this.lineAt(this.pc)}`;
-        case 'WAIT': return 'end of turn';
-        case 'HALT': return 'CPU stopped';
+        case 'JMP': { const to = this.lineAt(this.pc); return { note: `jump to line ${to}`, taken: true, to }; }
+        case 'CALL': { const to = this.lineAt(this.pc); return { note: `call line ${to}`, to }; }
+        case 'RET': { const to = this.lineAt(this.pc); return { note: `return to line ${to}`, to }; }
+        case 'WAIT': return { note: 'end of turn' };
+        case 'HALT': return { note: 'CPU stopped' };
+        case 'SCAN': {
+          const found = sense('SCAN_DIST');
+          return { note: found < 0 ? 'nobody found' : `found at ${found}`, value: this.read(a[0]), found };
+        }
+        case 'RADAR': {
+          const found = sense('THREAT_DIST');
+          return { note: found < 0 ? 'no bullets coming' : `bullet at ${found}`, found };
+        }
+        case 'FIRE': {
+          const cooldown = this.io.sense ? sense('COOLDOWN') : 0;
+          return { note: cooldown > 0 ? `reloading, ${cooldown} ticks` : 'fires', cooldown };
+        }
+      }
+      if (JUMP_IF[ins.op]) {
+        const taken = JUMP_IF[ins.op](this.cmp), to = this.lineAt(taken ? a[0].v : at + 1);
+        return { note: taken ? `jump to line ${to}` : 'no jump', taken, to };
       }
       const kind = BB.ISA.INSTRUCTION_MAP[ins.op].args[0];
-      if (kind === 'target') {
-        // A jump to the next instruction looks the same taken or not.
-        return this.pc !== at + 1 || a[0].v === at + 1 ? `jump to line ${this.lineAt(this.pc)}` : 'no jump';
+      if (kind === 'dst') {
+        const dst = a[0].k === 'reg' ? `R${a[0].r}` : `[${this.addr(a[0])}]`, value = this.read(a[0]);
+        const facts = { note: `${dst} = ${value}`, dst, value };
+        if (ins.op === 'GET') facts.sensor = BB.ISA.SENSORS[a[1].v].name;
+        return facts;
       }
-      if (kind === 'dst') return `${a[0].k === 'reg' ? `R${a[0].r}` : `[${this.addr(a[0])}]`} = ${this.read(a[0])}`;
-      if (kind === 'src' && a[0].k !== 'imm') return `value ${this.read(a[0])}`;
-      return '';
+      if (kind === 'src') {
+        const value = this.read(a[0]);
+        return { note: a[0].k === 'imm' ? '' : `value ${value}`, value };
+      }
+      return { note: '' };
     }
 
     // ---- operand helpers ----
@@ -219,12 +252,9 @@
           break;
         }
         case 'JMP': this.pc = a[0].v; break;
-        case 'JE': if (this.cmp === 0) this.pc = a[0].v; break;
-        case 'JNE': if (this.cmp !== 0) this.pc = a[0].v; break;
-        case 'JL': if (this.cmp < 0) this.pc = a[0].v; break;
-        case 'JLE': if (this.cmp <= 0) this.pc = a[0].v; break;
-        case 'JG': if (this.cmp > 0) this.pc = a[0].v; break;
-        case 'JGE': if (this.cmp >= 0) this.pc = a[0].v; break;
+        case 'JE': case 'JNE': case 'JL': case 'JLE': case 'JG': case 'JGE':
+          if (JUMP_IF[ins.op](this.cmp)) this.pc = a[0].v;
+          break;
         case 'CALL': this.push(this.pc); this.pc = a[0].v; break;
         case 'RET': this.pc = this.pop('RET'); break;
         case 'NOP': break;

@@ -25,6 +25,21 @@
   };
   const TEAMS = ['A', 'B'];
 
+  const MISSION_KEY = 'battlebots.missions.v1';
+
+  /** Registers (sorted) and sensors (in order of first use) a program refers to. */
+  function usedByProgram(program) {
+    const regs = new Set(), sensors = [];
+    for (const ins of program) {
+      for (const a of ins.args) if ((a.k === 'reg' || a.k === 'mem') && a.r >= 0) regs.add(a.r);
+      if (ins.op === 'GET') {
+        const name = BB.ISA.SENSORS[ins.args[1].v].name;
+        if (!sensors.includes(name)) sensors.push(name);
+      }
+    }
+    return { regs: [...regs].sort((x, y) => x - y), sensors };
+  }
+
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -42,14 +57,20 @@
       this.lastPanelUpdate = 0;
       this.renderedLogKey = null;
       this.showCounts = false;  // editor shows how often each line ran
+      this.simple = true;       // Simple view: plain-language help, smaller inspector
+      this.mission = null;      // the mission being played (from BB.MISSIONS), or null
+      this.missionEntry = null; // its code, shaped like a roster entry but not in the roster
+      this.missionState = { done: [], code: {} };
 
       this.renderer = new BB.Renderer($('#arena'));
       this.fitArena();
       this.editor = new BB.CodeEditor($('#editor'));
+      this.editor.setHelp((word) => this.helpFor(word));
 
       this.bindControls();
       this.buildReference();
       this.restore();
+      this.renderMissions();
       this.resetMatch();
       requestAnimationFrame((timestamp) => this.frame(timestamp));
     }
@@ -58,22 +79,31 @@
 
     compile(source) { return BB.assemble(source); }
 
-    addEntry(filename, source, { select = true, draft, team, breakpoints } = {}) {
+    /** A roster-shaped entry, not yet added anywhere. */
+    makeEntry(filename, source, { draft, breakpoints, id = this.nextId++ } = {}) {
       // The editor's textarea reports LF line endings, so CRLF files would never
       // match it (no exec marker, false "Apply changes").
       const lf = (s) => String(s).replace(/\r\n?/g, '\n');
       source = lf(source);
       draft = draft == null ? undefined : lf(draft);
-      const entry = { id: this.nextId++, filename, source, draft: draft ?? source, compiled: this.compile(source), team: null };
+      const entry = { id, filename, source, draft: draft ?? source, compiled: this.compile(source), team: null };
       // Source lines to pause before; saved with the roster.
       entry.breakpoints = new Set(Array.isArray(breakpoints) ? breakpoints.filter(Number.isInteger) : []);
+      return entry;
+    }
+
+    addEntry(filename, source, { select = true, draft, team, breakpoints } = {}) {
+      const entry = this.makeEntry(filename, source, { draft, breakpoints });
       this.entries.push(entry);
       entry.team = team !== undefined ? team : this.openSlot();
       if (select) this.select(entry.id);
       return entry;
     }
 
-    entry(id) { return this.entries.find((e) => e.id === id); }
+    entry(id) {
+      if (this.missionEntry && id === this.missionEntry.id) return this.missionEntry;
+      return this.entries.find((e) => e.id === id);
+    }
     get selected() { return this.entry(this.selectedId); }
 
     robotFor(entryId) {
@@ -81,6 +111,9 @@
     }
 
     select(id) {
+      // Picking a roster robot leaves the mission and brings the roster back to the arena.
+      const leaving = this.mission && id !== BB.MISSION_ENTRY_ID;
+      if (leaving) this.exitMission();
       this.selectedId = id;
       const e = this.selected;
       this.editor.value = e ? e.draft : '';
@@ -90,6 +123,7 @@
       this.checkDraft();
       this.renderRoster();
       this.updateDebug();
+      if (leaving) this.resetMatch();
     }
 
     duplicateEntry(id) {
@@ -138,7 +172,7 @@
     /** Human-readable reason the team match can't start, or null. */
     teamProblem() {
       const n = this.teamSize;
-      if (!n) return null;
+      if (!n || this.mission) return null;
       const count = (t) => this.entries.filter((e) => e.team === t && !e.compiled.errors.length).length;
       const [a, b] = TEAMS.map(count);
       if (a === n && b === n) return null;
@@ -170,6 +204,8 @@
       this.running = false;
       this.acc = 0;
       this.lastFrameTime = null;
+      this.missionReported = false;
+      if (this.mission) { this.resetMission(); return; }
       const seed = parseInt($('#seed').value, 10) || 1;
       const valid = this.entries.filter((e) => !e.compiled.errors.length);
       const playing = this.teamSize ? valid.filter((e) => e.team) : valid;
@@ -192,9 +228,41 @@
       this.updatePanels(true);
     }
 
+    /** Mission arena: only the mission's code and its dummies; roster robots sit out. */
+    resetMission() {
+      const e = this.missionEntry;
+      const ok = !e.compiled.errors.length;
+      for (const x of this.entries) x.runningSource = null;
+      e.runningSource = ok ? e.source : null;
+      this.world = ok ? BB.buildMission(this.mission, e.compiled) : new BB.World({ entries: [] });
+      if (!ok) {
+        this.world.log = [];
+        this.world.addLog('Fix the errors in your code, then press Apply.', 'fault');
+      }
+      this.renderer.clearEffects();
+      this.renderRoster();
+      this.updatePanels(true);
+    }
+
+    /** Once per mission run: record a pass, tell the player, update the mission panels. */
+    checkMissionResult() {
+      const m = this.world.mission;
+      if (!m || !m.result || this.missionReported) return;
+      this.missionReported = true;
+      this.running = false;
+      if (m.result.ok && !this.missionState.done.includes(m.def.id)) this.missionState.done.push(m.def.id);
+      this.persist();
+      this.flash(m.result.ok ? `Mission complete! ${m.result.text}` : m.result.text);
+      this.renderMissionBar();
+      this.renderMissions();
+    }
+
     toggleRun() {
       if (this.world.over) this.resetMatch();
-      if (!this.world.robots.length) { this.flash('Add at least one robot first.'); return; }
+      if (!this.world.robots.length) {
+        this.flash(this.mission ? 'Fix the errors in your code first, then press Apply.' : 'Add at least one robot first.');
+        return;
+      }
       const problem = !this.running && this.teamProblem();
       if (problem) { this.flash(problem); return; }
       this.running = !this.running;
@@ -211,6 +279,7 @@
       this.syncDebugger();
       this.world.step();
       this.checkBreakpoint();
+      this.checkMissionResult();
       this.updatePanels(true);
     }
 
@@ -266,10 +335,11 @@
           if (this.checkBreakpoint()) { this.updatePanels(true); break; }
         }
         if (this.world.over) this.running = false;
+        this.checkMissionResult();
       }
       if (this.world) {
         this.renderer.addEvents(this.world.drainEvents());
-        this.renderer.draw(this.world, this.selectedId);
+        this.renderer.draw(this.world, this.selectedId, { paused: !this.running });
       }
       if (performance.now() - this.lastPanelUpdate > 100) this.updatePanels(false);
       requestAnimationFrame((timestamp) => this.frame(timestamp));
@@ -398,11 +468,12 @@
       const w = this.world;
       $('#tick').textContent = w ? w.tick : 0;
       const runBtn = $('#btn-run');
-      runBtn.textContent = this.running ? '❚❚ Pause' : (w && w.over ? '▶ Rematch' : '▶ Start');
+      runBtn.textContent = this.running ? '❚❚ Pause' : (w && w.over ? (this.mission ? '▶ Try again' : '▶ Rematch') : '▶ Start');
       runBtn.classList.toggle('active', this.running);
       let status = 'Paused';
       if (w && w.over) {
-        if (w.teamMode) status = w.winnerTeam === null ? 'Draw' : `🏆 Team ${TEAMS[w.winnerTeam]} wins`;
+        if (w.mission && w.mission.result) status = w.mission.result.ok ? '✓ Mission complete' : 'Not yet: try again';
+        else if (w.teamMode) status = w.winnerTeam === null ? 'Draw' : `🏆 Team ${TEAMS[w.winnerTeam]} wins`;
         else status = w.winner ? `🏆 ${w.winner.name} wins` : 'Draw';
       }
       else if (this.running) status = 'Running';
@@ -450,6 +521,8 @@
         let text, cls = '';
         if (e.compiled.errors.length) {
           text = `✗ ${e.compiled.errors.length} syntax error${e.compiled.errors.length > 1 ? 's' : ''}`; cls = 'bad';
+        } else if (!r && this.mission) {
+          text = 'Waiting: mission in progress'; cls = 'muted';
         } else if (!r && this.teamSize && !e.team) {
           text = 'On the bench'; cls = 'muted';
         } else if (!r) {
@@ -484,17 +557,29 @@
         return;
       }
       const vm = r.vm;
-      const sensors = ['X', 'Y', 'HEADING', 'SPEED', 'HEALTH', 'COOLDOWN', 'TURRET', 'FRONT', 'SCAN_DIST', 'SCAN_ANGLE', 'SCAN_RANGE', 'THREAT_DIST', 'THREAT_ANGLE'];
-      const regs = [...vm.regs].map((v, i) => `<span><i>R${i}</i>${v}</span>`).join('');
-      const sens = sensors.map((s) => `<span><i>${s}</i>${this.world.sense(r, BB.ISA.SENSOR_MAP[s].id)}</span>`).join('');
-      const state = vm.fault ? `<span class="bad">FAULT — ${esc(vm.fault)}</span>`
+      const state = vm.fault ? `<span class="bad">${this.simple ? 'CRASHED' : 'FAULT'} — ${esc(vm.fault)}</span>`
         : !r.alive ? 'destroyed' : vm.halted ? 'halted'
         : vm.resumeLine && !this.running ? `<span class="bp-state">● stopped at breakpoint, line ${vm.resumeLine}</span>`
         : `next: line ${vm.currentLine}`;
-      box.innerHTML = `
-        <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
-        <div class="kv">${regs}</div>
-        <div class="kv sensors">${sens}</div>`;
+      const cell = (k, v, tip) => `<span${tip ? ` title="${esc(tip)}"` : ''}><i>${k}</i>${v}</span>`;
+      if (this.simple) {
+        // Only the boxes and sensors this program uses, with plain-language tooltips.
+        const used = usedByProgram(vm.program);
+        const regs = used.regs.map((i) => cell(`R${i}`, vm.regs[i], BB.explain.REGISTER)).join('');
+        const sens = used.sensors.map((s) => cell(s, this.world.sense(r, BB.ISA.SENSOR_MAP[s].id), BB.explain.sensor(s))).join('');
+        box.innerHTML = `
+          <div class="dbg-line"><b>${esc(r.name)}</b> · ${state}</div>
+          ${regs ? `<div class="kv">${regs}</div>` : '<div class="muted">This program doesn\'t use any boxes (registers) yet.</div>'}
+          ${sens ? `<div class="kv sensors">${sens}</div>` : ''}`;
+      } else {
+        const sensors = ['X', 'Y', 'HEADING', 'SPEED', 'HEALTH', 'COOLDOWN', 'TURRET', 'FRONT', 'SCAN_DIST', 'SCAN_ANGLE', 'SCAN_RANGE', 'THREAT_DIST', 'THREAT_ANGLE'];
+        const regs = [...vm.regs].map((v, i) => cell(`R${i}`, v)).join('');
+        const sens = sensors.map((s) => cell(s, this.world.sense(r, BB.ISA.SENSOR_MAP[s].id))).join('');
+        box.innerHTML = `
+          <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
+          <div class="kv">${regs}</div>
+          <div class="kv sensors">${sens}</div>`;
+      }
       // Only mark lines if the editor shows the code the robot is running.
       // A fault marks the crashing line; otherwise, while paused, the next line.
       let line = 0, kind = 'exec', counts = [];
@@ -516,16 +601,20 @@
       else if (this.running) html = '<div class="muted">Pause, Step or stop at a breakpoint to see the last tick\'s instructions.</div>';
       else if (!vm.trace) html = vm.halted ? '' : '<div class="muted">Press Step to record this robot\'s next tick.</div>';
       else {
+        const notes = this.simple ? BB.explain.traceNotes(vm.trace) : vm.trace.map((t) => t.note);
         const rows = vm.trace.map((t, i) => {
           const bad = vm.lastStop === 'fault' && i === vm.trace.length - 1;
           return `<li data-line="${t.line}"${bad ? ' class="bad"' : ''}><span class="ln">${t.line}</span>` +
-            `<code>${esc(t.asm)}</code><span class="note">${esc(t.note)}</span></li>`;
+            `<code>${esc(t.asm)}</code><span class="note">${esc(notes[i])}</span></li>`;
         });
         if (vm.lastStop === 'break') rows.push(`<li class="end bp" data-line="${vm.resumeLine}"><span class="ln">●</span><span>stopped before line ${vm.resumeLine} (breakpoint)</span></li>`);
-        else if (vm.lastStop === 'budget') rows.push(`<li class="end"><span class="ln">…</span><span>out of cycles: continues at line ${vm.currentLine} next tick</span></li>`);
+        else if (vm.lastStop === 'budget') {
+          const out = this.simple ? `Out of coins: carries on at line ${vm.currentLine} next tick` : `out of cycles: continues at line ${vm.currentLine} next tick`;
+          rows.push(`<li class="end"><span class="ln">…</span><span>${out}</span></li>`);
+        }
         const n = vm.trace.length;
-        html = `<div class="trace-head">Last tick: ${n} instruction${n === 1 ? '' : 's'}</div>` +
-          (rows.length ? `<ol class="trace-list">${rows.join('')}</ol>` : '');
+        const head = this.simple ? 'What your robot did last tick' : `Last tick: ${n} instruction${n === 1 ? '' : 's'}`;
+        html = `<div class="trace-head">${head}</div>` + (rows.length ? `<ol class="trace-list${this.simple ? ' simple' : ''}">${rows.join('')}</ol>` : '');
       }
       // Rebuilt only on change, so rows stay clickable between 10 Hz panel refreshes.
       if (html === this.traceHtml) return;
@@ -593,6 +682,105 @@
       this.flashTimer = setTimeout(() => el.classList.remove('show'), 3500);
     }
 
+    // ------------------------------------------------------------ help
+
+    /** Tooltip HTML for a word hovered in the editor, or null. */
+    helpFor(word) {
+      const W = word.toUpperCase(), X = BB.explain, simple = this.simple;
+      const e = this.selected, r = e && this.robotFor(e.id);
+      const live = (v) => `<div class="tip-live">Right now: <b>${v}</b></div>`;
+      const ins = BB.ISA.INSTRUCTION_MAP[W];
+      if (ins) {
+        const form = [ins.op, ins.args.join(', ')].filter(Boolean).join(' ');
+        const cost = ins.cost > 1 ? `<span class="tip-cost">${ins.cost} ${simple ? 'coins' : 'cycles'}</span>` : '';
+        return `<div class="tip-head"><code>${esc(form)}</code>${cost}</div>` +
+          `<div>${esc((simple && X.instruction(W)) || ins.summary)}</div>` +
+          `<div class="tip-ex">Example: <code>${esc(ins.example)}</code></div>`;
+      }
+      const sensor = BB.ISA.SENSOR_MAP[W];
+      if (sensor) {
+        return `<div class="tip-head"><code>${W}</code> <span class="tip-kind">sensor</span></div>` +
+          `<div>${esc((simple && X.sensor(W)) || sensor.desc)}</div>` +
+          (simple ? `<div class="tip-ex">Read it with <code>GET R0, ${W}</code></div>` : '') +
+          (r ? live(this.world.sense(r, sensor.id)) : '');
+      }
+      const reg = /^R([0-7])$/.exec(W);
+      if (reg) {
+        return `<div class="tip-head"><code>${W}</code> <span class="tip-kind">register</span></div>` +
+          `<div>${esc(simple ? X.REGISTER : 'One of 8 general-purpose 32-bit registers, R0..R7. Starts at 0.')}</div>` +
+          (r ? live(r.vm.regs[reg[1]]) : '');
+      }
+      return null;
+    }
+
+    // ------------------------------------------------------------ missions
+
+    startMission(id) {
+      const def = BB.MISSIONS.find((m) => m.id === id);
+      if (!def) return;
+      this.persist(); // keep the current mission's latest edits before switching
+      const n = BB.MISSIONS.indexOf(def) + 1;
+      const code = typeof this.missionState.code[id] === 'string' ? this.missionState.code[id] : def.starter;
+      this.mission = def;
+      this.missionEntry = this.makeEntry(`mission-${n}-${id}.asm`, code, { id: BB.MISSION_ENTRY_ID });
+      this.select(BB.MISSION_ENTRY_ID);
+      this.resetMatch();
+      this.renderMissionBar();
+      this.renderMissions();
+    }
+
+    exitMission() {
+      this.mission = null;
+      this.missionEntry = null;
+      this.renderMissionBar();
+      this.renderMissions();
+    }
+
+    /** Throw away the player's code for this mission and start from the starter. */
+    restartMissionCode() {
+      if (!this.mission || !confirm('Start this mission over? Your changes to its code will be lost.')) return;
+      this.missionEntry.draft = this.mission.starter; // startMission saves, then reloads, this
+      this.startMission(this.mission.id);
+    }
+
+    renderMissions() {
+      const box = $('#missions');
+      const done = new Set(this.missionState.done);
+      const all = BB.MISSIONS.every((m) => done.has(m.id));
+      box.innerHTML = `
+        <p class="missions-intro">Short challenges that each teach one idea. Fix the starter code, press <b>Apply</b>, then <b>▶ Start</b>.
+          Hover over any instruction in the editor to see what it does. Your Student Field Guide explains everything in more detail.</p>
+        <ol class="mission-list">${BB.MISSIONS.map((m, i) => {
+          const active = this.mission === m;
+          const label = active ? 'Playing' : done.has(m.id) ? 'Play again' : 'Start';
+          return `<li class="${done.has(m.id) ? 'done' : ''} ${active ? 'active' : ''}">
+            <span class="m-num">${done.has(m.id) ? '✓' : i + 1}</span>
+            <div class="m-body"><b>${esc(m.title)}</b><div class="m-goal">${esc(m.goal)}</div><div class="m-teaches">Teaches: ${esc(m.teaches)}</div></div>
+            <button data-mission="${m.id}" ${active ? 'disabled' : ''} class="${!active && !done.has(m.id) ? 'primary' : ''}">${label}</button>
+          </li>`;
+        }).join('')}</ol>
+        ${all ? '<p class="missions-done">🏆 All missions complete! Try the Field Guide\'s challenges next, then battle your friends.</p>' : ''}`;
+    }
+
+    renderMissionBar() {
+      const bar = $('#mission-bar');
+      const m = this.mission;
+      bar.hidden = !m;
+      if (!m) { bar.innerHTML = ''; return; }
+      const i = BB.MISSIONS.indexOf(m), next = BB.MISSIONS[i + 1];
+      const passed = this.world && this.world.mission && this.world.mission.result && this.world.mission.result.ok;
+      bar.innerHTML = `
+        <div class="mb-head"><span class="mb-tag">Mission ${i + 1} of ${BB.MISSIONS.length}</span> <b>${esc(m.title)}</b>
+          ${this.missionState.done.includes(m.id) ? '<span class="mb-done">✓ complete</span>' : ''}</div>
+        <div class="mb-goal">${esc(m.goal)}</div>
+        <details class="mb-hint"><summary>Need a hint?</summary><p>${esc(m.hint)}</p><p class="muted">${esc(m.guide)}</p></details>
+        <div class="mb-actions">
+          ${passed && next ? `<button data-mb="next" class="primary">Next mission: ${esc(next.title)} →</button>` : ''}
+          <button data-mb="restart" title="Throw away your changes and load the starter code again">Start over</button>
+          <button data-mb="exit" title="Go back to your own robots">Exit mission</button>
+        </div>`;
+    }
+
     // ------------------------------------------------------------ persistence
 
     persist() {
@@ -601,14 +789,24 @@
           seed: $('#seed').value,
           arena: $('#arena-type').value,
           mode: this.mode,
+          simple: this.simple,
           entries: this.entries.map((e) => ({ filename: e.filename, source: e.source, draft: e.draft, team: e.team, breakpoints: [...e.breakpoints] })),
         }));
+        if (this.missionEntry) this.missionState.code[this.mission.id] = this.missionEntry.draft;
+        localStorage.setItem(MISSION_KEY, JSON.stringify(this.missionState));
       } catch (_) { /* storage unavailable: nothing to do */ }
     }
 
     restore() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (_) { saved = null; }
+      try {
+        const m = JSON.parse(localStorage.getItem(MISSION_KEY) || 'null');
+        if (m && Array.isArray(m.done)) this.missionState.done = m.done.filter((id) => BB.MISSIONS.some((x) => x.id === id));
+        if (m && m.code && typeof m.code === 'object') this.missionState.code = m.code;
+      } catch (_) { /* keep the empty mission state */ }
+      if (saved && typeof saved.simple === 'boolean') this.simple = saved.simple;
+      $('#simple-view').checked = this.simple;
       if (saved && Array.isArray(saved.entries) && saved.entries.length) {
         if (saved.seed) $('#seed').value = saved.seed;
         if (BB.World.ARENAS[saved.arena]) $('#arena-type').value = saved.arena;
@@ -653,6 +851,18 @@
 
       $('#show-scans').onchange = (ev) => { this.renderer.showScans = ev.target.checked; };
       $('#show-counts').onchange = (ev) => { this.showCounts = ev.target.checked; this.updateDebug(); };
+      $('#simple-view').onchange = (ev) => { this.simple = ev.target.checked; this.persist(); this.updateDebug(); };
+      $('#missions').addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-mission]');
+        if (b) this.startMission(b.dataset.mission);
+      });
+      $('#mission-bar').addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-mb]');
+        if (!b || !this.mission) return;
+        if (b.dataset.mb === 'next') this.startMission(BB.MISSIONS[BB.MISSIONS.indexOf(this.mission) + 1].id);
+        else if (b.dataset.mb === 'restart') this.restartMissionCode();
+        else this.select(this.entries.length ? this.entries[0].id : null);
+      });
       this.editor.onGutterClick((line) => this.toggleBreakpoint(line));
 
       $('#btn-new').onclick = () => { this.addEntry('newbot.asm', BB.NEW_ROBOT_TEMPLATE); this.persist(); this.resetMatch(); this.editor.focus(); };
