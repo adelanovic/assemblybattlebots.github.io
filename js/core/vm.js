@@ -29,6 +29,10 @@
       this.breakLines = null;
       this.breakHit = 0;
       this.resumeLine = 0;   // the line we stopped at; runs without stopping again
+      // Debugger: set to an array to record each run()'s instructions as
+      // { line, asm, note }; `lastStop` says why the run ended.
+      this.trace = null;
+      this.lastStop = null;  // 'wait' | 'halt' | 'fault' | 'break' | 'budget'
       this.reset();
     }
 
@@ -46,11 +50,13 @@
     }
 
     /** Line number of the next instruction to execute (for the debugger). */
-    get currentLine() {
+    get currentLine() { return this.lineAt(this.pc); }
+
+    /** Source line of the instruction at `pc`, wrapping like run() does. */
+    lineAt(pc) {
       if (!this.program.length) return 0;
-      // Mirrors run(): RET can leave any popped value in pc until the next cycle.
-      const pc = this.pc >= this.program.length || this.pc < 0 ? 0 : this.pc;
-      return this.program[pc].line;
+      // RET can leave any popped value in pc until the next cycle.
+      return this.program[pc >= this.program.length || pc < 0 ? 0 : pc].line;
     }
 
     run(budget) {
@@ -59,11 +65,15 @@
       if (!prog.length) { this.halted = true; return 0; }
       let resume = this.resumeLine;
       this.resumeLine = this.breakHit = 0;
+      const trace = this.trace;
+      if (trace) trace.length = 0;
+      let stop = 'budget';
       while (!this.halted && used < budget) {
         if (this.pc >= prog.length || this.pc < 0) this.pc = 0;
         const ins = prog[this.pc];
         if (this.breakLines && this.breakLines.has(ins.line) && ins.line !== resume) {
           this.breakHit = this.resumeLine = ins.line;
+          stop = 'break';
           break;
         }
         resume = 0;
@@ -71,20 +81,46 @@
         if (used + ins.cost > budget) break;
         used += ins.cost;
         this.counts[this.pc]++;
-        this.pc++;
-        let yielded = false;
+        const at = this.pc++;
+        let yielded = false, faultMsg = null;
         try {
           yielded = this.exec(ins);
         } catch (e) {
-          const msg = e instanceof VMFault ? e.message : `internal error: ${e.message}`;
-          this.fault = `Line ${ins.line}: ${msg}`;
+          faultMsg = e instanceof VMFault ? e.message : `internal error: ${e.message}`;
+          this.fault = `Line ${ins.line}: ${faultMsg}`;
           this.faultLine = ins.line;
           this.halted = true;
+          stop = 'fault';
         }
-        if (yielded) break;
+        if (trace) trace.push({ line: ins.line, asm: ins.asm, note: faultMsg || this.describe(ins, at) });
+        if (yielded) { stop = ins.op === 'HALT' ? 'halt' : 'wait'; break; }
       }
+      this.lastStop = stop;
       this.totalCycles += used;
       return used;
+    }
+
+    /** One-line summary of what `ins` (at index `at`) just did, for the trace. */
+    describe(ins, at) {
+      const a = ins.args;
+      switch (ins.op) {
+        case 'CMP': {
+          const x = this.read(a[0]), y = this.read(a[1]);
+          return `${x} ${x < y ? '<' : x > y ? '>' : '='} ${y}`;
+        }
+        case 'CALL': return `call line ${this.lineAt(this.pc)}`;
+        case 'RET': return `return to line ${this.lineAt(this.pc)}`;
+        case 'WAIT': return 'end of turn';
+        case 'HALT': return 'CPU stopped';
+      }
+      const kind = BB.ISA.INSTRUCTION_MAP[ins.op].args[0];
+      if (kind === 'target') {
+        // A jump to the next instruction looks the same taken or not.
+        return this.pc !== at + 1 || a[0].v === at + 1 ? `jump to line ${this.lineAt(this.pc)}` : 'no jump';
+      }
+      if (kind === 'dst') return `${a[0].k === 'reg' ? `R${a[0].r}` : `[${this.addr(a[0])}]`} = ${this.read(a[0])}`;
+      if (kind === 'src' && a[0].k !== 'imm') return `value ${this.read(a[0])}`;
+      return '';
     }
 
     // ---- operand helpers ----

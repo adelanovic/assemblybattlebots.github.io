@@ -230,6 +230,16 @@ main {
 .kv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 10px; font-family: var(--mono); }
 .kv span { display: flex; justify-content: space-between; }
 .kv i { font-style: normal; color: var(--muted); margin-right: 6px; }
+.trace { font-size: 12px; }
+.trace-head { color: var(--muted); margin: 6px 0 4px; }
+.trace-list { list-style: none; margin: 0; padding: 4px 0; max-height: 180px; overflow: auto; font-family: var(--mono); background: #0d1015; border: 1px solid var(--border); border-radius: 6px; }
+.trace-list li { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; padding: 1px 8px; cursor: pointer; }
+.trace-list li:hover { background: rgba(255, 255, 255, .05); }
+.trace-list .ln { color: #4b5366; text-align: right; }
+.trace-list .note { color: var(--muted); }
+.trace-list li.bad .note { color: var(--bad); }
+.trace-list li.end { grid-template-columns: 32px 1fr; color: var(--muted); font-style: italic; cursor: default; }
+.trace-list li.end.bp { color: var(--bad); cursor: pointer; }
 .kv.sensors { grid-template-columns: repeat(3, 1fr); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 
 /* ---------- reference ---------- */

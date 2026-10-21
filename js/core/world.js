@@ -287,7 +287,15 @@
         const y = margin + this.rng() * (this.height - 2 * margin);
         if (this.spotIsFree(x, y, attempt < 300 ? 150 : 3 * C.ROBOT_RADIUS)) { r.x = x; r.y = y; placed = true; }
       }
-      if (!placed) { r.x = this.width / 2; r.y = 30; }
+      // Rare (crowded roster or cramped map): take the first free spot on a fine
+      // grid so the robot never starts in an obstacle. Uses no RNG, so seeds that
+      // placed every robot above are unchanged.
+      for (let y = margin; y <= this.height - margin && !placed; y += 4) {
+        for (let x = lo; x <= hi && !placed; x += 4) {
+          if (this.spotIsFree(x, y, 2 * C.ROBOT_RADIUS)) { r.x = x; r.y = y; placed = true; }
+        }
+      }
+      if (!placed) { r.x = this.width / 2; r.y = 30; } // no room at all; the collision solver separates
       r._placed = true;
       r.heading = r.targetHeading = Math.floor(this.rng() * 360);
       r.turret = r.targetTurret = r.heading;

@@ -3,7 +3,8 @@
  *
  *   assemble(source) -> { name, program, errors, warnings }
  *
- * `program` is an array of { op, args, cost, line, text } where every operand
+ * `program` is an array of { op, args, cost, line, text, asm } (`asm` is the
+ * instruction alone, without label or comment) where every operand
  * has been resolved to one of:
  *   { k: 'reg', r }            register index
  *   { k: 'imm', v }            number (constants, labels and sensors resolve to this)
@@ -83,9 +84,10 @@
     if (!name) {
       err(1, 'Line 1 must contain the robot\'s name (for example: "Sentinel").');
       name = 'Unnamed';
-    } else if (name.length > MAX_NAME) {
+    } else if ([...name].length > MAX_NAME) {
+      // Count code points, so an emoji is never cut in half.
       warnings.push({ line: 1, message: `Name truncated to ${MAX_NAME} characters.` });
-      name = name.slice(0, MAX_NAME);
+      name = [...name].slice(0, MAX_NAME).join('');
     }
 
     // ---- Pass 1: labels, constants, raw statements ----
@@ -276,7 +278,10 @@
         if (!o) ok = false;
         args.push(o);
       });
-      if (ok) program.push({ op: spec.op, args, cost: spec.cost, line: st.line, text: st.text });
+      if (ok) {
+        const asm = st.args.length ? `${spec.op} ${st.args.join(', ')}` : spec.op; // no label or comment
+        program.push({ op: spec.op, args, cost: spec.cost, line: st.line, text: st.text, asm });
+      }
     }
 
     // Jumps to an index past the end are legal (they wrap to 0), but not beyond that.

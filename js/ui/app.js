@@ -208,17 +208,22 @@
       const problem = this.teamProblem();
       if (problem) { this.flash(problem); return; }
       this.running = false;
-      this.syncBreakpoints();
+      this.syncDebugger();
       this.world.step();
       this.checkBreakpoint();
       this.updatePanels(true);
     }
 
-    /** Hand each robot's CPU its entry's breakpoints, if it runs that entry's applied code. */
-    syncBreakpoints() {
+    /**
+     * Before ticks: hand each robot's CPU its entry's breakpoints (if it runs
+     * that entry's applied code), and record a trace only for the selected robot.
+     */
+    syncDebugger() {
       for (const r of this.world.robots) {
         const e = this.entry(r.entryId);
         r.vm.breakLines = e && e.breakpoints.size > 0 && e.runningSource === e.source ? e.breakpoints : null;
+        if (r.entryId !== this.selectedId) r.vm.trace = null;
+        else if (!r.vm.trace) r.vm.trace = [];
       }
     }
 
@@ -255,7 +260,7 @@
         let steps = Math.min(Math.floor(this.acc + 1e-9), MAX_STEPS_PER_FRAME);
         // Discard excess catch-up work after a stall, retaining only a fraction.
         this.acc = Math.max(0, this.acc - Math.floor(this.acc + 1e-9));
-        if (steps > 0) this.syncBreakpoints();
+        if (steps > 0) this.syncDebugger();
         while (steps-- > 0 && !this.world.over) {
           this.world.step();
           if (this.checkBreakpoint()) { this.updatePanels(true); break; }
@@ -364,22 +369,26 @@
       if (!list.length) return;
       let pending = list.length;
       let last = null;
+      const failed = [];
+      const done = () => { if (--pending === 0 && last) this.afterLoad(last, list.length - failed.length, failed); };
       for (const f of list) {
         const reader = new FileReader();
         reader.onload = () => {
           last = this.addEntry(f.name, String(reader.result), { select: false });
-          if (--pending === 0) this.afterLoad(last, list.length);
+          done();
         };
-        reader.onerror = () => { this.flash(`Could not read ${f.name}`); if (--pending === 0 && last) this.afterLoad(last, list.length); };
+        // If nothing loads, this message is the last word.
+        reader.onerror = () => { failed.push(f.name); this.flash(`Could not read ${failed.join(', ')}.`); done(); };
         reader.readAsText(f);
       }
     }
 
-    afterLoad(last, count) {
+    afterLoad(last, count, failed = []) {
       this.persist();
       this.select(last.id);
       this.resetMatch();
-      this.flash(`Loaded ${count} file${count > 1 ? 's' : ''}.`);
+      const skipped = failed.length ? ` Could not read ${failed.join(', ')}.` : '';
+      this.flash(`Loaded ${count} file${count > 1 ? 's' : ''}.${skipped}`);
     }
 
     // ------------------------------------------------------------ panels
@@ -471,6 +480,7 @@
         box.innerHTML = '<div class="muted">Select a robot that is in the arena to inspect its CPU.</div>';
         this.editor.setExecLine(0);
         this.editor.setCounts([]);
+        this.updateTrace(null);
         return;
       }
       const vm = r.vm;
@@ -495,6 +505,32 @@
       }
       this.editor.setExecLine(line, kind);
       this.editor.setCounts(counts);
+      this.updateTrace(r);
+    }
+
+    /** The selected robot's last CPU turn, one row per instruction, shown while paused. */
+    updateTrace(r) {
+      const vm = r && r.vm;
+      let html = '';
+      if (!vm) { /* nothing to show */ }
+      else if (this.running) html = '<div class="muted">Pause, Step or stop at a breakpoint to see the last tick\'s instructions.</div>';
+      else if (!vm.trace) html = vm.halted ? '' : '<div class="muted">Press Step to record this robot\'s next tick.</div>';
+      else {
+        const rows = vm.trace.map((t, i) => {
+          const bad = vm.lastStop === 'fault' && i === vm.trace.length - 1;
+          return `<li data-line="${t.line}"${bad ? ' class="bad"' : ''}><span class="ln">${t.line}</span>` +
+            `<code>${esc(t.asm)}</code><span class="note">${esc(t.note)}</span></li>`;
+        });
+        if (vm.lastStop === 'break') rows.push(`<li class="end bp" data-line="${vm.resumeLine}"><span class="ln">●</span><span>stopped before line ${vm.resumeLine} (breakpoint)</span></li>`);
+        else if (vm.lastStop === 'budget') rows.push(`<li class="end"><span class="ln">…</span><span>out of cycles: continues at line ${vm.currentLine} next tick</span></li>`);
+        const n = vm.trace.length;
+        html = `<div class="trace-head">Last tick: ${n} instruction${n === 1 ? '' : 's'}</div>` +
+          (rows.length ? `<ol class="trace-list">${rows.join('')}</ol>` : '');
+      }
+      // Rebuilt only on change, so rows stay clickable between 10 Hz panel refreshes.
+      if (html === this.traceHtml) return;
+      this.traceHtml = html;
+      $('#trace').innerHTML = html;
     }
 
     updateLog(force) {
@@ -664,6 +700,10 @@
         this.checkDraft();
         this.persist();
       };
+      $('#trace').addEventListener('click', (ev) => {
+        const li = ev.target.closest('li[data-line]');
+        if (li) this.editor.goToLine(Number(li.dataset.line));
+      });
       $('#errors').addEventListener('click', (ev) => {
         const li = ev.target.closest('li[data-line]');
         if (li) this.editor.goToLine(Number(li.dataset.line));

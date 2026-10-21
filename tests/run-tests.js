@@ -173,6 +173,27 @@ test('a breakpoint on the first line of a tick still stops every pass', () => {
   vm.run(50);
   assert.deepStrictEqual([vm.breakHit, vm.regs[0]], [2, 1]);
 });
+test('trace notes what each instruction did, and why the turn ended', () => {
+  const traced = (src, budget = 50) => {
+    const vm = new BB.VM(BB.assemble(src).program, { speed() {} });
+    vm.trace = [];
+    vm.run(budget);
+    return vm;
+  };
+  let vm = traced('T\n.def LIMIT 2\nloop: INC R0 ; count\nCMP R0, LIMIT\nJL loop\nMOV [R0+1], R0\nSPEED R0\nWAIT');
+  assert.deepStrictEqual(vm.trace.map((t) => t.note),
+    ['R0 = 1', '1 < 2', 'jump to line 3', 'R0 = 2', '2 = 2', 'no jump', '[3] = 2', 'value 2', 'end of turn']);
+  assert.deepStrictEqual([vm.trace[0].line, vm.trace[0].asm, vm.trace[1].asm, vm.lastStop], [3, 'INC R0', 'CMP R0, LIMIT', 'wait']);
+  vm = traced('T\nCALL f\nHALT\nf: RET');
+  assert.deepStrictEqual([vm.trace.map((t) => t.note), vm.lastStop], [['call line 4', 'return to line 3', 'CPU stopped'], 'halt']);
+  vm = traced('T\nl: JMP l', 5);
+  assert.deepStrictEqual([vm.trace.length, vm.trace[0].note, vm.lastStop], [5, 'jump to line 2', 'budget']);
+  vm = traced('T\nDIV R0, 0');
+  assert.deepStrictEqual([vm.trace.map((t) => t.note), vm.lastStop], [['division by zero.'], 'fault']);
+  vm = new BB.VM(BB.assemble('T\nINC R0\nWAIT').program, {});
+  vm.run(50);
+  assert.strictEqual(vm.trace, null, 'off unless enabled');
+});
 test('program wraps around at the end', () => {
   const vm = runVM('T\nINC R0', 10);
   assert.strictEqual(vm.regs[0], 10);
@@ -560,6 +581,34 @@ test('breakpoints pause the match before the line and resume past it', () => {
   app.stepOnce(); // INC again, then stops before line 3
   assert.match(app.message, /about to run line 3/);
   assert.strictEqual(robot.vm.regs[0], 2);
+});
+
+test('Step records a trace for the selected robot only', () => {
+  const app = uiHarness();
+  app.stepOnce();
+  const [mine, other] = app.world.robots;
+  assert.deepStrictEqual(Array.from(mine.vm.trace, (t) => [t.line, t.asm, t.note]), [[2, 'INC R0', 'R0 = 1'], [3, 'WAIT', 'end of turn']]);
+  assert.strictEqual(other.vm.trace, null);
+});
+
+test('robots that cannot spawn randomly still start clear of obstacles', () => {
+  // Walls everywhere except a 70x70 pocket: random tries almost never land in it.
+  const obstacles = [
+    { x: 0, y: 0, w: 300, h: 600 }, { x: 370, y: 0, w: 430, h: 600 },
+    { x: 300, y: 0, w: 70, h: 250 }, { x: 300, y: 320, w: 70, h: 280 },
+  ];
+  for (const seed of [1, 2, 3]) {
+    const w = new BB.World({ entries: [compile('A\nWAIT', 0)], obstacles, seed });
+    const r = w.robots[0];
+    for (const o of obstacles) assert.strictEqual(BB.geo.circleRectPush(r.x, r.y, BB.CONFIG.ROBOT_RADIUS, o), null, `seed ${seed}: ${r.x},${r.y}`);
+  }
+});
+
+test('long names are truncated without splitting an emoji', () => {
+  const res = BB.assemble(`${'A'.repeat(23)}🤖🤖\nWAIT`);
+  assert.strictEqual(res.name, `${'A'.repeat(23)}🤖`);
+  assert.strictEqual(res.warnings.length, 1);
+  assert.strictEqual(BB.assemble(`${'A'.repeat(23)}🤖\nWAIT`).warnings.length, 0, '24 characters fit');
 });
 
 test('breakpoints only go on instruction lines and follow the applied code', () => {
