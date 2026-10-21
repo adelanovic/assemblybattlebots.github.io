@@ -140,6 +140,15 @@ test('WAIT yields the rest of the tick', () => {
   const vm = runVM('T\nINC R0\nWAIT', 50);
   assert.strictEqual(vm.regs[0], 1);
 });
+test('currentLine survives RET to a negative address at the end of a tick', () => {
+  const vm = runVM('T\nPUSH -1\nRET', 2);
+  assert.strictEqual(vm.pc, -1);
+  assert.strictEqual(vm.currentLine, 2);
+});
+test('a fault records the source line for the editor marker', () => {
+  const vm = runVM('T\nMOV R0, 1\n\nDIV R0, R1');
+  assert.strictEqual(vm.faultLine, 4);
+});
 test('program wraps around at the end', () => {
   const vm = runVM('T\nINC R0', 10);
   assert.strictEqual(vm.regs[0], 10);
@@ -476,6 +485,41 @@ test('valid Apply still hot-swaps the CPU and preserves the body', () => {
   assert.deepStrictEqual([robot.x, robot.y, robot.health], body);
   app.world.step();
   assert.strictEqual(robot.vm.regs[0], 42);
+});
+
+test('program reloads keep duplicate robot names distinct', () => {
+  const w = new BB.World({ entries: [compile('Twin\nWAIT', 0), compile('Twin\nWAIT', 1)], arena: 'open' });
+  const [a, b] = w.robots;
+  w.renameRobot(b, 'Twin');
+  assert.strictEqual(b.name, 'Twin (2)');
+  w.renameRobot(a, 'Other');
+  assert.strictEqual(a.name, 'Other');
+  w.renameRobot(a, 'Twin');
+  assert.strictEqual(a.name, 'Twin');
+  w.renameRobot(b, 'Other');
+  assert.strictEqual(b.name, 'Other');
+});
+
+test('hot-swap renames through the world, keeping a duplicate suffix', () => {
+  const app = uiHarness();
+  app.world = new BB.World({ entries: [compile('A\nWAIT', 0), compile('A\nWAIT', 1)], arena: 'open' });
+  app.entries[0].id = 1;
+  app.selectedId = 1;
+  app.world.step();
+  app.selected.draft = 'A\nMOV R0, 1\nWAIT';
+  app.applyDraft();
+  assert.deepStrictEqual(app.world.robots.map((r) => r.name), ['A', 'A (2)']);
+});
+
+test('CRLF sources are stored with LF so they match the editor textarea', () => {
+  const app = uiHarness();
+  app.nextId = 5;
+  const e = app.addEntry('win.asm', 'Win\r\nINC R0\r\nWAIT\r\n', { select: false, draft: 'Win\rWAIT' });
+  assert.strictEqual(e.source, 'Win\nINC R0\nWAIT\n');
+  assert.strictEqual(e.draft, 'Win\nWAIT');
+  const plain = app.addEntry('win2.asm', 'Win\r\nWAIT', { select: false });
+  assert.strictEqual(plain.draft, plain.source);
+  assert.deepStrictEqual(plain.compiled.errors, []);
 });
 
 test('Step rejects incomplete teams and allows ready teams and solo practice', () => {

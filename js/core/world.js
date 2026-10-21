@@ -242,6 +242,13 @@
       return a !== b && (a.team === null || a.team !== b.team);
     }
 
+    /** Rename `r` after a program reload, numbering it "(2)", "(3)"... if another robot has the name. */
+    renameRobot(r, name) {
+      let label = name;
+      for (let n = 2; this.robots.some((o) => o !== r && o.name === label); n++) label = `${name} (${n})`;
+      r.name = label;
+    }
+
     addLog(text, kind = 'info') {
       this.log.push({ tick: this.tick, text, kind });
       if (this.log.length > 500) this.log.shift();

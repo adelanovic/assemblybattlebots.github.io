@@ -58,6 +58,11 @@
     compile(source) { return BB.assemble(source); }
 
     addEntry(filename, source, { select = true, draft, team } = {}) {
+      // The editor's textarea reports LF line endings, so CRLF files would never
+      // match it (no exec marker, false "Apply changes").
+      const lf = (s) => String(s).replace(/\r\n?/g, '\n');
+      source = lf(source);
+      draft = draft == null ? undefined : lf(draft);
       const entry = { id: this.nextId++, filename, source, draft: draft ?? source, compiled: this.compile(source), team: null };
       this.entries.push(entry);
       entry.team = team !== undefined ? team : this.openSlot();
@@ -281,7 +286,7 @@
       } else if (robot) {
         // Hot-swap: fresh CPU, same body.
         robot.vm = new BB.VM(e.compiled.program, this.world.makeIO(robot));
-        robot.name = e.compiled.name;
+        this.world.renameRobot(robot, e.compiled.name);
         robot.appearance = { ...e.compiled.appearance };
         robot.faultReported = false;
         e.runningSource = e.source;
@@ -425,14 +430,19 @@
       const regs = [...vm.regs].map((v, i) => `<span><i>R${i}</i>${v}</span>`).join('');
       const sens = sensors.map((s) => `<span><i>${s}</i>${this.world.sense(r, BB.ISA.SENSOR_MAP[s].id)}</span>`).join('');
       const state = vm.fault ? `<span class="bad">FAULT — ${esc(vm.fault)}</span>`
-        : vm.halted ? 'halted' : `next: line ${vm.currentLine}`;
+        : !r.alive ? 'destroyed' : vm.halted ? 'halted' : `next: line ${vm.currentLine}`;
       box.innerHTML = `
         <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
         <div class="kv">${regs}</div>
         <div class="kv sensors">${sens}</div>`;
       // Only point at a line if the editor shows the code the robot is running.
-      const showExec = !this.running && !vm.halted && e.runningSource === this.editor.value;
-      this.editor.setExecLine(showExec ? vm.currentLine : 0);
+      // A fault marks the crashing line; otherwise, while paused, the next line.
+      let line = 0, kind = 'exec';
+      if (e.runningSource === this.editor.value) {
+        if (vm.fault) { line = vm.faultLine; kind = 'fault'; }
+        else if (!this.running && !vm.halted && r.alive) line = vm.currentLine;
+      }
+      this.editor.setExecLine(line, kind);
     }
 
     updateLog(force) {

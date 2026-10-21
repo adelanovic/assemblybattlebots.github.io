@@ -40,14 +40,17 @@
       root.innerHTML = `
         <div class="ce-gutter"></div>
         <div class="ce-body">
+          <div class="ce-mark" hidden></div>
           <pre class="ce-hl" aria-hidden="true"></pre>
           <textarea class="ce-input" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
         </div>`;
       this.gutter = root.querySelector('.ce-gutter');
       this.hl = root.querySelector('.ce-hl');
       this.input = root.querySelector('.ce-input');
+      this.mark = root.querySelector('.ce-mark');
       this.errorLines = new Set();
       this.execLine = 0;
+      this.execKind = 'exec';
       this.listeners = [];
 
       this.input.addEventListener('input', () => { this.render(); this.listeners.forEach((f) => f(this.value)); });
@@ -67,10 +70,30 @@
 
     setErrors(lines) { this.errorLines = new Set(lines); this.renderGutter(); }
 
-    setExecLine(line) {
-      if (line === this.execLine) return;
+    /** Mark `line` (0 = none) as the CPU's next line ('exec') or the line that crashed ('fault'). */
+    setExecLine(line, kind = 'exec') {
+      if (line === this.execLine && kind === this.execKind) return;
       this.execLine = line;
+      this.execKind = kind;
+      this.mark.hidden = !line;
+      this.mark.className = `ce-mark ${kind}`;
       this.renderGutter();
+      if (line) this.revealLine(line);
+    }
+
+    lineHeight() { return parseFloat(getComputedStyle(this.input).lineHeight) || 18; }
+
+    /** Scroll just enough to bring `n` into view, e.g. after a jump. */
+    revealLine(n) {
+      const ta = this.input;
+      if (!ta.clientHeight) return; // editor tab hidden
+      const lh = this.lineHeight();
+      const pad = parseFloat(getComputedStyle(ta).paddingTop) || 0;
+      const top = pad + (n - 1) * lh;
+      if (top < ta.scrollTop || top + lh > ta.scrollTop + ta.clientHeight) {
+        ta.scrollTop = Math.max(0, top - ta.clientHeight / 3);
+        this.syncScroll();
+      }
     }
 
     focus() { this.input.focus(); }
@@ -82,8 +105,7 @@
       const end = pos + (lines[n - 1] || '').length;
       this.input.focus();
       this.input.setSelectionRange(pos, end);
-      const lh = parseFloat(getComputedStyle(this.input).lineHeight) || 18;
-      this.input.scrollTop = Math.max(0, (n - 5) * lh);
+      this.input.scrollTop = Math.max(0, (n - 5) * this.lineHeight());
       this.syncScroll();
     }
 
@@ -119,7 +141,7 @@
     renderGutter() {
       let html = '';
       for (let i = 1; i <= this.lineCount; i++) {
-        const cls = [this.errorLines.has(i) ? 'err' : '', this.execLine === i ? 'exec' : ''].join(' ').trim();
+        const cls = [this.errorLines.has(i) ? 'err' : '', this.execLine === i ? this.execKind : ''].join(' ').trim();
         html += `<div${cls ? ` class="${cls}"` : ''}>${i}</div>`;
       }
       this.gutter.innerHTML = html;
@@ -130,6 +152,7 @@
       this.hl.scrollTop = this.input.scrollTop;
       this.hl.scrollLeft = this.input.scrollLeft;
       this.gutter.scrollTop = this.input.scrollTop;
+      if (this.execLine) this.mark.style.transform = `translateY(${(this.execLine - 1) * this.lineHeight() - this.input.scrollTop}px)`;
     }
   }
 

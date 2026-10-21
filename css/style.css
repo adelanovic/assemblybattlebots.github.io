@@ -166,7 +166,19 @@ main {
 .ce-gutter .err { color: #fff; background: #8a2c2c; }
 .ce-gutter .exec { color: #000; background: var(--warn); }
 .ce-gutter .err.exec { background: linear-gradient(90deg, #8a2c2c 50%, var(--warn) 50%); }
-.ce-body { position: relative; flex: 1; min-width: 0; }
+.ce-gutter .fault { color: #fff; background: var(--bad); }
+.ce-body { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+/* Band behind the code line the CPU runs next (or crashed on); moved by translateY. */
+.ce-mark {
+  position: absolute;
+  top: 8px; left: 0; right: 0;
+  height: var(--lh);
+  pointer-events: none;
+  background: rgba(255, 201, 77, .14);
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.ce-mark.fault { background: rgba(255, 107, 107, .18); box-shadow: inset 3px 0 0 var(--bad); }
+.ce-mark[hidden] { display: none; }
 .ce-hl, .ce-input {
   position: absolute;
   inset: 0;

@@ -35,13 +35,15 @@
       this.cmp = 0;
       this.halted = false;
       this.fault = null;
+      this.faultLine = 0;    // source line of the faulting instruction
       this.totalCycles = 0;
     }
 
     /** Line number of the next instruction to execute (for the debugger). */
     get currentLine() {
       if (!this.program.length) return 0;
-      const pc = this.pc >= this.program.length ? 0 : this.pc;
+      // Mirrors run(): RET can leave any popped value in pc until the next cycle.
+      const pc = this.pc >= this.program.length || this.pc < 0 ? 0 : this.pc;
       return this.program[pc].line;
     }
 
@@ -62,6 +64,7 @@
         } catch (e) {
           const msg = e instanceof VMFault ? e.message : `internal error: ${e.message}`;
           this.fault = `Line ${ins.line}: ${msg}`;
+          this.faultLine = ins.line;
           this.halted = true;
         }
         if (yielded) break;

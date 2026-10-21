@@ -33,7 +33,7 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | Control | What it does |
 |---|---|
 | **▶ Start / ❚❚ Pause** (Space) | Run or pause the match. |
-| **⏭ Step** (`.`) | Advance exactly one tick. The CPU inspector and the yellow gutter marker show the next line each robot will execute. |
+| **⏭ Step** (`.`) | Advance exactly one tick. While paused, the CPU inspector and the yellow line marker in the editor show the next line the selected robot will execute. |
 | **↺ Reset** (`R`) | Respawn every robot with its *applied* code. The seed decides spawn points and `RAND`, so a seed always replays the same match. |
 | **Mode** | **Free-for-all**, **Teams 2v2** or **Teams 3v3**. In a team mode each robot card gets **A / B / Bench** buttons, and **⧉** duplicates a robot so you can field several copies. A team match only starts when both teams have exactly the right number of working robots. |
 | **Arena** | **Classic** is the fixed default layout, with four mud patches. **Random** generates a mirrored layout of obstacles and mud from the seed, so 🎲 gives a new map and the same seed always gives the same map. **Open** has no obstacles or mud, which is useful for testing aim and dodging. |
@@ -194,7 +194,7 @@ See [docs/LANGUAGE.md](docs/LANGUAGE.md) for instruction details, sensor behavio
 ## Safety: bad code can't break the arena
 
 - **Infinite loops:** the VM stops after the robot's cycle budget each tick and resumes on the next tick, so a `loop: JMP loop` only wastes its own robot's time.
-- **Runtime errors** (division by zero, stack overflow, memory out of range, SQRT of a negative number): the robot's CPU *faults* and halts with a message such as `Line 12: division by zero`, shown in the inspector and the match log. Its body stays in the arena. Other robots are unaffected.
+- **Runtime errors** (division by zero, stack overflow, memory out of range, SQRT of a negative number): the robot's CPU *faults* and halts with a message such as `Line 12: division by zero`, shown in the inspector and the match log, and the crashing line is marked red in the editor. Its body stays in the arena. Other robots are unaffected.
 - **Isolation:** a VM only has its own registers, memory and stack, plus a narrow I/O interface (`sense`, `speed`, `aim`, …). It never touches world objects directly. JavaScript exceptions are trapped per robot.
 
 ## Keeping robots private
