@@ -41,6 +41,7 @@
       this.mode = 'ffa';
       this.lastPanelUpdate = 0;
       this.renderedLogKey = null;
+      this.showCounts = false;  // editor shows how often each line ran
 
       this.renderer = new BB.Renderer($('#arena'));
       this.fitArena();
@@ -57,13 +58,15 @@
 
     compile(source) { return BB.assemble(source); }
 
-    addEntry(filename, source, { select = true, draft, team } = {}) {
+    addEntry(filename, source, { select = true, draft, team, breakpoints } = {}) {
       // The editor's textarea reports LF line endings, so CRLF files would never
       // match it (no exec marker, false "Apply changes").
       const lf = (s) => String(s).replace(/\r\n?/g, '\n');
       source = lf(source);
       draft = draft == null ? undefined : lf(draft);
       const entry = { id: this.nextId++, filename, source, draft: draft ?? source, compiled: this.compile(source), team: null };
+      // Source lines to pause before; saved with the roster.
+      entry.breakpoints = new Set(Array.isArray(breakpoints) ? breakpoints.filter(Number.isInteger) : []);
       this.entries.push(entry);
       entry.team = team !== undefined ? team : this.openSlot();
       if (select) this.select(entry.id);
@@ -81,6 +84,7 @@
       this.selectedId = id;
       const e = this.selected;
       this.editor.value = e ? e.draft : '';
+      this.editor.setBreakpoints(e ? e.breakpoints : []);
       $('#editor-pane').classList.toggle('empty', !e);
       this.showTab('editor');
       this.checkDraft();
@@ -204,8 +208,43 @@
       const problem = this.teamProblem();
       if (problem) { this.flash(problem); return; }
       this.running = false;
+      this.syncBreakpoints();
       this.world.step();
+      this.checkBreakpoint();
       this.updatePanels(true);
+    }
+
+    /** Hand each robot's CPU its entry's breakpoints, if it runs that entry's applied code. */
+    syncBreakpoints() {
+      for (const r of this.world.robots) {
+        const e = this.entry(r.entryId);
+        r.vm.breakLines = e && e.breakpoints.size > 0 && e.runningSource === e.source ? e.breakpoints : null;
+      }
+    }
+
+    /** After a tick: if a robot stopped at a breakpoint, pause and show its code. */
+    checkBreakpoint() {
+      const r = this.world.robots.find((x) => x.vm.breakHit);
+      if (!r) return false;
+      for (const x of this.world.robots) x.vm.breakHit = 0;
+      this.running = false;
+      if (this.selectedId !== r.entryId) this.select(r.entryId);
+      this.flash(`Breakpoint: ${r.name} is about to run line ${r.vm.resumeLine}.`);
+      return true;
+    }
+
+    toggleBreakpoint(line) {
+      const e = this.selected;
+      if (!e) return;
+      if (e.breakpoints.has(line)) e.breakpoints.delete(line);
+      else {
+        const res = this.compile(e.draft);
+        if (res.errors.length) { this.flash('Fix the syntax errors before setting breakpoints.'); return; }
+        if (!res.program.some((ins) => ins.line === line)) { this.flash('Breakpoints go on lines with an instruction.'); return; }
+        e.breakpoints.add(line);
+      }
+      this.editor.setBreakpoints(e.breakpoints);
+      this.persist();
     }
 
     frame(now = performance.now()) {
@@ -216,7 +255,11 @@
         let steps = Math.min(Math.floor(this.acc + 1e-9), MAX_STEPS_PER_FRAME);
         // Discard excess catch-up work after a stall, retaining only a fraction.
         this.acc = Math.max(0, this.acc - Math.floor(this.acc + 1e-9));
-        while (steps-- > 0 && !this.world.over) this.world.step();
+        if (steps > 0) this.syncBreakpoints();
+        while (steps-- > 0 && !this.world.over) {
+          this.world.step();
+          if (this.checkBreakpoint()) { this.updatePanels(true); break; }
+        }
         if (this.world.over) this.running = false;
       }
       if (this.world) {
@@ -277,6 +320,10 @@
       }
       e.source = e.draft;
       e.compiled = compiled;
+      // Drop breakpoints whose line no longer holds an instruction.
+      const lines = new Set(compiled.program.map((ins) => ins.line));
+      for (const n of e.breakpoints) if (!lines.has(n)) e.breakpoints.delete(n);
+      this.editor.setBreakpoints(e.breakpoints);
       this.persist();
       this.checkDraft();
       const robot = this.robotFor(e.id);
@@ -423,6 +470,7 @@
       if (!r) {
         box.innerHTML = '<div class="muted">Select a robot that is in the arena to inspect its CPU.</div>';
         this.editor.setExecLine(0);
+        this.editor.setCounts([]);
         return;
       }
       const vm = r.vm;
@@ -430,19 +478,23 @@
       const regs = [...vm.regs].map((v, i) => `<span><i>R${i}</i>${v}</span>`).join('');
       const sens = sensors.map((s) => `<span><i>${s}</i>${this.world.sense(r, BB.ISA.SENSOR_MAP[s].id)}</span>`).join('');
       const state = vm.fault ? `<span class="bad">FAULT — ${esc(vm.fault)}</span>`
-        : !r.alive ? 'destroyed' : vm.halted ? 'halted' : `next: line ${vm.currentLine}`;
+        : !r.alive ? 'destroyed' : vm.halted ? 'halted'
+        : vm.resumeLine && !this.running ? `<span class="bp-state">● stopped at breakpoint, line ${vm.resumeLine}</span>`
+        : `next: line ${vm.currentLine}`;
       box.innerHTML = `
         <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
         <div class="kv">${regs}</div>
         <div class="kv sensors">${sens}</div>`;
-      // Only point at a line if the editor shows the code the robot is running.
+      // Only mark lines if the editor shows the code the robot is running.
       // A fault marks the crashing line; otherwise, while paused, the next line.
-      let line = 0, kind = 'exec';
+      let line = 0, kind = 'exec', counts = [];
       if (e.runningSource === this.editor.value) {
         if (vm.fault) { line = vm.faultLine; kind = 'fault'; }
         else if (!this.running && !vm.halted && r.alive) line = vm.currentLine;
+        if (this.showCounts) counts = vm.program.map((ins, i) => [ins.line, vm.counts[i]]);
       }
       this.editor.setExecLine(line, kind);
+      this.editor.setCounts(counts);
     }
 
     updateLog(force) {
@@ -513,7 +565,7 @@
           seed: $('#seed').value,
           arena: $('#arena-type').value,
           mode: this.mode,
-          entries: this.entries.map((e) => ({ filename: e.filename, source: e.source, draft: e.draft, team: e.team })),
+          entries: this.entries.map((e) => ({ filename: e.filename, source: e.source, draft: e.draft, team: e.team, breakpoints: [...e.breakpoints] })),
         }));
       } catch (_) { /* storage unavailable: nothing to do */ }
     }
@@ -528,7 +580,7 @@
         $('#mode-type').value = this.mode;
         for (const e of saved.entries) {
           const team = TEAMS.includes(e.team) ? e.team : null;
-          this.addEntry(e.filename, e.source, { select: false, draft: e.draft, team });
+          this.addEntry(e.filename, e.source, { select: false, draft: e.draft, team, breakpoints: e.breakpoints });
         }
       } else {
         for (const ex of BB.EXAMPLES) this.addEntry(ex.file, ex.source, { select: false });
@@ -564,6 +616,8 @@
       showSpeed();
 
       $('#show-scans').onchange = (ev) => { this.renderer.showScans = ev.target.checked; };
+      $('#show-counts').onchange = (ev) => { this.showCounts = ev.target.checked; this.updateDebug(); };
+      this.editor.onGutterClick((line) => this.toggleBreakpoint(line));
 
       $('#btn-new').onclick = () => { this.addEntry('newbot.asm', BB.NEW_ROBOT_TEMPLATE); this.persist(); this.resetMatch(); this.editor.focus(); };
       $('#btn-load').onclick = () => $('#file-input').click();

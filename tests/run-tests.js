@@ -149,6 +149,30 @@ test('a fault records the source line for the editor marker', () => {
   const vm = runVM('T\nMOV R0, 1\n\nDIV R0, R1');
   assert.strictEqual(vm.faultLine, 4);
 });
+test('counts record how often each instruction ran', () => {
+  const vm = runVM('T\nloop: INC R0\n\nCMP R0, 3\nJL loop\nHALT');
+  assert.deepStrictEqual([...vm.counts], [3, 3, 3, 1]);
+});
+test('a breakpoint stops before its line, then resumes past it on the next run', () => {
+  const vm = new BB.VM(BB.assemble('T\nINC R0\nINC R1\nWAIT').program, {});
+  vm.breakLines = new Set([3]);
+  vm.run(50);
+  assert.deepStrictEqual([vm.breakHit, vm.currentLine, vm.regs[0], vm.regs[1]], [3, 3, 1, 0]);
+  vm.run(50); // runs line 3 without stopping again, then WAITs
+  assert.deepStrictEqual([vm.breakHit, vm.regs[0], vm.regs[1]], [0, 1, 1]);
+  vm.run(50); // stops again on the next pass
+  assert.deepStrictEqual([vm.breakHit, vm.regs[0], vm.regs[1]], [3, 2, 1]);
+});
+test('a breakpoint on the first line of a tick still stops every pass', () => {
+  const vm = new BB.VM(BB.assemble('T\nINC R0\nWAIT').program, {});
+  vm.breakLines = new Set([2]);
+  assert.strictEqual(vm.run(50), 0);
+  assert.deepStrictEqual([vm.breakHit, vm.regs[0]], [2, 0]);
+  vm.run(50);
+  assert.deepStrictEqual([vm.breakHit, vm.regs[0]], [0, 1]);
+  vm.run(50);
+  assert.deepStrictEqual([vm.breakHit, vm.regs[0]], [2, 1]);
+});
 test('program wraps around at the end', () => {
   const vm = runVM('T\nINC R0', 10);
   assert.strictEqual(vm.regs[0], 10);
@@ -444,13 +468,14 @@ scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui/app.js')
 function uiHarness(mode = 'ffa') {
   const app = Object.create(uiBB.App.prototype);
   const source = 'A\nINC R0\nWAIT';
-  const entry = { id: 0, source, draft: source, compiled: BB.assemble(source), runningSource: source, team: 'A' };
+  const entry = { id: 0, source, draft: source, compiled: BB.assemble(source), runningSource: source, team: 'A', breakpoints: new Set() };
   app.entries = [entry];
   app.selectedId = 0;
   app.mode = mode;
   app.world = new BB.World({ entries: [compile(source, 0), compile('B\nWAIT', 1)], arena: 'open' });
   app.persist = app.checkDraft = app.renderRoster = app.updatePanels = () => {};
   app.flash = (message) => { app.message = message; };
+  app.editor = { setBreakpoints(lines) { this.breakpoints = [...lines]; } };
   return app;
 }
 
@@ -520,6 +545,39 @@ test('CRLF sources are stored with LF so they match the editor textarea', () => 
   const plain = app.addEntry('win2.asm', 'Win\r\nWAIT', { select: false });
   assert.strictEqual(plain.draft, plain.source);
   assert.deepStrictEqual(plain.compiled.errors, []);
+});
+
+test('breakpoints pause the match before the line and resume past it', () => {
+  const app = uiHarness();
+  const robot = app.robotFor(0);
+  app.toggleBreakpoint(3);
+  app.stepOnce();
+  assert.match(app.message, /about to run line 3/);
+  assert.deepStrictEqual([robot.vm.regs[0], robot.vm.breakHit, robot.vm.resumeLine], [1, 0, 3]);
+  app.message = null;
+  app.stepOnce(); // runs the WAIT on line 3
+  assert.strictEqual(app.message, null);
+  app.stepOnce(); // INC again, then stops before line 3
+  assert.match(app.message, /about to run line 3/);
+  assert.strictEqual(robot.vm.regs[0], 2);
+});
+
+test('breakpoints only go on instruction lines and follow the applied code', () => {
+  const app = uiHarness();
+  const e = app.selected;
+  app.toggleBreakpoint(1);
+  assert.match(app.message, /lines with an instruction/);
+  app.toggleBreakpoint(2);
+  app.toggleBreakpoint(3);
+  assert.deepStrictEqual([...e.breakpoints], [2, 3]);
+  app.toggleBreakpoint(2);
+  assert.deepStrictEqual([...e.breakpoints], [3]);
+  app.toggleBreakpoint(2);
+  app.world.step();
+  e.draft = 'A\nINC R0\n\nWAIT';
+  app.applyDraft();
+  assert.deepStrictEqual([...e.breakpoints], [2], 'line 3 is now blank');
+  assert.deepStrictEqual(app.editor.breakpoints, [2]);
 });
 
 test('Step rejects incomplete teams and allows ready teams and solo practice', () => {

@@ -24,6 +24,11 @@
     constructor(program, io) {
       this.program = program;
       this.io = io;
+      // Debugger: a Set of source lines to stop before, or null. When run()
+      // reaches one it yields for the rest of the tick and sets breakHit.
+      this.breakLines = null;
+      this.breakHit = 0;
+      this.resumeLine = 0;   // the line we stopped at; runs without stopping again
       this.reset();
     }
 
@@ -37,6 +42,7 @@
       this.fault = null;
       this.faultLine = 0;    // source line of the faulting instruction
       this.totalCycles = 0;
+      this.counts = new Uint32Array(this.program.length); // times each instruction ran
     }
 
     /** Line number of the next instruction to execute (for the debugger). */
@@ -51,12 +57,20 @@
       let used = 0;
       const prog = this.program;
       if (!prog.length) { this.halted = true; return 0; }
+      let resume = this.resumeLine;
+      this.resumeLine = this.breakHit = 0;
       while (!this.halted && used < budget) {
         if (this.pc >= prog.length || this.pc < 0) this.pc = 0;
         const ins = prog[this.pc];
+        if (this.breakLines && this.breakLines.has(ins.line) && ins.line !== resume) {
+          this.breakHit = this.resumeLine = ins.line;
+          break;
+        }
+        resume = 0;
         // An expensive instruction that doesn't fit waits for the next tick.
         if (used + ins.cost > budget) break;
         used += ins.cost;
+        this.counts[this.pc]++;
         this.pc++;
         let yielded = false;
         try {

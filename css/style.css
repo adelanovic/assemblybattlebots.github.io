@@ -136,6 +136,8 @@ main {
 .inspector summary:hover { color: var(--text); }
 
 .editor-head { display: flex; align-items: center; gap: 6px; }
+.bp-state { color: var(--bad); }
+.editor-head .opt { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
 .editor-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #btn-apply.dirty { background: #a8661a; border-color: #c97d22; }
 
@@ -168,17 +170,22 @@ main {
 .ce-gutter .err.exec { background: linear-gradient(90deg, #8a2c2c 50%, var(--warn) 50%); }
 .ce-gutter .fault { color: #fff; background: var(--bad); }
 .ce-body { position: relative; flex: 1; min-width: 0; overflow: hidden; }
-/* Band behind the code line the CPU runs next (or crashed on); moved by translateY. */
-.ce-mark {
-  position: absolute;
-  top: 8px; left: 0; right: 0;
-  height: var(--lh);
-  pointer-events: none;
-  background: rgba(255, 201, 77, .14);
-  box-shadow: inset 3px 0 0 var(--warn);
+.ce-gutter { cursor: pointer; }
+.ce-gutter div { position: relative; }
+.ce-gutter div:hover::before, .ce-gutter .bp::before {
+  content: ''; position: absolute; left: 6px; top: 50%;
+  width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
+  background: rgba(255, 107, 107, .35);
 }
-.ce-mark.fault { background: rgba(255, 107, 107, .18); box-shadow: inset 3px 0 0 var(--bad); }
-.ce-mark[hidden] { display: none; }
+.ce-gutter .bp::before { background: var(--bad); }
+/* Line overlays, scrolled with translateY. Behind the code: run next / crashed bands
+   and run counts. Over the code (.ce-cover): dimming for lines that never ran. */
+.ce-marks { position: absolute; top: 8px; left: 0; right: 0; pointer-events: none; }
+.ce-band, .ce-count { position: absolute; left: 0; right: 0; height: var(--lh); }
+.ce-count { left: auto; right: 10px; font-size: 11px; color: #5f6b80; }
+.ce-band.never { background: rgba(13, 16, 21, .6); }
+.ce-band.exec { background: rgba(255, 201, 77, .14); box-shadow: inset 3px 0 0 var(--warn); }
+.ce-band.fault { background: rgba(255, 107, 107, .18); box-shadow: inset 3px 0 0 var(--bad); }
 .ce-hl, .ce-input {
   position: absolute;
   inset: 0;

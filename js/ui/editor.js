@@ -34,26 +34,43 @@
     return html;
   }
 
+  /** 950, 1.2k, 34k, 1.5M */
+  function formatCount(n) {
+    if (n < 1000) return String(n);
+    if (n < 1e6) return `${n < 1e4 ? (n / 1e3).toFixed(1) : Math.round(n / 1e3)}k`;
+    return `${(n / 1e6).toFixed(1)}M`;
+  }
+
   class CodeEditor {
     constructor(root) {
       root.classList.add('code-editor');
       root.innerHTML = `
-        <div class="ce-gutter"></div>
+        <div class="ce-gutter" title="Click a line number to set or clear a breakpoint"></div>
         <div class="ce-body">
-          <div class="ce-mark" hidden></div>
+          <div class="ce-marks"></div>
           <pre class="ce-hl" aria-hidden="true"></pre>
+          <div class="ce-marks ce-cover"></div>
           <textarea class="ce-input" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
         </div>`;
       this.gutter = root.querySelector('.ce-gutter');
       this.hl = root.querySelector('.ce-hl');
       this.input = root.querySelector('.ce-input');
-      this.mark = root.querySelector('.ce-mark');
+      this.marks = root.querySelector('.ce-marks');   // behind the code
+      this.cover = root.querySelector('.ce-cover');   // over the code, dims lines
       this.errorLines = new Set();
+      this.breakLines = new Set();
       this.execLine = 0;
       this.execKind = 'exec';
+      this.counts = [];       // [line, times run] per instruction line
+      this.countsKey = '';
       this.listeners = [];
+      this.gutterListeners = [];
 
       this.input.addEventListener('input', () => { this.render(); this.listeners.forEach((f) => f(this.value)); });
+      this.gutter.addEventListener('click', (ev) => {
+        const row = ev.target.closest('.ce-gutter > div');
+        if (row) this.gutterListeners.forEach((f) => f(Number(row.dataset.n)));
+      });
       this.input.addEventListener('scroll', () => this.syncScroll());
       this.input.addEventListener('keydown', (e) => this.onKey(e));
       this.render();
@@ -68,17 +85,43 @@
 
     onChange(fn) { this.listeners.push(fn); }
 
+    /** `fn(line)` runs when a line number is clicked. */
+    onGutterClick(fn) { this.gutterListeners.push(fn); }
+
     setErrors(lines) { this.errorLines = new Set(lines); this.renderGutter(); }
+
+    setBreakpoints(lines) { this.breakLines = new Set(lines); this.renderGutter(); }
 
     /** Mark `line` (0 = none) as the CPU's next line ('exec') or the line that crashed ('fault'). */
     setExecLine(line, kind = 'exec') {
       if (line === this.execLine && kind === this.execKind) return;
       this.execLine = line;
       this.execKind = kind;
-      this.mark.hidden = !line;
-      this.mark.className = `ce-mark ${kind}`;
+      this.renderMarks();
       this.renderGutter();
       if (line) this.revealLine(line);
+    }
+
+    /** Show how often each instruction line ran: `[[line, count], ...]`, or [] for none. Zero dims the line. */
+    setCounts(counts) {
+      const key = counts.join(';');
+      if (key === this.countsKey) return;
+      this.countsKey = key;
+      this.counts = counts;
+      this.renderMarks();
+    }
+
+    renderMarks() {
+      const lh = this.lineHeight();
+      const at = (n) => `style="top:${(n - 1) * lh}px"`;
+      let behind = '', over = '';
+      if (this.execLine) behind += `<div class="ce-band ${this.execKind}" ${at(this.execLine)}></div>`;
+      for (const [n, c] of this.counts) {
+        if (c) behind += `<div class="ce-count" ${at(n)}>×${formatCount(c)}</div>`;
+        else over += `<div class="ce-band never" ${at(n)}></div>`;
+      }
+      this.marks.innerHTML = behind;
+      this.cover.innerHTML = over;
     }
 
     lineHeight() { return parseFloat(getComputedStyle(this.input).lineHeight) || 18; }
@@ -141,8 +184,9 @@
     renderGutter() {
       let html = '';
       for (let i = 1; i <= this.lineCount; i++) {
-        const cls = [this.errorLines.has(i) ? 'err' : '', this.execLine === i ? this.execKind : ''].join(' ').trim();
-        html += `<div${cls ? ` class="${cls}"` : ''}>${i}</div>`;
+        const cls = [this.errorLines.has(i) ? 'err' : '', this.execLine === i ? this.execKind : '',
+          this.breakLines.has(i) ? 'bp' : ''].join(' ').trim();
+        html += `<div data-n="${i}"${cls ? ` class="${cls}"` : ''}>${i}</div>`;
       }
       this.gutter.innerHTML = html;
       this.syncScroll();
@@ -152,7 +196,7 @@
       this.hl.scrollTop = this.input.scrollTop;
       this.hl.scrollLeft = this.input.scrollLeft;
       this.gutter.scrollTop = this.input.scrollTop;
-      if (this.execLine) this.mark.style.transform = `translateY(${(this.execLine - 1) * this.lineHeight() - this.input.scrollTop}px)`;
+      this.marks.style.transform = this.cover.style.transform = `translateY(${-this.input.scrollTop}px)`;
     }
   }
 

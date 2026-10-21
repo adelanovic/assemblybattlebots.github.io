@@ -46,6 +46,8 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 
 The editor checks your code as you type. Errors appear under the editor and in the line gutter, and clicking an error jumps to that line. Robots with syntax errors stay in the roster but are left out of the arena until fixed. The **CPU inspector** under the editor shows the selected robot's registers and sensors live. Click its heading to collapse it and give the editor more room.
 
+**Debugging tools.** Click a line number to set a breakpoint (a red dot); click it again to clear it. When that robot reaches the line, the match pauses just *before* the line runs, the robot is selected, and the yellow marker and the CPU inspector show the state going into that line. Press Step or Start to carry on. The robot gives up the rest of that tick's CPU cycles when it stops, and runs the line on the next tick. Breakpoints are saved with the robot and can only go on lines that hold an instruction. Tick **Run counts** to see how many times each line has run this match, with lines that never ran dimmed: a quick way to spot a routine that never gets called.
+
 Apply rejects drafts with syntax errors and keeps the robot's previously applied program. The draft remains in the editor so you can fix it. Single-robot command-line practice runs stop after 6000 ticks and report a practice result; browser practice mode continues until paused.
 
 The roster, seed and arena choice are saved in your browser's `localStorage`. Keyboard shortcuts (Space, `.`, `R`) are ignored while you're typing in the editor or a form field.
