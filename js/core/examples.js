@@ -36,7 +36,7 @@ calm:
     JL   target            ; still finishing a dodge
     SPEED 0                ; otherwise stand still
 
-    ; ---------- 2. Find, lead and shoot ----------
+    ; ---------- 2. Find, lead and fire ----------
 target:
     SCAN 12
     GET  R0, SCAN_DIST
@@ -200,7 +200,7 @@ main:
     CMP  R0, DODGE_RANGE
     JG   roam
     CALL dodge
-    JMP  gun
+    JMP  targeting
 
     ; ---- 2. roam ----
 roam:
@@ -211,21 +211,21 @@ roam:
     RAND R1, 90            ; wall ahead: turn 90..179 degrees
     ADD  R1, 90
     TURN R1
-    JMP  gun
+    JMP  targeting
 wander:
     RAND R1, 40            ; about once every 40 ticks...
     CMP  R1, 0
-    JNE  gun
+    JNE  targeting
     RAND R1, 120           ; ...change course by -60..59 degrees
     SUB  R1, 60
     TURN R1
 
-    ; ---- 3. shoot ----
-gun:
+    ; ---- 3. fire ----
+targeting:
     SCAN 24
     GET  R0, SCAN_DIST
     CMP  R0, 0
-    JL   gun_sweep
+    JL   turret_sweep
     GET  R1, SCAN_ANGLE
     AIM  R1
     GET  R2, TURRET
@@ -239,7 +239,7 @@ gun:
     JNE  end
     FIRE
     JMP  end
-gun_sweep:
+turret_sweep:
     GET  R1, TURRET
     SUB  R1, 20
     AIM  R1
@@ -356,13 +356,13 @@ walls_done:
 .shape hexagon
 .drive wheels
 .turret twin
-; STRATEGY: cautious patrol with a sweeping gun.
+; STRATEGY: cautious patrol with a sweeping turret.
 ; STACK LESSON: CALL/RET share the stack with saved register values.
 ; Every helper restores its saved registers in reverse order before RET.
 ; Nested calls reach 11 stack entries, safely below the 64-entry limit.
 ; A routine may span CPU ticks: its stack remains intact between ticks.
 ;
-; Main owns R6 (completed patrol/gun passes) and R7 (cruise speed).
+; Main owns R6 (completed patrol/turret passes) and R7 (cruise speed).
 ; drive and combat preserve R0..R3 as described at their entry points.
 
 .def WALL_GAP 70
@@ -439,7 +439,7 @@ steer_direction:
     POP  R0
     RET
 
-; combat: preserve R0..R3 while scanning and calling gun helpers.
+; combat: preserve R0..R3 while scanning and calling turret helpers.
 combat:
     PUSH R0
     PUSH R1
@@ -448,11 +448,11 @@ combat:
     SCAN 45
     GET  R0, SCAN_DIST
     CMP  R0, 0
-    JL   gun_search
+    JL   turret_search
     GET  R1, SCAN_ANGLE
-    CALL shoot_if_aligned
+    CALL fire_if_aligned
     JMP  combat_done
-gun_search:
+turret_search:
     GET  R3, TURRET
     ADD  R3, 18
     AIM  R3
@@ -463,9 +463,9 @@ combat_done:
     POP  R0
     RET
 
-; shoot_if_aligned: input R1=bearing; preserve R0/R2.
+; fire_if_aligned: input R1=bearing; preserve R0/R2.
 ; angle_error returns its result in R0, which this caller then checks.
-shoot_if_aligned:
+fire_if_aligned:
     PUSH R0
     PUSH R2
     AIM  R1

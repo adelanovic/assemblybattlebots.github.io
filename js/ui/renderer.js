@@ -256,7 +256,7 @@
       this.lastTick = world.tick;
       this.updateMud(world);
       this.drawTracks(ctx, world.tick);
-      if (world.mission && world.mission.zone) this.drawZone(ctx, world.mission.zone, now);
+      if (world.mission && world.mission.zone) this.drawZone(ctx, world.mission.zone, now, world.mission.def.zoneLabel);
       this.drawFires(ctx, now);
       this.drawCasings(ctx, ticks);
       for (const r of world.robots) if (!r.alive) this.drawWreck(ctx, r);
@@ -1026,8 +1026,8 @@
       ctx.restore();
     }
 
-    /** A mission's goal zone: a softly pulsing green pad. */
-    drawZone(ctx, z, now) {
+    /** A mission's goal zone: a softly pulsing green pad, with an optional `label` under GOAL. */
+    drawZone(ctx, z, now, label) {
       const pulse = 0.5 + 0.5 * Math.sin(now / 400);
       ctx.save();
       ctx.fillStyle = `rgba(102,209,122,${(0.1 + 0.06 * pulse).toFixed(3)})`;
@@ -1040,7 +1040,12 @@
       ctx.fillStyle = '#b8f0c0';
       ctx.font = '700 13px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('GOAL', z.x + z.w / 2, z.y + z.h / 2 + 5);
+      ctx.fillText('GOAL', z.x + z.w / 2, z.y + z.h / 2 + (label ? -2 : 5));
+      if (label) {
+        ctx.font = '11px system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(184,240,192,0.85)';
+        ctx.fillText(label, z.x + z.w / 2, z.y + z.h / 2 + 14);
+      }
       ctx.restore();
     }
 

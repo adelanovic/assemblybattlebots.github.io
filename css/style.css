@@ -285,6 +285,8 @@ main {
 .mission-list .m-goal { color: #c3cad8; margin-top: 2px; }
 .mission-list .m-teaches { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
 .missions-done { margin-top: 12px; color: var(--good); }
+.unit-title { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.unit-title .unit-progress { float: right; text-transform: none; letter-spacing: 0; color: var(--good); }
 
 /* Short screens (school laptops are often 768px tall): keep the trace and
    mission bar compact so the inspector stays on screen. The trace scrolls. */

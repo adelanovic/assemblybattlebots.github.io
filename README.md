@@ -61,13 +61,23 @@ The app is built for middle-school beginners and experienced programmers alike, 
 - **Trace notes:** Simple view words the last-tick trace as sentences, for example `80 is not less than 30, so keep going` or `Look in a 10° cone: enemy 560 away!`.
 - **Inspector:** Simple view shows only the registers and sensors your program uses. Untick it to see all 8 registers, the common sensors, the stack, the compare result and cycle use.
 
-The **🎯 Missions** tab has five short challenges that come before the Field Guide's Wanderer challenges. Each one has starter code with one thing to fix, a goal, a hint that points to the right page of the guide, and a pass check:
+The **🎯 Missions** tab has ten short challenges in two units, designed to come before and alongside the Field Guide's Wanderer challenges. Each one has starter code with one thing to fix, a goal, a hint that points to the right page of the guide, and a pass check. When a mission fails, the message says what went wrong (for example "You stopped after 1.0 laps. The goal is 3." or "Every CALL needs a RET").
+
+**Unit 1: Getting started** (one instruction at a time)
 
 1. **Full speed ahead** (`SPEED`): drive into the goal zone.
 2. **Which way is up?** (`HEAD` and angles): face up and reach the goal.
 3. **Hit the target** (`AIM`, `FIRE`): work out the angle to a target.
 4. **Find it with SCAN** (`SCAN`, `CMP`, jumps): add the missing shot to a scanning robot.
 5. **Dodge!** (`RADAR`): survive a turret for 600 ticks with at least 50 health.
+
+**Unit 2: Registers, loops and functions** (each mission builds on the one before)
+
+6. **Park it** (registers, `GET`, `CMP`): stop inside a zone by comparing your X position in a register.
+7. **Three in a row** (changing a register in a loop): add 30 to the aim angle after each shot. More than 6 shots for the 3 targets fails, so aiming matters.
+8. **Three laps** (counting with `INC`): count ticks in a register and stop after exactly 3 laps.
+9. **Come back!** (`CALL` and `RET`): one "fire_at" function for two targets, missing its `RET`.
+10. **Boss: dodge and attack** (building a program from functions): finish a `dodge` function; `attack` is already written.
 
 While a mission runs, your own robots sit out. Click a robot card or **Exit mission** to return to them. Mission code and progress are saved in the browser. The tests check that every mission's starter code fails and its reference solution passes.
 
@@ -139,9 +149,9 @@ There is no "dodge" instruction. Robots dodge by calling `RADAR` to find an inco
 | **Hunter** | Wedge, wheels, twin turret | Aggressive chaser. Wide scan, charges straight at the enemy, fires when lined up, never dodges. |
 | **Dodger** | Circle, wheels, short turret | Evasive skirmisher. Always moving, bounces off walls, swerves away from every projectile, independent turret. |
 | **Orbiter** | Tank, hover, standard turret | Circle-strafer. Locks on, orbits at about 200 units while firing, flips direction near walls. |
-| **Stacker** | Hexagon, wheels, twin turret | Cautious patrol with a sweeping gun. Demonstrates nested calls, explicit register saves and reverse-order restoration. |
+| **Stacker** | Hexagon, wheels, twin turret | Cautious patrol with a sweeping turret. Demonstrates nested calls, explicit register saves and reverse-order restoration. |
 
-**Learning the stack:** load [examples/stacker.asm](examples/stacker.asm) and Step through its routines with the CPU inspector open. `main → combat → shoot_if_aligned → angle_error` nests three calls while saving registers with `PUSH`; each routine restores them with `POP` before `RET`. The deepest path uses 11 of the 64 stack entries. The stack is empty at the main loop's `WAIT`, and register `R6` counts completed patrol/gun passes. Helpers can span several CPU ticks without losing their saved values. `CMP` state is not saved by `PUSH`, so each branch checks a fresh comparison after a helper returns.
+**Learning the stack:** load [examples/stacker.asm](examples/stacker.asm) and Step through its routines with the CPU inspector open. `main → combat → fire_if_aligned → angle_error` nests three calls while saving registers with `PUSH`; each routine restores them with `POP` before `RET`. The deepest path uses 11 of the 64 stack entries. The stack is empty at the main loop's `WAIT`, and register `R6` counts completed patrol/turret passes. Helpers can span several CPU ticks without losing their saved values. `CMP` state is not saved by `PUSH`, so each branch checks a fresh comparison after a helper returns.
 
 ## Rules of the arena
 

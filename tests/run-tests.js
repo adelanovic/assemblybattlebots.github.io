@@ -725,6 +725,31 @@ test('every mission: starter assembles but does not pass, solution passes in tim
   }
 });
 
+test('mission units list every mission exactly once, in order', () => {
+  const listed = BB.MISSION_UNITS.flatMap((u) => u.ids);
+  assert.deepStrictEqual(listed, BB.MISSIONS.map((m) => m.id));
+});
+
+test('unit 2 missions explain what went wrong, not just that it did', () => {
+  const M = (id) => BB.MISSIONS.find((m) => m.id === id);
+  const play = (id, edit) => {
+    const def = M(id);
+    const w = BB.buildMission(def, BB.assemble(edit(def.solution)));
+    for (let t = 0; t <= def.maxTicks && !w.over; t++) w.step();
+    return w.mission.result;
+  };
+  assert.match(play('park', (s) => s.replace('CMP  R0, 500', 'CMP  R0, 600')).text, /parked at x = 6\d\d\. The zone goes from x = 480/);
+  assert.ok(play('park', (s) => s.replace('CMP  R0, 500', 'CMP  R0, 590')).ok, 'stopping near the far edge still fits');
+  assert.match(play('sweep', (s) => s.replace('ADD  R1, 30', 'SUB  R1, 30')).text, /too many misses/);
+  assert.ok(play('sweep', (s) => s.replace('ADD  R1, 30', 'ADD  R1, 15')).ok, 'smaller steps still work');
+  assert.match(play('laps', (s) => s.replace('CMP  R5, 180', 'CMP  R5, 60')).text, /stopped after 1\.0 laps\. The goal is 3/);
+  assert.ok(play('laps', (s) => s.replace('INC  R5', 'ADD  R5, 1')).ok, 'ADD R5, 1 counts too');
+  assert.match(play('call', (s) => s.replace('    RET', '')).text, /Every CALL needs a RET/);
+  assert.match(play('call', (s) => s.replace('MOV  R1, 45', 'MOV  R1, 90')).text, /comes back now, so check the angles/);
+  assert.match(play('boss', (s) => s.replace('    TURN 90\n    SPEED 5\n', '')).text, /Too many hits/);
+  assert.ok(play('boss', (s) => s.replace('TURN 90', 'TURN -90')).ok, 'turning the other way also dodges');
+});
+
 test('Dodge accepts any turn-and-drive answer but not half of one', () => {
   const def = BB.MISSIONS.find((m) => m.id === 'dodge');
   const run = (body) => {

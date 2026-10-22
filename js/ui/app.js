@@ -786,18 +786,25 @@
       const box = $('#missions');
       const done = new Set(this.missionState.done);
       const all = BB.MISSIONS.every((m) => done.has(m.id));
+      const card = (m) => {
+        const i = BB.MISSIONS.indexOf(m), active = this.mission === m;
+        const label = active ? 'Playing' : done.has(m.id) ? 'Play again' : 'Start';
+        return `<li class="${done.has(m.id) ? 'done' : ''} ${active ? 'active' : ''}">
+          <span class="m-num">${done.has(m.id) ? '✓' : i + 1}</span>
+          <div class="m-body"><b>${esc(m.title)}</b><div class="m-goal">${esc(m.goal)}</div><div class="m-teaches">Teaches: ${esc(m.teaches)}</div></div>
+          <button data-mission="${m.id}" ${active ? 'disabled' : ''} class="${!active && !done.has(m.id) ? 'primary' : ''}">${label}</button>
+        </li>`;
+      };
+      const units = BB.MISSION_UNITS.map((u, n) => {
+        const ms = u.ids.map((id) => BB.MISSIONS.find((m) => m.id === id));
+        const finished = ms.filter((m) => done.has(m.id)).length;
+        return `<h3 class="unit-title">Unit ${n + 1}: ${esc(u.title)} <span class="unit-progress">${finished} / ${ms.length}</span></h3>
+          <ol class="mission-list">${ms.map(card).join('')}</ol>`;
+      }).join('');
       box.innerHTML = `
         <p class="missions-intro">Short challenges that each teach one idea. Fix the starter code, press <b>Apply</b>, then <b>▶ Start</b>.
           Hover over any instruction in the editor to see what it does. Your Student Field Guide explains everything in more detail.</p>
-        <ol class="mission-list">${BB.MISSIONS.map((m, i) => {
-          const active = this.mission === m;
-          const label = active ? 'Playing' : done.has(m.id) ? 'Play again' : 'Start';
-          return `<li class="${done.has(m.id) ? 'done' : ''} ${active ? 'active' : ''}">
-            <span class="m-num">${done.has(m.id) ? '✓' : i + 1}</span>
-            <div class="m-body"><b>${esc(m.title)}</b><div class="m-goal">${esc(m.goal)}</div><div class="m-teaches">Teaches: ${esc(m.teaches)}</div></div>
-            <button data-mission="${m.id}" ${active ? 'disabled' : ''} class="${!active && !done.has(m.id) ? 'primary' : ''}">${label}</button>
-          </li>`;
-        }).join('')}</ol>
+        ${units}
         ${all ? '<p class="missions-done">🏆 All missions complete! Try the Field Guide\'s challenges next, then battle your friends.</p>' : ''}`;
     }
 
