@@ -257,8 +257,8 @@ test('every robot gets the same budget per tick', () => {
   assert.strictEqual(w.robots[0].vm.totalCycles, 10 * BB.CONFIG.CYCLES_PER_TICK);
   assert.strictEqual(w.robots[1].vm.totalCycles, 10 * BB.CONFIG.CYCLES_PER_TICK);
 });
-test('shooting a stationary target destroys it and ends the match', () => {
-  const shooter = compile(`Shooter
+test('firing at a stationary target destroys it and ends the match', () => {
+  const marksman = compile(`Marksman
 l: SCAN 6
 GET R0, SCAN_DIST
 CMP R0, 0
@@ -277,9 +277,9 @@ JMP l`, 0);
   // Seed search: ensure the two have line of sight at some point; they are static so pick a seed that works.
   let won = false;
   for (let seed = 1; seed <= 10 && !won; seed++) {
-    const w = new BB.World({ entries: [shooter, dummy], seed });
+    const w = new BB.World({ entries: [marksman, dummy], seed });
     while (!w.over) w.step();
-    won = w.winner && w.winner.name === 'Shooter' && !w.robots[1].alive;
+    won = w.winner && w.winner.name === 'Marksman' && !w.robots[1].alive;
   }
   assert.ok(won);
 });
@@ -402,9 +402,9 @@ WAIT`;
   assert.deepStrictEqual([me.vm.regs[0], me.vm.regs[1], me.vm.regs[2]], [-1, 1, 1]);
 });
 test('no friendly fire, and RADAR ignores teammates\' shots', () => {
-  const shooter = 'Shooter\nFIRE\nWAIT';
+  const marksman = 'Marksman\nFIRE\nWAIT';
   const watcher = 'Watcher\nRADAR\nGET R0, THREAT_DIST\nMAX R1, R0\nWAIT';
-  const w = new BB.World({ entries: [teamEntry(shooter, 0, 0), teamEntry(watcher, 1, 0), teamEntry('Foe\nWAIT', 2, 1)], seed: 1, arena: 'open' });
+  const w = new BB.World({ entries: [teamEntry(marksman, 0, 0), teamEntry(watcher, 1, 0), teamEntry('Foe\nWAIT', 2, 1)], seed: 1, arena: 'open' });
   const [s, mate, foe] = w.robots;
   Object.assign(s, { x: 100, y: 300, heading: 0, targetHeading: 0, turret: 0, targetTurret: 0 });
   Object.assign(mate, { x: 250, y: 300 });
@@ -692,7 +692,7 @@ test('trace facts let Simple view explain comparisons, jumps and sensor reads', 
     '80 is not less than 30, so keep going',
     'Look in a 20° cone: enemy 230 away!',
     'No bullets coming',
-    'Gun still reloading (4 more ticks)',
+    'Turret still reloading (4 more ticks)',
     'Done for this tick',
   ]);
 });
@@ -1337,8 +1337,8 @@ test('Stacker runs full practice sessions on every arena without stack growth or
     for (let tick = 0; tick < BB.CONFIG.MAX_TICKS; tick++) world.step();
     assert.strictEqual(robot.vm.fault, null, `${arena}/${seed}`);
     assert.ok(peak <= 11);
-    assert.ok(robot.vm.regs[6] > 20, `${arena}/${seed}: patrol/gun passes did not progress`);
-    assert.ok(robot.stats.shots === 0, 'solo robot should not shoot nonexistent targets');
+    assert.ok(robot.vm.regs[6] > 20, `${arena}/${seed}: patrol/turret passes did not progress`);
+    assert.ok(robot.stats.shots === 0, 'solo robot should not fire at nonexistent targets');
   }
 });
 

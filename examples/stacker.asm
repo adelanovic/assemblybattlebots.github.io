@@ -2,13 +2,13 @@ Stacker
 .shape hexagon
 .drive wheels
 .turret twin
-; STRATEGY: cautious patrol with a sweeping gun.
+; STRATEGY: cautious patrol with a sweeping turret.
 ; STACK LESSON: CALL/RET share the stack with saved register values.
 ; Every helper restores its saved registers in reverse order before RET.
 ; Nested calls reach 11 stack entries, safely below the 64-entry limit.
 ; A routine may span CPU ticks: its stack remains intact between ticks.
 ;
-; Main owns R6 (completed patrol/gun passes) and R7 (cruise speed).
+; Main owns R6 (completed patrol/turret passes) and R7 (cruise speed).
 ; drive and combat preserve R0..R3 as described at their entry points.
 
 .def WALL_GAP 70
@@ -85,7 +85,7 @@ steer_direction:
     POP  R0
     RET
 
-; combat: preserve R0..R3 while scanning and calling gun helpers.
+; combat: preserve R0..R3 while scanning and calling turret helpers.
 combat:
     PUSH R0
     PUSH R1
@@ -94,11 +94,11 @@ combat:
     SCAN 45
     GET  R0, SCAN_DIST
     CMP  R0, 0
-    JL   gun_search
+    JL   turret_search
     GET  R1, SCAN_ANGLE
-    CALL shoot_if_aligned
+    CALL fire_if_aligned
     JMP  combat_done
-gun_search:
+turret_search:
     GET  R3, TURRET
     ADD  R3, 18
     AIM  R3
@@ -109,9 +109,9 @@ combat_done:
     POP  R0
     RET
 
-; shoot_if_aligned: input R1=bearing; preserve R0/R2.
+; fire_if_aligned: input R1=bearing; preserve R0/R2.
 ; angle_error returns its result in R0, which this caller then checks.
-shoot_if_aligned:
+fire_if_aligned:
     PUSH R0
     PUSH R2
     AIM  R1

@@ -110,24 +110,24 @@ main:
       dummies: [{ source: dummy('Target'), x: 450, y: 170, heading: 180, health: 30 }],
       maxTicks: 600,
       check: (w) => (!w.robots[1].alive ? { ok: true, text: 'Target destroyed!' } : null),
-      starter: `Gunner
+      starter: `Aimer
 ; Mission 3: hit the target 3 times.
 ; AIM points your turret: 0 = right, 90 = down, 180 = left, 270 = up.
 ; The target is up and to the right of you.
 main:
     AIM 0        ; <- point at the target
-    FIRE         ; shoot (the gun reloads for 15 ticks)
+    FIRE         ; fire (the turret reloads for 15 ticks)
     WAIT
     JMP main
 `,
-      solution: 'Gunner\nmain:\n    AIM 315\n    FIRE\n    WAIT\n    JMP main',
+      solution: 'Aimer\nmain:\n    AIM 315\n    FIRE\n    WAIT\n    JMP main',
     },
     {
       id: 'scan',
       title: 'Find it with SCAN',
       teaches: 'SCAN, CMP and jumps',
-      goal: 'This robot already spins its turret and finds the target with SCAN, but it never shoots. Make it fire and destroy the target.',
-      hint: 'Read the code from top to bottom. After it finds the target and aims at it, one instruction is missing: the one that shoots. Turn on the CPU inspector and press Step to watch it look around.',
+      goal: 'This robot already spins its turret and finds the target with SCAN, but it never fires. Make it fire and destroy the target.',
+      hint: 'Read the code from top to bottom. After it finds the target and aims at it, one instruction is missing: the one that fires. Turn on the CPU inspector and press Step to watch it look around.',
       guide: 'Field Guide: Challenge 6 "First shot"',
       start: { x: 180, y: 450, heading: 0 },
       dummies: [{ source: dummy('Target'), x: 640, y: 130, heading: 180, health: 30 }],
@@ -135,7 +135,7 @@ main:
       check: (w) => (!w.robots[1].alive ? { ok: true, text: 'Found it and hit it!' } : null),
       starter: `Seeker
 ; Mission 4: this robot spins its turret and looks with SCAN.
-; When SCAN finds the target, it aims at it... but never shoots!
+; When SCAN finds the target, it aims at it... but never fires!
 ; Add one line so it fires.
 main:
     SCAN 10              ; look where the turret points
@@ -143,8 +143,8 @@ main:
     CMP  R1, -1
     JE   spin            ; nobody found: keep spinning
     GET  R2, SCAN_ANGLE  ; found it! which way?
-    AIM  R2              ; point the gun at it
-                         ; <- add the shooting line here
+    AIM  R2              ; point the turret at it
+                         ; <- add the firing line here
     WAIT
     JMP  main
 spin:
@@ -176,7 +176,7 @@ spin:
       id: 'dodge',
       title: 'Dodge!',
       teaches: 'RADAR',
-      goal: 'A turret is shooting at you. Survive for 600 ticks with at least 50 health.',
+      goal: 'A turret is firing at you. Survive for 600 ticks with at least 50 health.',
       hint: 'A robot that sits still is easy to hit. When RADAR sees a bullet, keep turning and driving, so the bullet arrives where you used to be. The comments in the code show how.',
       guide: 'Field Guide: Challenge 8 "Bullet dodger"',
       start: { x: 250, y: 300, heading: 90 },
@@ -185,7 +185,7 @@ spin:
       check: (w, me) => (me.health < 50 ? { ok: false, text: 'Too many hits! Get moving when a bullet is coming.' } : null),
       timeUp: () => ({ ok: true, text: 'You survived!' }),
       starter: `Dodger
-; Mission 5: a turret is shooting at you! Survive 600 ticks.
+; Mission 5: a turret is firing at you! Survive 600 ticks.
 ; RADAR spots bullets flying at you. Right now this robot
 ; notices them... and just sits there.
 main:
@@ -257,7 +257,7 @@ park:
       title: 'Three in a row',
       teaches: 'changing a register in a loop',
       goal: 'Destroy all three targets. They are at angles 330, 0 and 30.',
-      hint: 'R1 holds the angle the gun aims at. It starts at 330. After each shot, make R1 bigger by 30 with "ADD R1, 30", so the next time round the loop the gun aims at the next target.',
+      hint: 'R1 holds the angle the turret aims at. It starts at 330. After each shot, make R1 bigger by 30 with "ADD R1, 30", so the next time round the loop the turret aims at the next target.',
       guide: 'Field Guide: "Every instruction, explained" (ADD)',
       // Facing the first target, so the very first shot can hit it.
       start: { x: 150, y: 300, heading: 330 },
@@ -275,9 +275,9 @@ park:
 ; R1 holds the angle to aim at. It starts at 330.
     MOV  R1, 330
 loop:
-    AIM  R1            ; point the gun at the angle in R1
+    AIM  R1            ; point the turret at the angle in R1
 reload:
-    GET  R0, COOLDOWN  ; is the gun ready? (0 = ready)
+    GET  R0, COOLDOWN  ; is the turret ready? (0 = ready)
     CMP  R0, 0
     JG   not_ready
     FIRE
@@ -335,8 +335,8 @@ stop:
       id: 'call',
       title: 'Come back!',
       teaches: 'functions: CALL and RET',
-      goal: 'Destroy both targets, using one "shoot" function for both.',
-      hint: 'CALL jumps to a function and remembers where it came from. RET goes back there. Without a RET at the end of "shoot", the robot never comes back for the second target. Every CALL needs a RET!',
+      goal: 'Destroy both targets, using one "fire_at" function for both.',
+      hint: 'CALL jumps to a function and remembers where it came from. RET goes back there. Without a RET at the end of "fire_at", the robot never comes back for the second target. Every CALL needs a RET!',
       guide: 'Field Guide: "Subroutines and timing"',
       start: { x: 200, y: 300, heading: 0 },
       dummies: [315, 45].map((a) => ({ source: dummy('Target'), ...around(200, 300, a, 220), heading: 180, health: 10 })),
@@ -345,25 +345,25 @@ stop:
       timeUp: (w, me) => {
         const hit = w.robots.slice(1).filter((r) => !r.alive).length;
         if (!me.vm.program.some((ins) => ins.op === 'RET')) {
-          return { ok: false, text: `${hit} of 2 targets hit. Did your robot come back from "shoot"? Every CALL needs a RET.` };
+          return { ok: false, text: `${hit} of 2 targets hit. Did your robot come back from "fire_at"? Every CALL needs a RET.` };
         }
-        return { ok: false, text: `${hit} of 2 targets hit. "shoot" comes back now, so check the angles in R1, and keep the WAIT after FIRE so the shot leaves before the gun turns.` };
+        return { ok: false, text: `${hit} of 2 targets hit. "fire_at" comes back now, so check the angles in R1, and keep the WAIT after FIRE so the shot leaves before the turret turns.` };
       },
       starter: `Caller
-; Mission 9: one "shoot" function, used for two targets.
+; Mission 9: one "fire_at" function, used for two targets.
 ; CALL jumps to a function and remembers where it came from.
 ; RET jumps back, to the line after the CALL.
 main:
     MOV  R1, 315      ; first target: up and right
-    CALL shoot
+    CALL fire_at
     MOV  R1, 45       ; second target: down and right
-    CALL shoot
+    CALL fire_at
     HALT              ; all done!
 
-; ---- shoot: aim at the angle in R1, wait, then fire ----
-shoot:
+; ---- fire_at: aim at the angle in R1, wait, then fire ----
+fire_at:
     AIM  R1
-    MOV  R2, 15       ; wait 15 ticks for the gun to turn and reload
+    MOV  R2, 15       ; wait 15 ticks for the turret to turn and reload
 pause:
     WAIT
     DEC  R2
@@ -373,13 +373,13 @@ pause:
     WAIT
                       ; <- something is missing! Every CALL needs a...
 `,
-      solution: 'Caller\nmain:\n    MOV  R1, 315\n    CALL shoot\n    MOV  R1, 45\n    CALL shoot\n    HALT\nshoot:\n    AIM  R1\n    MOV  R2, 15\npause:\n    WAIT\n    DEC  R2\n    CMP  R2, 0\n    JG   pause\n    FIRE\n    WAIT\n    RET',
+      solution: 'Caller\nmain:\n    MOV  R1, 315\n    CALL fire_at\n    MOV  R1, 45\n    CALL fire_at\n    HALT\nfire_at:\n    AIM  R1\n    MOV  R2, 15\npause:\n    WAIT\n    DEC  R2\n    CMP  R2, 0\n    JG   pause\n    FIRE\n    WAIT\n    RET',
     },
     {
       id: 'boss',
       title: 'Boss: dodge and attack',
       teaches: 'building a program from functions',
-      goal: 'Destroy the turret before your health drops below 40. It shoots fast, so you must dodge as well as attack.',
+      goal: 'Destroy the turret before your health drops below 40. It fires fast, so you must dodge as well as attack.',
       hint: 'The main loop calls two functions every tick. "attack" is done for you. Finish "dodge" with your answer from Mission 5: keep turning and drive fast while a bullet is coming.',
       guide: 'Field Guide: Challenge 8 "Bullet dodger"',
       start: { x: 200, y: 300, heading: 90 },
@@ -392,9 +392,9 @@ pause:
       },
       timeUp: () => ({ ok: false, text: 'Time\'s up: the turret is still standing. Is "attack" being called?' }),
       starter: `Boss
-; Mission 10: beat the turret! It shoots fast, so dodge too.
+; Mission 10: beat the turret! It fires fast, so dodge too.
 ; The main loop calls two functions every tick:
-;   attack - finds the turret and shoots it (done for you)
+;   attack - finds the turret and fires at it (done for you)
 ;   dodge  - gets out of the way of bullets (you finish it!)
 main:
     CALL dodge
@@ -402,17 +402,17 @@ main:
     WAIT
     JMP  main
 
-; ---- attack: look for the turret, shoot when found ----
+; ---- attack: look for the turret, fire when found ----
 attack:
     SCAN 10
     GET  R1, SCAN_DIST
     CMP  R1, -1
-    JE   turn_gun        ; nothing found: turn the gun a bit
+    JE   turn_turret        ; nothing found: turn the turret a bit
     GET  R2, SCAN_ANGLE
     AIM  R2
     FIRE
     RET
-turn_gun:
+turn_turret:
     GET  R2, TURRET
     ADD  R2, 10
     AIM  R2
@@ -438,12 +438,12 @@ attack:
     SCAN 10
     GET  R1, SCAN_DIST
     CMP  R1, -1
-    JE   turn_gun
+    JE   turn_turret
     GET  R2, SCAN_ANGLE
     AIM  R2
     FIRE
     RET
-turn_gun:
+turn_turret:
     GET  R2, TURRET
     ADD  R2, 10
     AIM  R2

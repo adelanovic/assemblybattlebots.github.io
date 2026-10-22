@@ -18,7 +18,7 @@ main:
     CMP  R0, DODGE_RANGE
     JG   roam
     CALL dodge
-    JMP  gun
+    JMP  targeting
 
     ; ---- 2. roam ----
 roam:
@@ -29,21 +29,21 @@ roam:
     RAND R1, 90            ; wall ahead: turn 90..179 degrees
     ADD  R1, 90
     TURN R1
-    JMP  gun
+    JMP  targeting
 wander:
     RAND R1, 40            ; about once every 40 ticks...
     CMP  R1, 0
-    JNE  gun
+    JNE  targeting
     RAND R1, 120           ; ...change course by -60..59 degrees
     SUB  R1, 60
     TURN R1
 
-    ; ---- 3. shoot ----
-gun:
+    ; ---- 3. fire ----
+targeting:
     SCAN 24
     GET  R0, SCAN_DIST
     CMP  R0, 0
-    JL   gun_sweep
+    JL   turret_sweep
     GET  R1, SCAN_ANGLE
     AIM  R1
     GET  R2, TURRET
@@ -57,7 +57,7 @@ gun:
     JNE  end
     FIRE
     JMP  end
-gun_sweep:
+turret_sweep:
     GET  R1, TURRET
     SUB  R1, 20
     AIM  R1

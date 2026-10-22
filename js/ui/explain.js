@@ -48,8 +48,8 @@
     SPEED: 'Drive at this speed: -3 (backward) up to 5 (full speed). The robot speeds up a little each tick.',
     TURN: 'Turn this many degrees from where you face now. + turns right, - turns left.',
     HEAD: 'Turn to face an exact direction: 0 = right, 90 = down, 180 = left, 270 = up.',
-    AIM: 'Point the turret (the gun) at an exact direction: 0 = right, 90 = down, 180 = left, 270 = up.',
-    FIRE: 'Shoot, if the gun is ready. After a shot it needs 15 ticks to reload.',
+    AIM: 'Point the turret at an exact direction: 0 = right, 90 = down, 180 = left, 270 = up.',
+    FIRE: 'Fire, if the turret is ready. After firing it needs 15 ticks to reload.',
     SCAN: 'Look for the nearest enemy in a cone around the turret, like a flashlight. Narrow cones see farther.',
     RADAR: 'Look for a bullet flying at you (within 250 units).',
   };
@@ -61,7 +61,7 @@
     SPEED: 'How fast I\'m moving right now.',
     HEALTH: 'How much health I have left (0 to 100).',
     COOLDOWN: 'Ticks until I can fire again. 0 means ready!',
-    TURRET: 'Which way my gun is pointing (0 to 359°).',
+    TURRET: 'Which way my turret is pointing (0 to 359°).',
     SCAN_DIST: 'How far away the enemy my SCAN found is. -1 means nobody was found.',
     SCAN_ANGLE: 'Which way the enemy my SCAN found is.',
     SCAN_X: 'Where the enemy my SCAN found is, left to right.',
@@ -123,11 +123,11 @@
       case 'SPEED': return `Drive at speed ${t.value}`;
       case 'TURN': return `Turn ${Math.abs(t.value)}° ${t.value < 0 ? 'left' : 'right'}`;
       case 'HEAD': return `Turn to face ${direction(t.value)}`;
-      case 'AIM': return `Point the gun at ${direction(t.value)}`;
+      case 'AIM': return `Point the turret at ${direction(t.value)}`;
       case 'PUSH': return `Save ${t.value} on the stack`;
       case 'SCAN': return t.found < 0 ? `Look in a ${t.value}° cone: nobody found` : `Look in a ${t.value}° cone: enemy ${t.found} away!`;
       case 'RADAR': return t.found < 0 ? 'No bullets coming' : `A bullet is coming, ${t.found} away!`;
-      case 'FIRE': return t.cooldown > 0 ? `Gun still reloading (${t.cooldown} more ticks)` : 'Bang! Fire';
+      case 'FIRE': return t.cooldown > 0 ? `Turret still reloading (${t.cooldown} more ticks)` : 'Fire!';
     }
     if (COND[t.op]) {
       const [yes, no] = COND[t.op];

@@ -29,7 +29,7 @@ calm:
     JL   target            ; still finishing a dodge
     SPEED 0                ; otherwise stand still
 
-    ; ---------- 2. Find, lead and shoot ----------
+    ; ---------- 2. Find, lead and fire ----------
 target:
     SCAN 12
     GET  R0, SCAN_DIST

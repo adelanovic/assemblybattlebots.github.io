@@ -598,9 +598,9 @@
           for (const r of this.robots) {
             if (!r.alive || !this.isEnemy(r, this.robots[p.owner])) continue; // no friendly fire
             if ((r.x - p.x) ** 2 + (r.y - p.y) ** 2 <= R * R) {
-              const shooter = this.robots[p.owner];
-              shooter.stats.hits++;
-              this.damage(r, C.BULLET_DAMAGE, shooter, 'shot');
+              const owner = this.robots[p.owner];
+              owner.stats.hits++;
+              this.damage(r, C.BULLET_DAMAGE, owner, 'shot');
               this.emit({ type: 'hit', x: p.x, y: p.y, color: r.color, robot: r.id, rx: r.x, ry: r.y, heading: r.heading });
               continue outer;
             }

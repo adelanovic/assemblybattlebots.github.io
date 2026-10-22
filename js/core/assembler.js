@@ -71,11 +71,11 @@
     SET: 'Use MOV to put a value in a register, e.g. "MOV R0, 5".',
     LET: 'Use MOV to put a value in a register, e.g. "MOV R0, 5".',
     PRINT: 'Robots can\'t print. Watch your registers in the CPU inspector instead.',
-    SHOOT: 'Use FIRE to shoot.',
+    SHOOT: 'Use FIRE.',
     MOVE: 'Use SPEED to drive, e.g. "SPEED 5".', DRIVE: 'Use SPEED to drive, e.g. "SPEED 5".', GO: 'Use SPEED to drive, e.g. "SPEED 5".',
     LEFT: 'Use TURN with a negative number to turn left, e.g. "TURN -90".',
     RIGHT: 'Use TURN to turn right, e.g. "TURN 90".',
-    ROTATE: 'Use TURN to turn the body, or AIM to point the gun.',
+    ROTATE: 'Use TURN to turn the body, or AIM to point the turret.',
     STOP: 'Use "SPEED 0" to stop, or HALT to end the program.',
     END: 'Use HALT to stop the program for good.',
   };

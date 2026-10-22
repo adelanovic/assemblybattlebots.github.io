@@ -122,9 +122,9 @@ Typing a change edits the draft; press Apply to use it. Applying valid code befo
 
 Load [Stacker](../examples/stacker.asm) from the Add example menu to see explicit stack use during a match. It patrols cautiously and sweeps its turret for targets, with separate routines for movement, wall checks, turning, aiming and firing.
 
-The nested gun path is `main → combat → shoot_if_aligned → angle_error`. Each `CALL` pushes a return instruction index; each routine then uses `PUSH` to save the registers it needs as scratch space. `POP` restores them in reverse order before `RET` pops the return address. The deepest gun path holds 11 entries: 3 return addresses plus 8 saved register values.
+The nested turret path is `main → combat → fire_if_aligned → angle_error`. Each `CALL` pushes a return instruction index; each routine then uses `PUSH` to save the registers it needs as scratch space. `POP` restores them in reverse order before `RET` pops the return address. The deepest turret path holds 11 entries: 3 return addresses plus 8 saved register values.
 
-The wall path, `main → drive → wall_check → steer_away`, peaks at 10 entries. Every path returns with balanced saves and restores. The stack is empty at the main loop's `WAIT`, `R6` counts completed patrol/gun passes, and `R7` keeps the cruise speed. A CPU budget boundary can pause a routine with values still on the stack; they remain available on the next tick. The comparison result is not a register and is not saved by `PUSH`, so branches perform a fresh `CMP` after helpers return.
+The wall path, `main → drive → wall_check → steer_away`, peaks at 10 entries. Every path returns with balanced saves and restores. The stack is empty at the main loop's `WAIT`, `R6` counts completed patrol/turret passes, and `R7` keeps the cruise speed. A CPU budget boundary can pause a routine with values still on the stack; they remain available on the next tick. The comparison result is not a register and is not saved by `PUSH`, so branches perform a fresh `CMP` after helpers return.
 
 Use Step with the CPU inspector to watch stack depth and the next source line. One Step advances a whole simulation tick, which can execute up to 50 CPU cycles; it does not stop after each individual PUSH or POP.
 
