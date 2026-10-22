@@ -1079,6 +1079,10 @@ test('hover help reads words where they are written (directives, presets, labels
   assert.match(hover(6, 'X'), /constant[\s\S]*<b>5<\/b>/);
   assert.match(hover(4, 'TURRET'), /sensor[\s\S]*data-ref="sensor:TURRET"/);
   assert.match(hover(7, 'front'), /label/);
+  app.simple = true;
+  assert.match(hover(2, 'def'), /Uses no coins/);
+  app.simple = false;
+  assert.match(hover(2, 'def'), /Uses no cycles/);
 });
 
 test('Step records a trace for the selected robot only', () => {

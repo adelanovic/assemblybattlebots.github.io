@@ -891,7 +891,7 @@
       const role = ctx && ctx.role;
       if (role === 'directive' && ctx.key === 'def') {
         return head('.def NAME value', 'constant') +
-          '<div>Gives a number a name, so <code>.def FAST 4</code> lets you write <code>SPEED FAST</code>. Uses no coins or cycles.</div>' + more('sec:basics');
+          `<div>Gives a number a name, so <code>.def FAST 4</code> lets you write <code>SPEED FAST</code>. Uses no ${simple ? 'coins' : 'cycles'}.</div>` + more('sec:basics');
       }
       if (role === 'directive' || role === 'preset') {
         const spec = BB.ISA.APPEARANCE[ctx.key];
