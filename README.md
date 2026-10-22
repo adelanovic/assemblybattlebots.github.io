@@ -47,6 +47,10 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. **▶ Start** and **Step** apply the selected robot's edits automatically, so the code in the editor is always what runs; if it has syntax errors, nothing runs and the errors are shown. |
 | **➕ Insert code…** | Ready-made patterns with comments (main loop, IF, IF / ELSE, repeat, function, scan and fire, wall check, dodge), inserted at the cursor in one undoable step. Label names are renamed automatically if your program already uses them. |
 | **Reference** tab | Every instruction, sensor and rule. Search as you type, or jump to a section. In the editor, a tooltip's **More in Reference →** link opens the matching entry. |
+| **Autocomplete** | While typing, suggestions appear for what fits where the cursor is: instructions at the start of a line, sensors after `GET R0,`, your own labels after a jump or `CALL`, and registers or constants elsewhere. ↑ ↓ to choose, Enter or Tab to use, Esc to close. |
+| **Ctrl+/** | Comment the selected lines out, or back in (the name line is never touched). Handy for experiments. |
+| **Divider** | Drag the line between the arena and the code panel to resize them (arrow keys work too; double-click to reset). Your layout is remembered. |
+| **?** | Keyboard shortcuts: press **?** or click the **?** button. |
 | **💾 Save .asm** (Ctrl+S) | Download the editor contents as a `.asm` file. |
 | **Revert** | Discard edits you have not applied. |
 
@@ -266,6 +270,8 @@ js/core/              pure logic, no DOM: runs in the browser and in Node
   missions.js         guided missions: starter code, goals, pass checks, mission worlds
 js/ui/
   explain.js          plain-language help and trace notes for Simple view
+  snippets.js         Insert-menu code patterns
+  assist.js           autocomplete suggestions and Ctrl+/ comment toggling
   renderer.js         canvas drawing and visual effects (read-only view of the world)
   editor.js           textarea editor with highlighting, gutter, markers, hover help
   app.js              roster, controls, editor wiring, inspector, persistence, main loop

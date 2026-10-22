@@ -88,7 +88,24 @@
         this.linkListeners.forEach((f) => f(link.dataset.ref));
       });
 
-      this.input.addEventListener('input', () => { this.render(); this.listeners.forEach((f) => f(this.value)); });
+      this.input.addEventListener('input', () => {
+        this.render();
+        this.listeners.forEach((f) => f(this.value));
+        if (!this.quietInput) this.updateCompletions();
+      });
+      // Autocomplete popup: suggestions for the word being typed (see assist.js).
+      this.complete = document.createElement('div');
+      this.complete.className = 'ce-complete';
+      this.complete.hidden = true;
+      this.complete.setAttribute('role', 'listbox');
+      document.body.appendChild(this.complete);
+      this.completion = null; // { start, prefix, items, index } while open
+      this.complete.addEventListener('mousedown', (ev) => {
+        ev.preventDefault(); // keep the caret in the textarea
+        const item = ev.target.closest('[data-i]');
+        if (item) this.acceptCompletion(Number(item.dataset.i));
+      });
+      for (const type of ['blur', 'scroll', 'mousedown']) this.input.addEventListener(type, () => this.closeCompletions());
       this.gutter.addEventListener('click', (ev) => {
         const row = ev.target.closest('[data-n]');
         if (row) this.gutterListeners.forEach((f) => f(Number(row.dataset.n)));
@@ -285,8 +302,76 @@
       ta.dispatchEvent(new Event('input'));
     }
 
+    /** Show, refresh or close the autocomplete popup for the word at the caret. */
+    updateCompletions() {
+      const ta = this.input;
+      const r = ta.selectionStart === ta.selectionEnd && BB.assist ? BB.assist.completions(ta.value, ta.selectionStart) : null;
+      if (!r) { this.closeCompletions(); return; }
+      this.completion = { ...r, index: 0 };
+      this.renderCompletions();
+      // Place the popup just under the word, using the same column maths as the hover help.
+      const cs = getComputedStyle(ta), rect = ta.getBoundingClientRect(), lh = this.lineHeight();
+      const before = ta.value.slice(0, r.start), row = before.split('\n').length - 1;
+      let col = 0;
+      for (const ch of before.slice(before.lastIndexOf('\n') + 1)) col += ch === '\t' ? 4 - (col % 4) : 1;
+      const x = rect.left + parseFloat(cs.paddingLeft) + col * this.charWidth() - ta.scrollLeft;
+      const y = rect.top + parseFloat(cs.paddingTop) + (row + 1) * lh - ta.scrollTop;
+      this.complete.hidden = false;
+      const h = this.complete.offsetHeight, w = this.complete.offsetWidth;
+      this.complete.style.left = `${Math.max(4, Math.min(x, innerWidth - w - 4))}px`;
+      this.complete.style.top = `${y + h + 4 < innerHeight ? y + 2 : Math.max(4, y - lh - h - 2)}px`;
+    }
+
+    renderCompletions() {
+      const c = this.completion;
+      this.complete.innerHTML = c.items.map((it, i) =>
+        `<div class="cc-item${i === c.index ? ' active' : ''}" data-i="${i}" role="option"><b>${esc(it.text)}</b><span>${esc(it.detail)}</span></div>`).join('') +
+        '<div class="cc-help">↑ ↓ choose · Enter or Tab to use · Esc to close</div>';
+    }
+
+    closeCompletions() {
+      this.completion = null;
+      this.complete.hidden = true;
+    }
+
+    /** Replace the typed prefix with suggestion `i`, as one undoable step. */
+    acceptCompletion(i) {
+      const c = this.completion, ta = this.input;
+      if (!c || !c.items[i]) return;
+      this.closeCompletions();
+      ta.setSelectionRange(c.start, c.start + c.prefix.length);
+      this.quietInput = true; // don't reopen the popup for our own insert
+      this.insertText(c.items[i].insert);
+      this.quietInput = false;
+    }
+
     onKey(e) {
       const ta = this.input;
+      const c = this.completion;
+      if (c) {
+        // While suggestions are open, these keys drive the list instead of the text.
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          c.index = (c.index + (e.key === 'ArrowDown' ? 1 : c.items.length - 1)) % c.items.length;
+          this.renderCompletions();
+          return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); this.acceptCompletion(c.index); return; }
+        if (e.key === 'Escape') { e.preventDefault(); this.closeCompletions(); return; }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        // Comment out (or back in) every line the selection touches.
+        e.preventDefault();
+        const before = ta.value, r = BB.assist.toggleComments(before, ta.selectionStart, ta.selectionEnd);
+        if (r.text === before) return;
+        const oldEnd = r.to - (r.text.length - before.length);
+        ta.setSelectionRange(r.from, oldEnd);
+        this.quietInput = true;
+        this.insertText(r.text.slice(r.from, r.to));
+        this.quietInput = false;
+        ta.setSelectionRange(r.from, r.to);
+        return;
+      }
       if (e.key === 'Tab') {
         e.preventDefault();
         this.insertText('    ');

@@ -38,6 +38,7 @@
     </div>
     <div class="group">
       <button id="btn-settings" title="Show match settings: mode, arena, seed and scan cones">⚙ Settings</button>
+      <button id="btn-help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
       <label title="Plain-language help and a simpler CPU inspector. Untick for every detail."><input id="simple-view" type="checkbox" checked> Simple view</label>
     </div>
     <div class="group grow"></div>
@@ -59,6 +60,9 @@
       </div>
       <div id="roster" class="roster"></div>
     </section>
+
+    <div id="splitter" class="splitter" role="separator" aria-orientation="vertical" aria-label="Resize the arena and code panels" tabindex="0"
+      title="Drag to resize. Arrow keys work too; double-click to reset."></div>
 
     <section class="right">
       <nav class="tabs">
@@ -122,6 +126,26 @@
     </div>
   </div>
 
+  <div id="shortcuts" class="welcome" hidden>
+    <div class="welcome-card" role="dialog" aria-labelledby="shortcuts-title">
+      <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+      <table class="keys">
+        <tr><td><kbd>Space</kbd></td><td>Start or pause the match</td></tr>
+        <tr><td><kbd>.</kbd></td><td>Step: run one tick</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reset the arena</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Apply your code</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save your code as a .asm file</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Comment the selected lines out, or back in</td></tr>
+        <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
+        <tr><td><kbd>Tab</kbd></td><td>Indent (4 spaces)</td></tr>
+        <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd></td><td>Choose, use or close a code suggestion</td></tr>
+        <tr><td><kbd>?</kbd></td><td>Show this list</td></tr>
+      </table>
+      <p class="muted">Space, . and R work when you're not typing in the editor. On a Mac, use ⌘ instead of Ctrl.</p>
+      <div class="welcome-actions"><button id="shortcuts-close" class="primary">Close</button></div>
+    </div>
+  </div>
+
   <div id="flash" class="flash"></div>
   <div class="drop-hint">Drop .asm files to add robots</div>
 
@@ -136,6 +160,7 @@
   <!-- UI -->
   <script src="js/ui/explain.js"></script>
   <script src="js/ui/snippets.js"></script>
+  <script src="js/ui/assist.js"></script>
   <script src="js/ui/terrain.js"></script>
   <script src="js/ui/renderer.js"></script>
   <script src="js/ui/editor.js"></script>

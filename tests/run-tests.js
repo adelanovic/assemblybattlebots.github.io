@@ -571,6 +571,41 @@ const path = require('path');
 const scriptVm = require('vm');
 require('../js/ui/explain.js'); // pure strings, used by the app's Simple view
 require('../js/ui/snippets.js'); // the editor's Insert menu patterns
+require('../js/ui/assist.js'); // autocomplete and Ctrl+/ logic
+
+test('autocomplete offers the right kind of word for where the caret is', () => {
+  const prog = 'Bot\n.def RANGE 200\nmain:\n    GET R0, FRONT\nloop: WAIT\n';
+  const offer = (tail) => {
+    const src = prog + tail, caret = src.indexOf('|'), text = src.replace('|', '');
+    const r = BB.assist.completions(text, caret);
+    return r ? r.items.map((i) => i.text) : [];
+  };
+  assert.deepStrictEqual(offer('    SC|'), ['SCAN']);
+  assert.deepStrictEqual(offer('here: JM|'), ['JMP'], 'after a label');
+  assert.deepStrictEqual(offer('    GET R1, HE|'), ['HEADING', 'HEALTH'], 'sensors after GET');
+  assert.strictEqual(offer('    GET R1, SCAN_|').length, 7);
+  assert.deepStrictEqual(offer('    JMP l|'), ['loop'], 'your labels after a jump');
+  assert.deepStrictEqual(offer('    CALL ma|'), ['main']);
+  assert.deepStrictEqual(offer('    MOV R1, RA|'), ['RANGE'], 'constants as values');
+  assert.strictEqual(offer('    MOV R1, [R|').length, 8, 'registers inside [ ]');
+  for (const quiet of ['    s|', '    ; SC|', '    SC|AN 10', '    SCAN|', '.de|']) assert.deepStrictEqual(offer(quiet), [], quiet);
+  assert.strictEqual(BB.assist.completions('Bo', 2), null, 'not on the name line');
+  const scan = BB.assist.completions('T\n    SC', 8).items[0];
+  assert.deepStrictEqual([scan.insert, /flashlight/.test(scan.detail)], ['SCAN ', true], 'inserts a space after; plain note');
+});
+
+test('Ctrl+/ comments lines out and back in, skipping blank lines and the name', () => {
+  const t = 'Bot\nmain:\n    SCAN 10\n\n    FIRE\n    WAIT';
+  const out = BB.assist.toggleComments(t, t.indexOf('SCAN'), t.indexOf('FIRE') + 2);
+  assert.strictEqual(out.text, 'Bot\nmain:\n    ; SCAN 10\n\n    ; FIRE\n    WAIT');
+  assert.strictEqual(BB.assist.toggleComments(out.text, out.from, out.to).text, t, 'toggling twice restores it');
+  assert.strictEqual(BB.assist.toggleComments(t, 0, 3).text, t, 'the name line is never commented');
+  const mixed = 'Bot\n    ; SCAN 10\n    FIRE';
+  assert.strictEqual(BB.assist.toggleComments(mixed, 4, mixed.length).text, 'Bot\n    ; ; SCAN 10\n    ; FIRE', 'a mix is commented, not uncommented');
+  const whole = BB.assist.toggleComments(t, t.indexOf('main'), t.indexOf('main'));
+  assert.strictEqual(whole.text, 'Bot\n; main:\n    SCAN 10\n\n    FIRE\n    WAIT', 'no selection: just the caret line');
+  assert.deepStrictEqual(BB.assemble(out.text).errors, [], 'commented code still assembles');
+});
 
 test('every Insert-menu snippet assembles, alone and inserted twice into one program', () => {
   for (const s of BB.SNIPPETS) {

@@ -27,6 +27,7 @@
 
   const MISSION_KEY = 'battlebots.missions.v1';
   const WELCOME_KEY = 'battlebots.welcomed';
+  const LAYOUT_KEY = 'battlebots.layout.v1';
 
   /** Registers (sorted) and sensors (in order of first use) a program refers to. */
   function usedByProgram(program) {
@@ -67,6 +68,9 @@
     return a.length === b.length &&
       a.every((ins, i) => ins.op === b[i].op && JSON.stringify(ins.args) === JSON.stringify(b[i].args));
   }
+
+  /** "?" opens the shortcuts list. Some keyboards report Shift+/ as "/" with Shift held. */
+  const isHelpKey = (ev) => ev.key === '?' || (ev.key === '/' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey);
 
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -802,6 +806,58 @@
       this.flashTimer = setTimeout(() => el.classList.remove('show'), 3500);
     }
 
+    // ------------------------------------------------------------ layout
+
+    showShortcuts(open) {
+      $('#shortcuts').hidden = !open;
+      if (open) $('#shortcuts-close').focus();
+    }
+
+    /**
+     * The divider between the arena and the code panel: drag it, use the arrow
+     * keys, or double-click to reset. The width is remembered per browser.
+     */
+    bindSplitter() {
+      const main = $('main'), splitter = $('#splitter'), right = $('section.right');
+      const MIN = 320, ARENA_MIN = 380, STEP = 24;
+      const setWidth = (w, save) => {
+        if (w) main.style.setProperty('--right-w', `${Math.round(Math.max(MIN, Math.min(innerWidth - ARENA_MIN, w)))}px`);
+        else main.style.removeProperty('--right-w');
+        if (save) {
+          try { localStorage.setItem(LAYOUT_KEY, JSON.stringify({ right: w ? right.offsetWidth : null })); } catch (_) { /* fine */ }
+        }
+      };
+      try {
+        const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
+        if (saved && Number.isFinite(saved.right)) setWidth(saved.right, false);
+      } catch (_) { /* default layout */ }
+      splitter.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        splitter.setPointerCapture(ev.pointerId);
+        splitter.classList.add('dragging');
+        document.body.classList.add('resizing');
+      });
+      splitter.addEventListener('pointermove', (ev) => {
+        if (splitter.classList.contains('dragging')) setWidth(innerWidth - ev.clientX - 3, false);
+      });
+      const stop = () => {
+        if (!splitter.classList.contains('dragging')) return;
+        splitter.classList.remove('dragging');
+        document.body.classList.remove('resizing');
+        setWidth(right.offsetWidth, true);
+      };
+      splitter.addEventListener('pointerup', stop);
+      splitter.addEventListener('pointercancel', stop);
+      splitter.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+        ev.preventDefault();
+        setWidth(right.offsetWidth + (ev.key === 'ArrowLeft' ? STEP : -STEP), true);
+      });
+      splitter.addEventListener('dblclick', () => setWidth(null, true));
+      // A smaller window must still fit the arena and the panel.
+      window.addEventListener('resize', () => { if (main.style.getPropertyValue('--right-w')) setWidth(right.offsetWidth, false); });
+    }
+
     // ------------------------------------------------------------ help
 
     /** Tooltip HTML for a word hovered in the editor, or null. */
@@ -1050,6 +1106,13 @@
         this.flash(`Inserted "${s.title}". Read its comments, then change it to suit your robot.`);
       };
 
+      // Shortcuts list: the ? button or key; Close, Esc or a click outside the card closes it.
+      $('#btn-help').onclick = () => this.showShortcuts(true);
+      $('#shortcuts-close').onclick = () => this.showShortcuts(false);
+      $('#shortcuts').addEventListener('click', (ev) => { if (ev.target.id === 'shortcuts') this.showShortcuts(false); });
+
+      this.bindSplitter();
+
       // First visit: a short welcome that points beginners at the missions.
       const welcomed = () => { try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* fine */ } $('#welcome').hidden = true; };
       $('#welcome-mission').onclick = () => { welcomed(); this.startMission(BB.MISSIONS[0].id); };
@@ -1133,7 +1196,13 @@
       document.addEventListener('keydown', (ev) => {
         // A focused button handles Space/Enter natively, so the shortcuts would fire twice.
         const inField = /^(TEXTAREA|INPUT|SELECT|BUTTON|SUMMARY)$/.test(document.activeElement && document.activeElement.tagName);
-        if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); this.applyDraft(); }
+        // While the shortcuts list is open, Esc or ? closes it and nothing else reacts.
+        if (!$('#shortcuts').hidden) {
+          if (ev.key === 'Escape' || isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(false); }
+          return;
+        }
+        if (!inField && isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(true); }
+        else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); this.applyDraft(); }
         else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); this.saveFile(); }
         else if (!inField && ev.key === ' ') { ev.preventDefault(); this.toggleRun(); }
         else if (!inField && ev.key === '.') { this.stepOnce(); }
