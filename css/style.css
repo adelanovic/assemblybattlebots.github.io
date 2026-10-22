@@ -164,15 +164,15 @@ main {
   border-right: 1px solid var(--border);
   user-select: none;
 }
-.ce-gutter div { padding-right: 8px; height: var(--lh); }
+.ce-gutter-lines > div { padding-right: 8px; height: var(--lh); }
 .ce-gutter .err { color: #fff; background: #8a2c2c; }
 .ce-gutter .exec { color: #000; background: var(--warn); }
 .ce-gutter .err.exec { background: linear-gradient(90deg, #8a2c2c 50%, var(--warn) 50%); }
 .ce-gutter .fault { color: #fff; background: var(--bad); }
 .ce-body { position: relative; flex: 1; min-width: 0; overflow: hidden; }
 .ce-gutter { cursor: pointer; }
-.ce-gutter div { position: relative; }
-.ce-gutter div:hover::before, .ce-gutter .bp::before {
+.ce-gutter-lines > div { position: relative; }
+.ce-gutter-lines > div:hover::before, .ce-gutter .bp::before {
   content: ''; position: absolute; left: 6px; top: 50%;
   width: 8px; height: 8px; margin-top: -4px; border-radius: 50%;
   background: rgba(255, 107, 107, .35);
@@ -197,7 +197,7 @@ main {
   border: none;
   overflow: auto;
 }
-.ce-hl { overflow: hidden; pointer-events: none; color: var(--text); }
+.ce-hl { overflow: visible; pointer-events: none; color: var(--text); } /* moved by syncScroll; .ce-body clips */
 .ce-input {
   resize: none;
   background: transparent;

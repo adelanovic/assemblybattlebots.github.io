@@ -45,7 +45,7 @@
     constructor(root) {
       root.classList.add('code-editor');
       root.innerHTML = `
-        <div class="ce-gutter" title="Click a line number to set or clear a breakpoint"></div>
+        <div class="ce-gutter" title="Click a line number to set or clear a breakpoint"><div class="ce-gutter-lines"></div></div>
         <div class="ce-body">
           <div class="ce-marks"></div>
           <pre class="ce-hl" aria-hidden="true"></pre>
@@ -53,6 +53,7 @@
           <textarea class="ce-input" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
         </div>`;
       this.gutter = root.querySelector('.ce-gutter');
+      this.gutterLines = root.querySelector('.ce-gutter-lines');
       this.hl = root.querySelector('.ce-hl');
       this.input = root.querySelector('.ce-input');
       this.marks = root.querySelector('.ce-marks');   // behind the code
@@ -77,7 +78,7 @@
 
       this.input.addEventListener('input', () => { this.render(); this.listeners.forEach((f) => f(this.value)); });
       this.gutter.addEventListener('click', (ev) => {
-        const row = ev.target.closest('.ce-gutter > div');
+        const row = ev.target.closest('[data-n]');
         if (row) this.gutterListeners.forEach((f) => f(Number(row.dataset.n)));
       });
       this.input.addEventListener('scroll', () => this.syncScroll());
@@ -270,15 +271,21 @@
           this.breakLines.has(i) ? 'bp' : ''].join(' ').trim();
         html += `<div data-n="${i}"${cls ? ` class="${cls}"` : ''}>${i}</div>`;
       }
-      this.gutter.innerHTML = html;
+      this.gutterLines.innerHTML = html;
       this.syncScroll();
     }
 
+    /**
+     * Move the coloured text, line numbers and marks by exactly the textarea's
+     * scroll. Transforms, not scrollTop: when the textarea shows a horizontal
+     * scrollbar (long lines on Windows), it can scroll further than the other
+     * layers could, and they would drift up to a line out of step.
+     */
     syncScroll() {
-      this.hl.scrollTop = this.input.scrollTop;
-      this.hl.scrollLeft = this.input.scrollLeft;
-      this.gutter.scrollTop = this.input.scrollTop;
-      this.marks.style.transform = this.cover.style.transform = `translateY(${-this.input.scrollTop}px)`;
+      const top = this.input.scrollTop, left = this.input.scrollLeft;
+      this.hl.style.transform = `translate(${-left}px, ${-top}px)`;
+      this.gutterLines.style.transform = `translateY(${-top}px)`;
+      this.marks.style.transform = this.cover.style.transform = `translateY(${-top}px)`;
     }
   }
 
