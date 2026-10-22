@@ -835,6 +835,25 @@ test('applying a comment-only edit mid-match keeps the robot\'s CPU running', ()
   assert.notStrictEqual(robot.vm, cpu, 'a real code change still reloads');
 });
 
+test('an unfinished mission edit comes back as a draft and never empties the arena', () => {
+  const app = uiHarness();
+  const def = BB.MISSIONS.find((m) => m.id === 'coords');
+  const broken = def.starter.replace('; <- turn dy and dx', 'ATAN4 ; <- turn dy and dx');
+  const applied = def.solution;
+  const load = (saved) => {
+    app.missionState = { done: [], code: saved === undefined ? {} : { coords: saved }, fails: {} };
+    const r = app.missionCodeFor(def);
+    assert.deepStrictEqual(BB.assemble(r.source).errors, [], 'the arena code always assembles');
+    return { source: r.source, draft: r.draft }; // a plain object from this realm, for deepStrictEqual
+  };
+  assert.deepStrictEqual(load(), { source: def.starter, draft: def.starter }, 'nothing saved: the starter');
+  assert.deepStrictEqual(load(applied), { source: applied, draft: applied }, 'old save, valid: run it');
+  assert.deepStrictEqual(load(broken), { source: def.starter, draft: broken }, 'old save, unfinished: starter runs, edit kept');
+  assert.deepStrictEqual(load({ source: applied, draft: broken }), { source: applied, draft: broken }, 'last applied code runs, edit kept');
+  assert.deepStrictEqual(load({ source: broken, draft: 5 }), { source: def.starter, draft: def.starter }, 'damaged save falls back');
+  assert.deepStrictEqual(load(null), { source: def.starter, draft: def.starter });
+});
+
 test('failed mission attempts are counted, unlocking more help', () => {
   const app = uiHarness();
   const def = BB.MISSIONS[0];

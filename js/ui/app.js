@@ -798,17 +798,36 @@
       if (!def) return;
       this.persist(); // keep the current mission's latest edits before switching
       const n = BB.MISSIONS.indexOf(def) + 1;
-      const code = typeof this.missionState.code[id] === 'string' ? this.missionState.code[id] : def.starter;
+      const { source, draft } = this.missionCodeFor(def);
       if (this.mission !== def) { this.hintOpen = false; this.showAnswer = null; }
       this.mission = def;
-      this.missionEntry = this.makeEntry(`mission-${n}-${id}.asm`, code, { id: BB.MISSION_ENTRY_ID });
+      this.missionEntry = this.makeEntry(`mission-${n}-${id}.asm`, source, { id: BB.MISSION_ENTRY_ID, draft });
       this.select(BB.MISSION_ENTRY_ID);
       this.resetMatch();
       this.renderMissionBar();
       this.renderMissions();
     }
 
+    /**
+     * A mission's saved code as { source, draft }. The arena always runs code
+     * that assembles: the last applied version, else the starter. An unfinished
+     * edit comes back as the draft, so it is never lost and never empties the arena.
+     */
+    missionCodeFor(def) {
+      const saved = this.missionState.code[def.id];
+      let source = def.starter, draft;
+      if (typeof saved === 'string') {
+        // Older saves kept only the editor text: run it if it assembles, else keep it as the draft.
+        if (this.compile(saved).errors.length) draft = saved; else source = saved;
+      } else if (saved && typeof saved === 'object') {
+        if (typeof saved.source === 'string' && !this.compile(saved.source).errors.length) source = saved.source;
+        if (typeof saved.draft === 'string') draft = saved.draft;
+      }
+      return { source, draft: draft ?? source };
+    }
+
     exitMission() {
+      this.persist(); // keep edits made just before leaving
       this.mission = null;
       this.missionEntry = null;
       this.renderMissionBar();
@@ -818,7 +837,7 @@
     /** Throw away the player's code for this mission and start from the starter. */
     restartMissionCode() {
       if (!this.mission || !confirm('Start this mission over? Your changes to its code will be lost.')) return;
-      this.missionEntry.draft = this.mission.starter; // startMission saves, then reloads, this
+      this.missionEntry.source = this.missionEntry.draft = this.mission.starter; // startMission saves, then reloads, this
       this.startMission(this.mission.id);
     }
 
@@ -887,7 +906,8 @@
           simple: this.simple,
           entries: this.entries.map((e) => ({ filename: e.filename, source: e.source, draft: e.draft, team: e.team, breakpoints: [...e.breakpoints] })),
         }));
-        if (this.missionEntry) this.missionState.code[this.mission.id] = this.missionEntry.draft;
+        // Both versions: the last applied code (what the arena runs) and the editor text.
+        if (this.missionEntry) this.missionState.code[this.mission.id] = { source: this.missionEntry.source, draft: this.missionEntry.draft };
         localStorage.setItem(MISSION_KEY, JSON.stringify(this.missionState));
       } catch (_) { /* storage unavailable: nothing to do */ }
     }
