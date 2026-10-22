@@ -269,6 +269,11 @@ main {
 .mission-bar .mb-hint summary { cursor: pointer; color: var(--warn); }
 .mission-bar .mb-hint p { margin: 4px 0; }
 .mission-bar .mb-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.mission-bar .mb-answer {
+  max-height: 200px; overflow: auto; margin: 4px 0; padding: 6px 8px;
+  background: #0d1015; border: 1px solid var(--border); border-radius: 4px;
+  font: 12px/1.45 var(--mono); user-select: text;
+}
 .missions { padding: 4px 2px; font-size: 13px; }
 .missions-intro { color: var(--muted); margin: 0 0 10px; line-height: 1.5; }
 .mission-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

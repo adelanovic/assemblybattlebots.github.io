@@ -43,7 +43,7 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
 | **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |
 | **+ New robot / 📂 Load .asm files… / + Add example** | Add robots. Loading accepts several files at once, and you can also drag and drop `.asm` files onto the page. **Each file becomes one robot.** |
-| **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. |
+| **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. **▶ Start** and **Step** apply the selected robot's edits automatically, so the code in the editor is always what runs; if it has syntax errors, nothing runs and the errors are shown. |
 | **💾 Save .asm** (Ctrl+S) | Download the editor contents as a `.asm` file. |
 | **Revert** | Discard edits you have not applied. |
 
@@ -79,13 +79,15 @@ The **🎯 Missions** tab has fifteen short challenges in three units, designed 
 9. **Come back!** (`CALL` and `RET`): one "fire_at" function for two targets, missing its `RET`.
 10. **Boss: dodge and attack** (building a program from functions): finish a `dodge` function; `attack` is already written.
 
-**Unit 3: Sensors, maths and science** (real-world STEM ideas)
+**Unit 3: Sensors, math and science** (real-world STEM ideas)
 
 11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles, like the Field Guide's Wanderer.
 12. **Follow the leader** (IF / ELSE): drive when far, wait when close. The same feedback idea as cruise control.
-13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt, so the maths has to be right, not memorised.
+13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt, so the math has to be right, not memorized.
 14. **Lead the target** (experimenting): hit a moving target by aiming ahead. The mission reports whether misses passed in front or behind, so students adjust `LEAD` like a real experiment (8 to 14 all work).
 15. **Graduation match** (putting it all together): build a robot from earlier functions and beat Rival. Optional extra: add the dodge and test whether it helps (it doesn't always!).
+
+**Help grows with each failed attempt**, so students stay challenged but never stuck: the first hint is a nudge; after two failed attempts a bigger hint appears that is nearly the answer; after four, **Show me a working answer** reveals a solution with a prompt to type it in themselves. If a program crashes, the attempt ends at once and Simple view explains the crash in plain words (for example "it tried to divide by zero").
 
 While a mission runs, your own robots sit out. Click a robot card or **Exit mission** to return to them. Mission code and progress are saved in the browser. The tests check that every mission's starter code fails and its reference solution passes.
 
@@ -168,7 +170,7 @@ There is no "dodge" instruction. Robots dodge by calling `RADAR` to find an inco
   - **Classic:** five fixed obstacles.
   - **Open:** none.
   - **Random:** 4 to 9 obstacles generated from the seed, with these guarantees:
-    - **Fair:** every obstacle has a twin mirrored through the arena centre.
+    - **Fair:** every obstacle has a twin mirrored through the arena center.
     - **Passable:** obstacles keep a 44-unit gap from each other and the walls, wider than a robot, so every open area can be reached.
     - **Solid:** obstacles are at least 20 units thick, so bullets can't pass through.
     - **Open enough:** obstacles cover at most 11% of the arena.
@@ -182,9 +184,9 @@ There is no "dodge" instruction. Robots dodge by calling `RADAR` to find an inco
 
 - **No friendly fire:** bullets pass through teammates, and teammates can't damage each other by ramming (they still bump).
 - **Teammates are invisible to sensors:** `SCAN` skips them, `RADAR` ignores their bullets, and `ENEMIES` counts opponents only. The `ALLIES` sensor gives the number of living teammates. Any free-for-all robot works in a team unchanged.
-- **Fair spawns:** team A starts in the left half. Each team B robot starts at the mirror image of its team A counterpart, through the arena centre, facing the mirrored direction. All three arena layouts are point-symmetric, so both teams get identical terrain.
+- **Fair spawns:** team A starts in the left half. Each team B robot starts at the mirror image of its team A counterpart, through the arena center, facing the mirrored direction. All three arena layouts are point-symmetric, so both teams get identical terrain.
 - **Victory:** the last team with a robot alive wins. At the time limit, the team with the most total health wins.
-- Team A is drawn in warm colours and team B in cool colours, with an "A ·" or "B ·" before each robot's name.
+- Team A is drawn in warm colors and team B in cool colors, with an "A ·" or "B ·" before each robot's name.
 
 ## Limits
 
@@ -201,7 +203,7 @@ Out-of-range values are clamped without an error, so `SPEED 100` gives 5 and `SC
 | Robot name | 24 characters |
 | Match length | 6000 ticks |
 
-There's no limit on the number of robots in a match or on program length. Colours repeat after 8 robots, and a very crowded arena spawns extra robots at a fallback point. All values live in `CONFIG` in `js/core/isa.js`.
+There's no limit on the number of robots in a match or on program length. Colors repeat after 8 robots, and a very crowded arena spawns extra robots at a fallback point. All values live in `CONFIG` in `js/core/isa.js`.
 
 ## How the virtual CPU works
 

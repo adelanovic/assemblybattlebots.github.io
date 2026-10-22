@@ -225,13 +225,23 @@
       this.syncScroll();
     }
 
+    /**
+     * Type `text` over the selection as if from the keyboard. execCommand keeps
+     * the browser's undo history (setRangeText would break Ctrl+Z); it fires
+     * the input event itself.
+     */
+    insertText(text) {
+      const ta = this.input;
+      if (document.execCommand && document.execCommand('insertText', false, text)) return;
+      ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
+      ta.dispatchEvent(new Event('input'));
+    }
+
     onKey(e) {
       const ta = this.input;
       if (e.key === 'Tab') {
         e.preventDefault();
-        const s = ta.selectionStart, en = ta.selectionEnd;
-        ta.setRangeText('    ', s, en, 'end');
-        ta.dispatchEvent(new Event('input'));
+        this.insertText('    ');
       } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
         // keep indentation
         const s = ta.selectionStart;
@@ -239,8 +249,7 @@
         const indent = /^\s*/.exec(ta.value.slice(lineStart, s))[0];
         if (indent) {
           e.preventDefault();
-          ta.setRangeText('\n' + indent, s, ta.selectionEnd, 'end');
-          ta.dispatchEvent(new Event('input'));
+          this.insertText('\n' + indent);
         }
       }
     }

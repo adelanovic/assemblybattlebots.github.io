@@ -1146,7 +1146,7 @@
       ctx.fillText(fitText(ctx, ok ? `✓ ${text}` : text, pw - 40), W / 2, py + 82);
       ctx.fillStyle = '#9aa4b8';
       ctx.font = '13px system-ui, sans-serif';
-      ctx.fillText(ok ? 'Try the next mission, or make this one even better.' : 'Change your code, press Apply, then Start to try again.', W / 2, py + 120);
+      ctx.fillText(ok ? 'Try the next mission, or make this one even better.' : 'Change your code, then press ▶ Try again.', W / 2, py + 120);
       ctx.fillStyle = '#7d8696';
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText(`tick ${world.tick}`, W / 2, py + ph - 18);

@@ -39,8 +39,8 @@
     JLE: 'Jump if the first number in the last CMP was smaller or equal.',
     JG: 'Jump if the first number in the last CMP was bigger.',
     JGE: 'Jump if the first number in the last CMP was bigger or equal.',
-    CALL: 'Jump to a subroutine and remember where you came from. Every CALL needs a RET.',
-    RET: 'Go back to the line right after the CALL.',
+    CALL: 'Jump to a function and remember where you came from. (The Field Guide calls a function a subroutine.) Every CALL needs a RET.',
+    RET: 'Finish a function: go back to the line right after the CALL.',
     NOP: 'Do nothing. It just uses up one coin.',
     WAIT: '"I\'m done for this tick." Ends your turn so the game can move everything.',
     HALT: 'Stop your program for good. Your robot keeps following its last orders.',
@@ -84,6 +84,27 @@
 
   const REGISTER = 'A box that holds one number. Your robot has 8 of them: R0 to R7.';
 
+  /** Plain words for the VM's crash messages (vm.js), most common first. */
+  const FAULTS = [
+    [/division by zero/, () => 'it tried to divide by zero, which is impossible. Check the number DIV divides by.'],
+    [/modulo by zero/, () => 'MOD by zero is impossible. Check the number after MOD.'],
+    [/stack overflow/, () => 'too many CALLs without a RET (or PUSHes without a POP). Every CALL needs a RET.'],
+    [/RET with an empty stack/, () => 'RET ran without a CALL first. Did the program run into a function by accident? Put a JMP or HALT before the function.'],
+    [/POP with an empty stack/, () => 'POP ran, but nothing was PUSHed first.'],
+    [/memory address (-?\d+) is out of range/, (m) => `memory slots go from [0] to [255], but it tried to use [${m[1]}].`],
+    [/SQRT of negative/, () => 'SQRT of a negative number isn\'t allowed.'],
+    [/RAND range must be positive/, () => 'RAND needs a number bigger than 0.'],
+  ];
+
+  /** "Line 9: division by zero." -> "Crashed on line 9: it tried to divide by zero, ..." */
+  function fault(text) {
+    const m = /^Line (\d+): ([\s\S]*)$/.exec(text || '');
+    const reason = m ? m[2] : text || '';
+    const rule = FAULTS.find(([re]) => re.test(reason));
+    const plain = rule ? rule[1](rule[0].exec(reason)) : reason;
+    return m ? `Crashed on line ${m[1]}: ${plain}` : `Crashed: ${plain}`;
+  }
+
   /** Jump words: [when it jumps, when it doesn't]. */
   const COND = {
     JE: ['equal to', 'not equal to'], JNE: ['not equal to', 'equal to'],
@@ -110,12 +131,12 @@
    * earlier in the same trace, or null, so jumps can say why they jumped.
    */
   function traceNote(t, cmp) {
-    if (t.fault) return `Crash! ${t.fault}`;
+    if (t.fault) return fault(t.fault);
     switch (t.op) {
       case 'CMP': return `Compare ${t.x} with ${t.y}: ${t.x} is ${t.x < t.y ? 'less than' : t.x > t.y ? 'greater than' : 'equal to'} ${t.y}`;
       case 'JMP': return `Jump to line ${t.to}`;
-      case 'CALL': return `Run the subroutine at line ${t.to}, then come back`;
-      case 'RET': return `Subroutine done: back to line ${t.to}`;
+      case 'CALL': return `Run the function at line ${t.to}, then come back`;
+      case 'RET': return `Function done: back to line ${t.to}`;
       case 'WAIT': return 'Done for this tick';
       case 'HALT': return 'Program stopped for good';
       case 'NOP': return 'Do nothing';
@@ -152,6 +173,7 @@
     instruction: (op) => INSTRUCTIONS[op] || null,
     sensor: (name) => SENSORS[name] || null,
     REGISTER,
+    fault,
     traceNote,
     traceNotes,
   };

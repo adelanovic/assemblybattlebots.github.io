@@ -230,8 +230,8 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 | `JLE target` | 1 | Jump if a <= b. | `JLE ready` |
 | `JG target` | 1 | Jump if a > b. | `JG far` |
 | `JGE target` | 1 | Jump if a >= b. | `JGE far` |
-| `CALL target` | 1 | Push the return address and jump to a subroutine. | `CALL dodge` |
-| `RET` | 1 | Return from a subroutine by popping the return instruction index. An empty stack faults. | `RET` |
+| `CALL target` | 1 | Push the return address and jump to a function (subroutine). | `CALL dodge` |
+| `RET` | 1 | Return from a function (subroutine) by popping the return instruction index. An empty stack faults. | `RET` |
 | `NOP` | 1 | Do nothing (costs one cycle). | `NOP` |
 | `WAIT` | 1 | End this robot's turn for the current tick. Unused cycles are lost. | `WAIT` |
 | `HALT` | 1 | Stop the CPU until reset or program reload. The body continues following its last speed, heading and turret commands. | `HALT` |
@@ -268,7 +268,7 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 | `SCAN_SPEED` | That enemy's speed. |
 | `THREAT_DIST` | Distance to the projectile found by the last RADAR, or -1. |
 | `THREAT_ANGLE` | Absolute angle from you to that projectile. |
-| `THREAT_HEADING` | Direction that projectile is travelling. |
+| `THREAT_HEADING` | Direction that projectile is traveling. |
 | `FRONT` | Rounded distance your whole circular body can travel along its current heading before touching a wall or obstacle. Other robots are not included. |
 | `LAST_HIT` | Ticks since you were last hit by a projectile, or -1 if never. |
 | `TICK` | Current simulation tick. |

@@ -81,7 +81,7 @@
       this.simple = true;       // Simple view: plain-language help, smaller inspector
       this.mission = null;      // the mission being played (from BB.MISSIONS), or null
       this.missionEntry = null; // its code, shaped like a roster entry but not in the roster
-      this.missionState = { done: [], code: {} };
+      this.missionState = { done: [], code: {}, fails: {} };
 
       this.renderer = new BB.Renderer($('#arena'));
       this.fitArena();
@@ -259,7 +259,7 @@
       this.world = ok ? BB.buildMission(this.mission, e.compiled, 1 + Math.floor(Math.random() * 1e6)) : new BB.World({ entries: [] });
       if (!ok) {
         this.world.log = [];
-        this.world.addLog('Fix the errors in your code, then press Apply.', 'fault');
+        this.world.addLog('Fix the errors in your code (listed under the editor), then press ▶ Start.', 'fault');
       }
       this.renderer.clearEffects();
       this.renderRoster();
@@ -269,7 +269,7 @@
     /** Why the arena has no robots, worded as what to do next. */
     emptyArenaReason() {
       if (this.mission || this.entries.some((e) => e.compiled.errors.length)) {
-        return 'Fix the syntax errors in your code first (they are listed under the editor), then press Apply.';
+        return 'Fix the syntax errors in your code first (they are listed under the editor), then press ▶ Start.';
       }
       return 'Add at least one robot first.';
     }
@@ -281,13 +281,33 @@
       this.missionReported = true;
       this.running = false;
       if (m.result.ok && !this.missionState.done.includes(m.def.id)) this.missionState.done.push(m.def.id);
+      // Failed attempts unlock more help in the mission bar (a bigger hint, then a working answer).
+      if (!m.result.ok) this.missionState.fails[m.def.id] = (this.missionState.fails[m.def.id] || 0) + 1;
       this.persist();
       this.flash(m.result.ok ? `Mission complete! ${m.result.text}` : m.result.text);
       this.renderMissionBar();
       this.renderMissions();
     }
 
+    /**
+     * Start and Step use the code that is in the editor, so a changed program
+     * never runs its old version by surprise. Returns false (with a message)
+     * when the editor's code has syntax errors, so nothing runs.
+     */
+    applyPendingEdits() {
+      const e = this.selected;
+      if (!e || e.draft === e.source) return true;
+      if (this.compile(e.draft).errors.length) {
+        this.checkDraft();
+        this.flash('Your code has errors (listed under the editor). Fix them, or press Revert, then try again.');
+        return false;
+      }
+      this.applyDraft();
+      return true;
+    }
+
     toggleRun() {
+      if (!this.running && !this.applyPendingEdits()) return;
       if (this.world.over) this.resetMatch();
       if (!this.world.robots.length) {
         this.flash(this.emptyArenaReason());
@@ -301,6 +321,7 @@
     }
 
     stepOnce() {
+      if (!this.applyPendingEdits()) return;
       if (this.world.over) return;
       if (!this.world.robots.length) { this.flash(this.emptyArenaReason()); return; }
       const problem = this.teamProblem();
@@ -597,7 +618,7 @@
         return;
       }
       const vm = r.vm;
-      const state = vm.fault ? `<span class="bad">${this.simple ? 'CRASHED' : 'FAULT'} — ${esc(vm.fault)}</span>`
+      const state = vm.fault ? `<span class="bad">${this.simple ? esc(BB.explain.fault(vm.fault)) : `FAULT — ${esc(vm.fault)}`}</span>`
         : !r.alive ? 'destroyed' : vm.halted ? 'halted'
         : vm.resumeLine && !this.running ? `<span class="bp-state">● stopped at breakpoint, line ${vm.resumeLine}</span>`
         : `next: line ${vm.currentLine}`;
@@ -761,6 +782,7 @@
       this.persist(); // keep the current mission's latest edits before switching
       const n = BB.MISSIONS.indexOf(def) + 1;
       const code = typeof this.missionState.code[id] === 'string' ? this.missionState.code[id] : def.starter;
+      if (this.mission !== def) { this.hintOpen = false; this.showAnswer = null; }
       this.mission = def;
       this.missionEntry = this.makeEntry(`mission-${n}-${id}.asm`, code, { id: BB.MISSION_ENTRY_ID });
       this.select(BB.MISSION_ENTRY_ID);
@@ -803,7 +825,7 @@
           <ol class="mission-list">${ms.map(card).join('')}</ol>`;
       }).join('');
       box.innerHTML = `
-        <p class="missions-intro">Short challenges that each teach one idea. Fix the starter code, press <b>Apply</b>, then <b>▶ Start</b>.
+        <p class="missions-intro">Short challenges that each teach one idea. Fix the starter code, then press <b>▶ Start</b>: it always runs the code in the editor.
           Hover over any instruction in the editor to see what it does. Your Student Field Guide explains everything in more detail.</p>
         ${units}
         ${all ? '<p class="missions-done">🏆 All missions complete! Try the Field Guide\'s challenges next, then battle your friends.</p>' : ''}`;
@@ -816,11 +838,21 @@
       if (!m) { bar.innerHTML = ''; return; }
       const i = BB.MISSIONS.indexOf(m), next = BB.MISSIONS[i + 1];
       const passed = this.world && this.world.mission && this.world.mission.result && this.world.mission.result.ok;
+      // Help grows with failed attempts: the hint, then a bigger hint (2 fails), then a working answer (4).
+      const fails = this.missionState.fails[m.id] || 0;
+      const more = fails >= 4 ? ' (more help is ready)' : fails >= 2 ? ' (a bigger hint is ready)' : '';
+      const answer = fails < 4 ? ''
+        : this.showAnswer === m.id ? `<p><b>A working answer:</b> try typing it in yourself, that's how it sticks!</p><pre class="mb-answer">${esc(m.solution)}</pre>`
+        : '<p><button data-mb="answer">Show me a working answer</button></p>';
       bar.innerHTML = `
         <div class="mb-head"><span class="mb-tag">Mission ${i + 1} of ${BB.MISSIONS.length}</span> <b>${esc(m.title)}</b>
           ${this.missionState.done.includes(m.id) ? '<span class="mb-done">✓ complete</span>' : ''}</div>
         <div class="mb-goal">${esc(m.goal)}</div>
-        <details class="mb-hint"><summary>Need a hint?</summary><p>${esc(m.hint)}</p><p class="muted">${esc(m.guide)}</p></details>
+        <details class="mb-hint"${this.hintOpen ? ' open' : ''}><summary>Need a hint?${more}</summary>
+          <p>${esc(m.hint)}</p>
+          ${fails >= 2 ? `<p><b>Bigger hint:</b> ${esc(m.hint2)}</p>` : ''}
+          ${answer}
+          <p class="muted">${esc(m.guide)}</p></details>
         <div class="mb-actions">
           ${passed && next ? `<button data-mb="next" class="primary">Next mission: ${esc(next.title)} →</button>` : ''}
           <button data-mb="restart" title="Throw away your changes and load the starter code again">Start over</button>
@@ -851,6 +883,9 @@
         const m = JSON.parse(localStorage.getItem(MISSION_KEY) || 'null');
         if (m && Array.isArray(m.done)) this.missionState.done = m.done.filter((id) => BB.MISSIONS.some((x) => x.id === id));
         if (m && m.code && typeof m.code === 'object') this.missionState.code = m.code;
+        if (m && m.fails && typeof m.fails === 'object') {
+          for (const [id, n] of Object.entries(m.fails)) if (Number.isInteger(n) && n > 0) this.missionState.fails[id] = n;
+        }
       } catch (_) { /* keep the empty mission state */ }
       if (saved && typeof saved.simple === 'boolean') this.simple = saved.simple;
       $('#simple-view').checked = this.simple;
@@ -906,11 +941,16 @@
         const b = ev.target.closest('[data-mission]');
         if (b) this.startMission(b.dataset.mission);
       });
+      // Remember whether the hint box is open, so redrawing the bar after an attempt keeps it that way.
+      $('#mission-bar').addEventListener('toggle', (ev) => {
+        if (ev.target.classList.contains('mb-hint')) this.hintOpen = ev.target.open;
+      }, true);
       $('#mission-bar').addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-mb]');
         if (!b || !this.mission) return;
         if (b.dataset.mb === 'next') this.startMission(BB.MISSIONS[BB.MISSIONS.indexOf(this.mission) + 1].id);
         else if (b.dataset.mb === 'restart') this.restartMissionCode();
+        else if (b.dataset.mb === 'answer') { this.showAnswer = this.mission.id; this.hintOpen = true; this.renderMissionBar(); }
         else this.select(this.entries.length ? this.entries[0].id : null);
       });
       this.editor.onGutterClick((line) => this.toggleBreakpoint(line));

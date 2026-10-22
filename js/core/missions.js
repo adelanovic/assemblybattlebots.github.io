@@ -66,7 +66,7 @@ sweep:
       title: 'Full speed ahead',
       teaches: 'SPEED',
       goal: 'Drive your robot into the green goal zone.',
-      hint: 'SPEED sets how fast your robot drives, from -3 (backward) to 5 (full speed). Change the 0 to a bigger number, then press Apply and Start.',
+      hint: 'SPEED sets how fast your robot drives, from -3 (backward) to 5 (full speed). Change the 0 to a bigger number, then press ▶ Start.',
       guide: 'Field Guide: "Your first robot in 1 minute"',
       start: { x: 120, y: 300, heading: 0 },
       zone: { x: 560, y: 240, w: 140, h: 120 },
@@ -343,7 +343,7 @@ stop:
       title: 'Come back!',
       teaches: 'functions: CALL and RET',
       goal: 'Destroy both targets, using one "fire_at" function for both.',
-      hint: 'CALL jumps to a function and remembers where it came from. RET goes back there. Without a RET at the end of "fire_at", the robot never comes back for the second target. Every CALL needs a RET!',
+      hint: 'CALL jumps to a function (the Field Guide calls it a subroutine) and remembers where it came from. RET goes back there. Without a RET at the end of "fire_at", the robot never comes back for the second target. Every CALL needs a RET!',
       guide: 'Field Guide: "Subroutines and timing"',
       start: { x: 200, y: 300, heading: 0 },
       dummies: [315, 45].map((a) => ({ source: dummy('Target'), ...around(200, 300, a, 220), heading: 180, health: 10 })),
@@ -358,7 +358,8 @@ stop:
       },
       starter: `Caller
 ; Mission 9: one "fire_at" function, used for two targets.
-; CALL jumps to a function and remembers where it came from.
+; CALL jumps to a function (also called a subroutine) and
+; remembers where it came from.
 ; RET jumps back, to the line after the CALL.
 main:
     MOV  R1, 315      ; first target: up and right
@@ -469,11 +470,33 @@ dodge_done:
 
   MISSIONS.push(...UNIT3);
 
+  /**
+   * Second hints, shown after two failed attempts: nearly the answer, so a
+   * stuck student can always move on. After four, the app offers the solution.
+   */
+  const HINT2 = {
+    drive: 'Change "SPEED 0" to "SPEED 5", then press ▶ Start.',
+    angles: 'Up is 270. Change "HEAD 0" to "HEAD 270".',
+    aim: 'Halfway between 270 and 360 is 315. Change "AIM 0" to "AIM 315".',
+    scan: 'On the empty line right after "AIM R2", type FIRE.',
+    dodge: 'Under the DANGER! comment, add two lines: "TURN 90" and then "SPEED 5".',
+    park: 'Change "CMP R0, 0" to "CMP R0, 500". The robot brakes a little after x = 500, still inside the zone.',
+    sweep: 'On the empty line right after FIRE, type "ADD R1, 30".',
+    laps: 'On the empty line right after "TURN 6", type "INC R5".',
+    call: 'On the very last line of fire_at, after its WAIT, type RET.',
+    boss: 'Under "; <- add your two dodge lines", type "TURN 90" and then "SPEED 5", the same as Mission 5.',
+    explore: 'After "GET R0, FRONT" add "CMP R0, 80", then "JG clear", then "TURN 90". Put the label "clear:" on its own line just before WAIT.',
+    follow: 'Replace "SPEED 0" with these lines: "CMP R1, 100", "JG far", "SPEED 0", "JMP done", "far:", "SPEED 4", "done:". Keep WAIT and JMP main after them.',
+    coords: 'On the empty line just before "AIM R4", type exactly: ATAN2 R4, R3, R2',
+    lead: 'Change ".def LEAD 0" to ".def LEAD 10". If it still misses, the message tells you which way to change it.',
+    graduate: 'In move, above its RET, add: "SPEED 3", "GET R0, FRONT", "CMP R0, 80", "JG move_done", "TURN 90", "move_done:". For attack, copy the whole attack function from Mission 10 over the two-line stub.',
+  };
+
   /** Missions grouped for the Missions tab, in order. */
   const UNITS = [
     { title: 'Getting started', ids: ['drive', 'angles', 'aim', 'scan', 'dodge'] },
     { title: 'Registers, loops and functions', ids: ['park', 'sweep', 'laps', 'call', 'boss'] },
-    { title: 'Sensors, maths and science', ids: ['explore', 'follow', 'coords', 'lead', 'graduate'] },
+    { title: 'Sensors, math and science', ids: ['explore', 'follow', 'coords', 'lead', 'graduate'] },
   ];
 
   /** End the mission once the player wins, loses or runs out of time. */
@@ -482,7 +505,10 @@ dodge_done:
     if (m.result) return;
     const me = world.robots[0];
     if (m.def.tick) m.def.tick(world);
-    let res = me.alive ? m.def.check(world, me) : { ok: false, text: 'Your robot was destroyed.' };
+    // A crash ends the attempt at once: otherwise it would only show up later as "Time's up".
+    let res = !me.alive ? { ok: false, text: 'Your robot was destroyed.' }
+      : me.vm.fault ? { ok: false, text: `Your program crashed on line ${me.vm.faultLine}. The CPU inspector explains why.` }
+      : m.def.check(world, me);
     if (!res && world.tick >= m.def.maxTicks) {
       res = m.def.timeUp ? m.def.timeUp(world, me) : { ok: false, text: 'Time\'s up! Change your code and try again.' };
     }
@@ -525,7 +551,7 @@ dodge_done:
 
   // ------------------------------------------------------------------ unit 3
 
-  /** Unit 3: sensors, maths and science. Declared last; hoisted for MISSIONS above. */
+  /** Unit 3: sensors, math and science. Declared last; hoisted for MISSIONS above. */
   function makeUnit3() {
     const R = BB.CONFIG.ROBOT_RADIUS;
     const BLOCKS = [
@@ -792,8 +818,8 @@ main:
         id: 'lead',
         title: 'Lead the target',
         teaches: 'experimenting: aim ahead of a moving target',
-        goal: 'Hit the moving target 3 times. Your fires take time to fly, so aim ahead of it. Find the right LEAD by experimenting!',
-        hint: 'Scientists test an idea, look at the result, and adjust. Try LEAD 5, then watch: the mission tells you whether your fires pass behind or in front of the target. Behind? Make LEAD bigger. In front? Make it smaller.',
+        goal: 'Hit the moving target 3 times. Your bullets take time to fly, so aim ahead of it. Find the right LEAD by experimenting!',
+        hint: 'Scientists test an idea, look at the result, and adjust. Try LEAD 5, then watch: the mission tells you whether your bullets pass behind or in front of the target. Behind? Make LEAD bigger. In front? Make it smaller.',
         guide: 'Field Guide: "Sensors" (SCAN_HEADING)',
         start: { x: 150, y: 300, heading: 0 },
         dummies: [{ source: MOVER, x: 380, y: 300, heading: 90, health: 30 }], // LEAD 8 to 14 all work here
@@ -829,7 +855,7 @@ main:
         },
         starter: `Predictor
 ; Mission 14: the target keeps moving, so aim AHEAD of it.
-; Your fires take time to fly. Try different LEAD values and
+; Your bullets take time to fly. Try different LEAD values and
 ; watch where they go: the mission tells you if they pass
 ; in front of or behind the target.
 .def LEAD 0           ; <- how many degrees ahead to aim. Experiment!
@@ -908,6 +934,8 @@ attack:
     lead.solution = lead.starter.replace('.def LEAD 0 ', `.def LEAD ${LEAD_SOLUTION}`);
     return unit;
   }
+
+  for (const m of MISSIONS) m.hint2 = HINT2[m.id];
 
   BB.MISSIONS = MISSIONS;
   BB.MISSION_UNITS = UNITS;

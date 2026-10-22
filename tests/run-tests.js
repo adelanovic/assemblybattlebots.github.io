@@ -701,11 +701,106 @@ test('plain notes for jumps without a CMP in the same tick, crashes and angles',
   const X = BB.explain;
   assert.strictEqual(X.traceNote({ op: 'JE', taken: true, to: 9 }, null), 'The last CMP said yes, so jump to line 9');
   assert.strictEqual(X.traceNote({ op: 'JGE', taken: true, to: 4 }, { x: 3, y: 3 }), '3 is greater than or equal to 3, so jump to line 4');
-  assert.strictEqual(X.traceNote({ op: 'DIV', fault: 'division by zero.' }, null), 'Crash! division by zero.');
+  assert.match(X.traceNote({ op: 'DIV', fault: 'division by zero.' }, null), /^Crashed: it tried to divide by zero/);
   assert.strictEqual(X.traceNote({ op: 'HEAD', value: 270 }, null), 'Turn to face 270° (up)');
   assert.strictEqual(X.traceNote({ op: 'TURN', value: -45 }, null), 'Turn 45° left');
   for (const ins of BB.ISA.INSTRUCTIONS) assert.ok(X.instruction(ins.op), `plain help for ${ins.op}`);
   for (const s of BB.ISA.SENSORS) assert.ok(X.sensor(s.name), `plain help for ${s.name}`);
+});
+
+test('every real VM crash gets a plain explanation, with its line', () => {
+  const crash = (src) => { const vm = runVM(src, 2000); return vm.fault; };
+  const cases = [
+    ['T\nDIV R0, 0', /line 2: it tried to divide by zero/],
+    ['T\nMOD R0, 0', /MOD by zero is impossible/],
+    ['T\nl: CALL l', /too many CALLs without a RET/],
+    ['T\nRET', /RET ran without a CALL first/],
+    ['T\nPOP R0', /nothing was PUSHed first/],
+    ['T\nMOV R0, [300]', /tried to use \[300\]/],
+    ['T\nMOV R1, -1\nSQRT R0, R1', /SQRT of a negative number/],
+    ['T\nRAND R0, 0', /RAND needs a number bigger than 0/],
+  ];
+  for (const [src, re] of cases) assert.match(BB.explain.fault(crash(src)), re, src);
+});
+
+test('a crash ends a mission at once, naming the line', () => {
+  const def = BB.MISSIONS[0];
+  const w = BB.buildMission(def, BB.assemble('Oops\nMOV R0, 5\nDIV R0, R1'));
+  w.step();
+  assert.ok(w.over);
+  assert.match(w.mission.result.text, /crashed on line 3/);
+});
+
+test('every mission has a second hint, and following it literally passes', () => {
+  const M = (id) => BB.MISSIONS.find((m) => m.id === id);
+  const lines = (s) => s.split('\n');
+  const code = (l) => l.split(';')[0].trim();
+  const replaceLine = (src, match, add) => { const a = lines(src), i = a.findIndex(match); assert.ok(i >= 0); a.splice(i, 1, ...add); return a.join('\n'); };
+  const insertAfter = (src, match, add) => { const a = lines(src), i = a.findIndex(match); assert.ok(i >= 0); a.splice(i + 1, 0, ...add); return a.join('\n'); };
+  const m10 = lines(M('boss').starter);
+  const attackFn = m10.slice(m10.findIndex((l) => l.startsWith('attack:')), m10.findIndex((l) => l.startsWith('; ---- dodge'))).join('\n').trimEnd();
+  // Each line is what the hint2 text tells a student to do.
+  const follow = {
+    drive: (s) => s.replace('SPEED 0', 'SPEED 5'),
+    angles: (s) => s.replace('HEAD 0', 'HEAD 270'),
+    aim: (s) => s.replace('AIM 0', 'AIM 315'),
+    scan: (s) => replaceLine(s, (l) => l.includes('<- add the firing line'), ['    FIRE']),
+    dodge: (s) => insertAfter(s, (l) => l.includes('DANGER!'), ['    TURN 90', '    SPEED 5']),
+    park: (s) => s.replace('CMP  R0, 0 ', 'CMP  R0, 500'),
+    sweep: (s) => replaceLine(s, (l) => l.includes('<- add 30 to R1'), ['    ADD R1, 30']),
+    laps: (s) => replaceLine(s, (l) => l.includes('<- add a line that adds 1'), ['    INC R5']),
+    call: (s) => replaceLine(s, (l) => l.includes('<- something is missing'), ['    RET']),
+    boss: (s) => replaceLine(s, (l) => l.includes('<- add your two dodge lines'), ['    TURN 90', '    SPEED 5']),
+    explore: (s) => insertAfter(insertAfter(s, (l) => code(l) === 'GET  R0, FRONT', ['    CMP R0, 80', '    JG clear', '    TURN 90']), (l) => l.includes('<- if R0 is less than 80'), ['clear:']),
+    follow: (s) => replaceLine(s, (l) => code(l) === 'SPEED 0', ['    CMP R1, 100', '    JG far', '    SPEED 0', '    JMP done', 'far:', '    SPEED 4', 'done:']),
+    coords: (s) => replaceLine(s, (l) => l.includes('<- turn dy and dx'), ['    ATAN2 R4, R3, R2']),
+    lead: (s) => s.replace('.def LEAD 0 ', '.def LEAD 10'),
+    graduate: (s) => replaceLine(replaceLine(s, (l) => l.includes('<- copy the lines from Mission 11'),
+      ['    SPEED 3', '    GET R0, FRONT', '    CMP R0, 80', '    JG move_done', '    TURN 90', 'move_done:']), (l) => l.includes('Leave out WAIT'), [])
+      .replace('attack:\n    RET\n', attackFn + '\n'),
+  };
+  for (const m of BB.MISSIONS) {
+    assert.ok(m.hint && m.hint2, `${m.id} has both hints`);
+    const c = BB.assemble(follow[m.id](m.starter));
+    assert.deepStrictEqual(c.errors, [], m.id);
+    for (const seed of [1, 2, 3]) {
+      const w = BB.buildMission(m, c, seed);
+      for (let t = 0; t <= m.maxTicks && !w.over; t++) w.step();
+      assert.ok(w.mission.result && w.mission.result.ok, `${m.id} seed ${seed}: ${w.mission.result && w.mission.result.text}`);
+    }
+  }
+});
+
+test('Start and Step run the code in the editor, never its old version', () => {
+  const app = uiHarness();
+  app.world.step(); // mid-match, so applying hot-swaps instead of resetting
+  const e = app.selected, robot = app.robotFor(0);
+  e.draft = 'A\nMOV R3, 77\nWAIT';
+  app.stepOnce();
+  assert.strictEqual(e.source, e.draft, 'the edit was applied');
+  assert.strictEqual(robot.vm.regs[3], 77, 'and it ran');
+  e.draft = 'A\nSPED 5';
+  const tick = app.world.tick;
+  app.stepOnce();
+  assert.strictEqual(app.world.tick, tick, 'broken code does not run');
+  assert.match(app.message, /Your code has errors/);
+  assert.notStrictEqual(e.source, e.draft, 'and is not applied');
+});
+
+test('failed mission attempts are counted, unlocking more help', () => {
+  const app = uiHarness();
+  const def = BB.MISSIONS[0];
+  app.mission = def;
+  app.missionState = { done: [], code: {}, fails: {} };
+  app.renderMissionBar = app.renderMissions = () => {};
+  for (let attempt = 0; attempt < 2; attempt++) {
+    app.world = BB.buildMission(def, BB.assemble(def.starter));
+    app.missionReported = false;
+    while (!app.world.over) app.world.step();
+    app.checkMissionResult();
+  }
+  assert.strictEqual(app.missionState.fails[def.id], 2);
+  assert.deepStrictEqual([...app.missionState.done], []);
 });
 
 test('every mission: starter assembles but does not pass, solution passes in time', () => {
