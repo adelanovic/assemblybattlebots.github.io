@@ -230,7 +230,8 @@
         : this.robots.length >= 2;
       this.spawnRobots();
       const where = `${ARENAS[this.arena].label} arena, seed ${seed}`;
-      if (!this.competitive) this.addLog('Practice mode: add an opponent for a real match.');
+      if (!this.robots.length) this.addLog('No robots in the arena.');
+      else if (!this.competitive) this.addLog('Practice mode: add an opponent for a real match.');
       else if (this.teamMode) {
         const size = (t) => this.robots.filter((r) => r.team === t).length;
         this.addLog(`Team match ${size(0)}v${size(1)} started (${where}).`);

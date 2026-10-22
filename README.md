@@ -253,3 +253,7 @@ docs/LANGUAGE.md      generated language reference
 ```
 
 Data flows one way: **source → `assemble()` → program → `VM` (one per robot) → `World.step()` → `Renderer.draw()`**. To add an instruction, add a row to `INSTRUCTIONS` in `isa.js`, a `case` in `VM.exec`, and a plain-language sentence in `js/ui/explain.js` (a test checks that every instruction and sensor has one). The assembler, the in-app reference and `docs/LANGUAGE.md` (after `npm run build`) pick it up automatically.
+
+## License
+
+Open source under the [MIT License](LICENSE). Battle Bots is a free, independent educational project. It is not affiliated with, sponsored by or endorsed by BattleBots, Inc. or the *BattleBots* television series.

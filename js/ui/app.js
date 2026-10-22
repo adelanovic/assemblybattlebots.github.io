@@ -40,6 +40,27 @@
     return { regs: [...regs].sort((x, y) => x - y), sensors };
   }
 
+  /**
+   * Where 1-based `lines` of `before` end up in `after`. Text is compared from
+   * both ends: lines above the edited block keep their number, lines below it
+   * shift by the change in length, and a line inside the edited block keeps its
+   * number while the new block still reaches it (typing on a line keeps its mark).
+   */
+  function shiftLines(before, after, lines) {
+    const a = before.split('\n'), b = after.split('\n');
+    let top = 0;
+    while (top < a.length && top < b.length && a[top] === b[top]) top++;
+    let bottom = 0;
+    while (bottom < a.length - top && bottom < b.length - top && a[a.length - 1 - bottom] === b[b.length - 1 - bottom]) bottom++;
+    const out = [];
+    for (const n of lines) {
+      if (n - 1 < top) out.push(n);
+      else if (n - 1 >= a.length - bottom) out.push(n + b.length - a.length);
+      else if (n - 1 < b.length - bottom) out.push(n);
+    }
+    return out;
+  }
+
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -244,6 +265,14 @@
       this.updatePanels(true);
     }
 
+    /** Why the arena has no robots, worded as what to do next. */
+    emptyArenaReason() {
+      if (this.mission || this.entries.some((e) => e.compiled.errors.length)) {
+        return 'Fix the syntax errors in your code first (they are listed under the editor), then press Apply.';
+      }
+      return 'Add at least one robot first.';
+    }
+
     /** Once per mission run: record a pass, tell the player, update the mission panels. */
     checkMissionResult() {
       const m = this.world.mission;
@@ -260,7 +289,7 @@
     toggleRun() {
       if (this.world.over) this.resetMatch();
       if (!this.world.robots.length) {
-        this.flash(this.mission ? 'Fix the errors in your code first, then press Apply.' : 'Add at least one robot first.');
+        this.flash(this.emptyArenaReason());
         return;
       }
       const problem = !this.running && this.teamProblem();
@@ -272,7 +301,7 @@
 
     stepOnce() {
       if (this.world.over) return;
-      if (!this.world.robots.length) { this.flash('Add at least one robot first.'); return; }
+      if (!this.world.robots.length) { this.flash(this.emptyArenaReason()); return; }
       const problem = this.teamProblem();
       if (problem) { this.flash(problem); return; }
       this.running = false;
@@ -290,7 +319,8 @@
     syncDebugger() {
       for (const r of this.world.robots) {
         const e = this.entry(r.entryId);
-        r.vm.breakLines = e && e.breakpoints.size > 0 && e.runningSource === e.source ? e.breakpoints : null;
+        // Breakpoints follow the draft as it is edited, so they only apply while it matches the running code.
+        r.vm.breakLines = e && e.breakpoints.size > 0 && e.runningSource === e.source && e.draft === e.source ? e.breakpoints : null;
         if (r.entryId !== this.selectedId) r.vm.trace = null;
         else if (!r.vm.trace) r.vm.trace = [];
       }
@@ -305,6 +335,15 @@
       if (this.selectedId !== r.entryId) this.select(r.entryId);
       this.flash(`Breakpoint: ${r.name} is about to run line ${r.vm.resumeLine}.`);
       return true;
+    }
+
+    /** Keep `e`'s breakpoints on the same code when its text changes from `before` to `after`. */
+    moveBreakpoints(e, before, after) {
+      if (!e.breakpoints.size || before === after) return;
+      const moved = shiftLines(before, after, [...e.breakpoints]);
+      e.breakpoints.clear();
+      for (const n of moved) e.breakpoints.add(n);
+      if (e === this.selected) this.editor.setBreakpoints(e.breakpoints);
     }
 
     toggleBreakpoint(line) {
@@ -813,10 +852,13 @@
         if (MODES[saved.mode]) this.mode = saved.mode;
         $('#mode-type').value = this.mode;
         for (const e of saved.entries) {
+          if (!e || typeof e.source !== 'string') continue; // damaged save: nothing to restore
           const team = TEAMS.includes(e.team) ? e.team : null;
           this.addEntry(e.filename, e.source, { select: false, draft: e.draft, team, breakpoints: e.breakpoints });
         }
-      } else {
+      }
+      // First visit, an emptied roster, or a save too damaged to use: start with the examples.
+      if (!this.entries.length) {
         for (const ex of BB.EXAMPLES) this.addEntry(ex.file, ex.source, { select: false });
       }
       this.select(this.entries.length ? this.entries[0].id : null);
@@ -896,6 +938,7 @@
       this.editor.onChange((value) => {
         const e = this.selected;
         if (!e) return;
+        this.moveBreakpoints(e, e.draft, value);
         e.draft = value;
         clearTimeout(timer);
         timer = setTimeout(() => { this.checkDraft(); this.persist(); }, 250);
@@ -905,6 +948,7 @@
       $('#btn-revert').onclick = () => {
         const e = this.selected;
         if (!e || e.draft === e.source) return;
+        this.moveBreakpoints(e, e.draft, e.source);
         e.draft = e.source;
         this.editor.value = e.draft;
         this.checkDraft();

@@ -68,6 +68,26 @@ test('empty program', () => {
 test('multiple errors are all reported', () => {
   assert.strictEqual(errorsOf('Bot\nFOO\nBAR\nMOV R0').length, 3);
 });
+test('beginner mistakes get specific, correct help', () => {
+  const msg = (src) => BB.assemble(src).errors.map((e) => e.message).join(' ');
+  assert.match(msg('T\nGET R0, 5'), /must be a sensor name, such as HEALTH/);
+  assert.match(msg('T\nGET R0, R1'), /must be a sensor name/);
+  assert.doesNotMatch(msg('T\nGET R0, 5'), /Did you mean/);
+  assert.match(msg('T\nx: MOV R0, x'), /Labels can only be used as jump targets/);
+  assert.doesNotMatch(msg('T\nx: MOV R0, x'), /GET/);
+  assert.match(msg('T\nIF R0 > 5'), /no IF: compare with CMP/);
+  assert.match(msg('T\nSHOOT'), /Use FIRE/);
+  assert.match(msg('T\nMOV R0, 5 // five'), /Comments start with ; or #/);
+  assert.match(msg('T\nMOV R0, [R1'), /missing its closing \]/);
+  assert.match(msg('T\nMOV R0,,5'), /extra comma/);
+  assert.match(msg('T\nMOV R0, 5,'), /extra comma/);
+  assert.match(msg('T\nSPED 5'), /Did you mean SPEED\?/);
+  assert.match(msg('T\nmain:\nJMP mian'), /Did you mean MAIN\?/);
+  const named = BB.assemble('Bot ; my robot\nWAIT');
+  assert.deepStrictEqual([named.name, named.errors.length], ['Bot ; my robot', 0]);
+  assert.match(named.warnings[0].message, /Put comments on line 2 or later/);
+});
+
 test('every example assembles cleanly', () => {
   for (const ex of BB.EXAMPLES) assert.deepStrictEqual(errorsOf(ex.source), [], ex.file);
 });
@@ -414,6 +434,78 @@ test('a team match with only one team is practice mode', () => {
   assert.strictEqual(w.over, false);
 });
 
+console.log('Fuzzing (fixed seeds, so failures reproduce)');
+const fuzzRng = BB.geo.makeRng(20261021);
+const fuzzPick = (a) => a[Math.floor(fuzzRng() * a.length)];
+const fuzzInt = (lo, hi) => lo + Math.floor(fuzzRng() * (hi - lo + 1));
+const isInt32 = (v) => Number.isInteger(v) && v >= -2147483648 && v <= 2147483647;
+
+/** A random program that assembles: every instruction, odd operands, jumps anywhere. */
+function fuzzProgram(n) {
+  const src = ['R0', 'R1', 'R7', '[R1]', '[R2+3]', '[5]', '[R0]', '0', '1', '-1', '360', '2147483647', '-2147483648'];
+  const dst = ['R0', 'R1', 'R7', '[R1]', '[R2+3]', '[5]', '[R0]'];
+  const lines = ['Fuzz'];
+  for (let i = 0; i < n; i++) {
+    const spec = fuzzPick(BB.ISA.INSTRUCTIONS);
+    const args = spec.args.map((k) => (k === 'dst' ? fuzzPick(dst) : k === 'src' ? fuzzPick(src)
+      : k === 'sensor' ? fuzzPick(BB.ISA.SENSORS).name : `L${fuzzInt(0, n)}`));
+    lines.push(`L${i}: ${spec.op} ${args.join(', ')}`);
+  }
+  lines.push(`L${n}: WAIT`);
+  return lines.join('\n');
+}
+
+test('assembler never throws and reports sane line numbers for random token soup', () => {
+  const tokens = ['MOV', 'JMP', 'R0', 'R9', '[', ']', ',', ':', 'loop:', '.def', '5', '-0x1F', ';', 'GET', 'HEALTH', '[R1+2]', '.shape', '99999999999', '//', '\u{1F916}'];
+  for (let i = 0; i < 1500; i++) {
+    const src = ['Fuzz', ...Array.from({ length: fuzzInt(0, 6) }, () => Array.from({ length: fuzzInt(0, 5) }, () => fuzzPick(tokens)).join(fuzzPick([' ', ', ', ''])))].join('\n');
+    const res = BB.assemble(src);
+    const n = src.split('\n').length;
+    for (const e of res.errors.concat(res.warnings)) assert.ok(e.line >= 1 && e.line <= n && e.message, JSON.stringify(src));
+    assert.ok(!res.errors.length || !res.program.length);
+  }
+});
+
+test('VM keeps 32-bit registers, its stack limit and the cycle budget on random programs', () => {
+  const io = { sense: () => 7, random: (n) => Math.floor(fuzzRng() * n), speed() {}, turn() {}, head() {}, aim() {}, fire() {}, scan() {}, radar() {} };
+  for (let i = 0; i < 1500; i++) {
+    const src = fuzzProgram(fuzzInt(1, 20));
+    const res = BB.assemble(src);
+    assert.deepStrictEqual(res.errors, [], src);
+    const vm = new BB.VM(res.program, io);
+    vm.trace = [];
+    for (let t = 0; t < 5; t++) {
+      assert.ok(vm.run(50) <= 50, src);
+      assert.ok([...vm.regs].every(isInt32), src);
+      assert.ok(vm.stack.length <= BB.CONFIG.STACK_SIZE, src);
+      assert.ok(!vm.fault || !/internal error/.test(vm.fault), `${vm.fault}\n${src}`);
+      assert.ok(Number.isInteger(vm.currentLine), src);
+    }
+  }
+});
+
+test('random matches keep every robot finite, in the arena, out of obstacles, with int32 sensors', () => {
+  const R = BB.CONFIG.ROBOT_RADIUS;
+  for (let i = 0; i < 25; i++) {
+    const n = fuzzInt(2, 8);
+    const entries = Array.from({ length: n }, (_, k) => compile(fuzzRng() < 0.5 ? fuzzPick(BB.EXAMPLES).source : fuzzProgram(fuzzInt(3, 15)), k));
+    const seed = fuzzInt(1, 1e6), arena = fuzzPick(['classic', 'random', 'open']);
+    const w = new BB.World({ entries, seed, arena });
+    for (let t = 0; t < 800 && !w.over; t++) {
+      w.step();
+      for (const r of w.robots) {
+        const where = `match ${i} (seed ${seed}, ${arena}) tick ${w.tick} ${r.name}`;
+        assert.ok(['x', 'y', 'heading', 'turret', 'speed', 'health'].every((f) => Number.isFinite(r[f])), where);
+        assert.ok(r.x >= R - 1e-6 && r.x <= w.width - R + 1e-6 && r.y >= R - 1e-6 && r.y <= w.height - R + 1e-6, `${where} at ${r.x},${r.y}`);
+        assert.ok(r.health >= 0 && r.health <= BB.CONFIG.MAX_HEALTH, where);
+        if (r.alive) for (const o of w.obstacles) { const p = BB.geo.circleRectPush(r.x, r.y, R, o); assert.ok(!p || p.depth <= 0.5, `${where} inside an obstacle`); }
+        for (const s of BB.ISA.SENSORS) assert.ok(isInt32(w.sense(r, s.id)), `${where} ${s.name}`);
+      }
+      w.drainEvents();
+    }
+  }
+});
+
 console.log('Regression checks');
 test('constants enforce signed 32-bit limits for every directive', () => {
   for (const directive of ['.def', '.const', '.equ']) {
@@ -700,6 +792,35 @@ test('long names are truncated without splitting an emoji', () => {
   assert.strictEqual(res.name, `${'A'.repeat(23)}🤖`);
   assert.strictEqual(res.warnings.length, 1);
   assert.strictEqual(BB.assemble(`${'A'.repeat(23)}🤖\nWAIT`).warnings.length, 0, '24 characters fit');
+});
+
+test('breakpoints move with the code as it is edited', () => {
+  const app = uiHarness();
+  const e = app.selected;
+  const src = 'A\nmain:\n    INC R0\n    INC R1\n    WAIT\n    JMP main';
+  const edit = (before, after, marks) => {
+    e.breakpoints = new Set(marks);
+    app.moveBreakpoints(e, before, after);
+    return [...e.breakpoints];
+  };
+  const insertAbove = src.replace('main:', '; note\n; more\nmain:');
+  assert.deepStrictEqual(edit(src, insertAbove, [4]), [6], 'two lines inserted above');
+  assert.deepStrictEqual(edit(src, src.replace('    INC R0\n', ''), [4]), [3], 'a line deleted above');
+  assert.deepStrictEqual(edit(src, src.replace('INC R1', 'INC R2'), [4]), [4], 'typing on the breakpoint line keeps it');
+  assert.deepStrictEqual(edit(src, src.replace('    INC R1\n', ''), [4]), [], 'deleting the breakpoint line drops it');
+  assert.deepStrictEqual(edit(src, src + '\n; tail', [3, 4]), [3, 4], 'edits below change nothing');
+  assert.deepStrictEqual(app.editor.breakpoints, [3, 4], 'the gutter follows');
+});
+
+test('breakpoints pause only while the editor matches the applied code', () => {
+  const app = uiHarness();
+  const e = app.selected;
+  e.breakpoints = new Set([3]);
+  app.syncDebugger();
+  assert.ok(app.robotFor(0).vm.breakLines, 'active when draft = applied code');
+  e.draft = e.source + '\n; unapplied edit';
+  app.syncDebugger();
+  assert.strictEqual(app.robotFor(0).vm.breakLines, null, 'paused while editing');
 });
 
 test('breakpoints only go on instruction lines and follow the applied code', () => {

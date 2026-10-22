@@ -51,6 +51,7 @@
   }
 
   function suggest(word, candidates) {
+    if (word.length < 3) return ''; // "5" -> "X" or "IF" -> "DIV" would mislead
     let best = null, bestD = 3;
     for (const c of candidates) {
       const d = levenshtein(word, c);
@@ -58,6 +59,26 @@
     }
     return best ? ` Did you mean ${best}?` : '';
   }
+
+  /** Words beginners often try, from other languages or plain English. */
+  const FRIENDLY = {
+    IF: 'Assembly has no IF: compare with CMP, then jump with JL, JG, JE and friends.',
+    ELSE: 'Assembly has no ELSE: jump past the code you want to skip with JMP.',
+    WHILE: 'Assembly has no WHILE: put a label at the top of the loop and JMP back to it.',
+    FOR: 'Assembly has no FOR: count with INC or DEC, CMP, then jump back to a label.',
+    LOOP: 'To loop, put a label like "main:" at the top and JMP back to it.',
+    GOTO: 'Use JMP to jump to a label.',
+    SET: 'Use MOV to put a value in a register, e.g. "MOV R0, 5".',
+    LET: 'Use MOV to put a value in a register, e.g. "MOV R0, 5".',
+    PRINT: 'Robots can\'t print. Watch your registers in the CPU inspector instead.',
+    SHOOT: 'Use FIRE to shoot.',
+    MOVE: 'Use SPEED to drive, e.g. "SPEED 5".', DRIVE: 'Use SPEED to drive, e.g. "SPEED 5".', GO: 'Use SPEED to drive, e.g. "SPEED 5".',
+    LEFT: 'Use TURN with a negative number to turn left, e.g. "TURN -90".',
+    RIGHT: 'Use TURN to turn right, e.g. "TURN 90".',
+    ROTATE: 'Use TURN to turn the body, or AIM to point the gun.',
+    STOP: 'Use "SPEED 0" to stop, or HALT to end the program.',
+    END: 'Use HALT to stop the program for good.',
+  };
 
   /** Split "a, b , [R1 + 2]" into trimmed operand strings. */
   function splitArgs(text) {
@@ -88,6 +109,9 @@
       // Count code points, so an emoji is never cut in half.
       warnings.push({ line: 1, message: `Name truncated to ${MAX_NAME} characters.` });
       name = [...name].slice(0, MAX_NAME).join('');
+    }
+    if (/[;#]/.test(name)) {
+      warnings.push({ line: 1, message: 'Line 1 is only the robot\'s name, so this ; or # is part of the name. Put comments on line 2 or later.' });
     }
 
     // ---- Pass 1: labels, constants, raw statements ----
@@ -231,13 +255,19 @@
 
       if (kind === 'sensor') {
         if (SENSOR_MAP[tok]) return { k: 'imm', v: SENSOR_MAP[tok].id };
-        err(lineNo, `Unknown sensor "${raw}".${suggest(tok, Object.keys(SENSOR_MAP))}`);
+        if (REG_RE.test(tok) || parseNumber(tok) !== null) {
+          err(lineNo, `${op}'s second operand must be a sensor name, such as HEALTH or FRONT, not "${raw}".`);
+        } else {
+          err(lineNo, `Unknown sensor "${raw}".${suggest(tok, Object.keys(SENSOR_MAP))}`);
+        }
         return null;
       }
 
       // dst / src
       const mem = /^\[(.*)\]$/.exec(tok);
       if (mem) return parseMemory(mem[1], lineNo);
+      if (tok.startsWith('[')) { err(lineNo, `Memory operand "${raw}" is missing its closing ].`); return null; }
+      if (tok.includes('//')) { err(lineNo, `"${raw}" isn't a value. Comments start with ; or #, not //.`); return null; }
 
       const r = resolveReg(tok);
       if (r === -2) { err(lineNo, `Unknown register ${raw}. Registers are R0..R${NUM_REGS - 1}.`); return null; }
@@ -252,9 +282,10 @@
       if (v === null) return null;
       if (v !== undefined) return { k: 'imm', v };
 
+      // A label that shares a sensor's name (x: and X) is still a label here.
       let hint = '';
-      if (SENSOR_MAP[tok]) hint = ` To read a sensor, use GET first, e.g. "GET R0, ${tok}".`;
-      else if (labels[tok] !== undefined) hint = ' Labels can only be used as jump targets.';
+      if (labels[tok] !== undefined) hint = ' Labels can only be used as jump targets.';
+      else if (SENSOR_MAP[tok]) hint = ` To read a sensor, use GET first, e.g. "GET R0, ${tok}".`;
       else hint = suggest(tok, Object.keys(constants));
       err(lineNo, `Unknown name "${raw}" — expected ${ARG_HINT[kind]}.${hint}`);
       return null;
@@ -263,7 +294,12 @@
     for (const st of statements) {
       const spec = INSTRUCTION_MAP[st.op];
       if (!spec) {
-        err(st.line, `Unknown instruction "${st.op}".${suggest(st.op, Object.keys(INSTRUCTION_MAP))}`);
+        const hint = FRIENDLY[st.op] ? ` ${FRIENDLY[st.op]}` : suggest(st.op, Object.keys(INSTRUCTION_MAP));
+        err(st.line, `Unknown instruction "${st.op}".${hint}`);
+        continue;
+      }
+      if (st.args.length > 1 && st.args.some((a) => !a)) {
+        err(st.line, `${spec.op} has an extra comma, or a value missing between commas.`);
         continue;
       }
       if (st.args.length !== spec.args.length) {
