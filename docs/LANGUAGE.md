@@ -106,7 +106,7 @@ main:
 
 Appearance is part of the source text. Save .asm exports it, Load .asm reads it, and duplication copies it with the robot program. The browser also saves your source and draft with the roster.
 
-Typing a change edits the draft; press Apply to use it. Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.
+Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.
 
 #### Built-in example combinations
 
@@ -242,12 +242,12 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 |---|---|---|---|
 | `GET dst, sensor` | 1 | Read a sensor value into dst (see the sensor table). | `GET R0, HEALTH` |
 | `SPEED src` | 1 | Set the desired speed (-3..5 units/tick, clamped). The robot accelerates at 0.5 per tick. | `SPEED 5` |
-| `TURN src` | 1 | Set the desired heading to current heading + src degrees. The body turns at most 8°/tick. | `TURN -90` |
-| `HEAD src` | 1 | Set the desired absolute heading in degrees. The body turns at most 8°/tick. | `HEAD 180` |
+| `TURN src` | 1 | Set the desired heading to current heading + src degrees: positive turns right (clockwise), negative turns left. The body always takes the shorter way round, so TURN 270 turns 90° left, and TURN 180 turns around to the left. It turns at most 8°/tick. | `TURN -90` |
+| `HEAD src` | 1 | Set the desired absolute heading in degrees, reached the shorter way round. The body turns at most 8°/tick. | `HEAD 180` |
 | `AIM src` | 1 | Set the desired absolute turret angle. The turret turns at most 20°/tick, independently of the body. | `AIM R1` |
 | `FIRE` | 1 | Request one shot after movement and turret rotation this tick, if alive and COOLDOWN is 0. Multiple FIRE instructions in one tick still request only one shot. | `FIRE` |
-| `SCAN src` | 3 | Find the nearest living enemy whose body intersects a cone of src degrees (clamped to 1..90) around the current turret. Narrow cones reach farther: range = floor(2400 / sqrt(width)), so 90° reaches 252 units, 16° 600 and 4° 1200. Obstacles block the center-to-center view. Updates SCAN_* immediately, including SCAN_RANGE; SCAN_DIST is -1 if none. | `SCAN 20` |
-| `RADAR` | 3 | Find the nearest enemy projectile within 250 units whose velocity points toward you. Obstacles do not block radar. Updates THREAT_* immediately; THREAT_DIST is -1 if none. Approaching does not guarantee a collision. | `RADAR` |
+| `SCAN src` | 3 | Find the nearest living enemy whose body intersects a cone of src degrees (clamped to 1..90) around the current turret. Narrow cones reach farther: range = floor(2400 / sqrt(width)), so 90° reaches 252 units, 16° 600 and 4° 1200. Obstacles block the center-to-center view. The cone uses the turret's direction when SCAN runs: an AIM earlier in the same tick has not turned the turret yet. Updates SCAN_* immediately, including SCAN_RANGE; if nothing is found, SCAN_DIST is -1 and the other SCAN_* values are 0. | `SCAN 20` |
+| `RADAR` | 3 | Find the nearest enemy projectile within 250 units whose velocity points toward you. Obstacles do not block radar. Updates THREAT_* immediately; if none is found, THREAT_DIST is -1 and the other THREAT_* values are 0. Approaching does not guarantee a collision. | `RADAR` |
 
 ## Sensors (read with `GET dst, SENSOR`)
 
@@ -261,14 +261,14 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 | `COOLDOWN` | Ticks until you can fire again (0 = ready). |
 | `TURRET` | Your current turret angle, 0..359. |
 | `SCAN_DIST` | Rounded center-to-center distance from the last SCAN, or -1 if none. |
-| `SCAN_ANGLE` | Absolute angle from you to that enemy. |
-| `SCAN_X` | That enemy's x position. |
-| `SCAN_Y` | That enemy's y position. |
-| `SCAN_HEADING` | That enemy's heading (use it to lead your shots). |
-| `SCAN_SPEED` | That enemy's speed. |
+| `SCAN_ANGLE` | Absolute angle from you to that enemy (0 if the last SCAN found nothing). |
+| `SCAN_X` | That enemy's x position (0 if none). |
+| `SCAN_Y` | That enemy's y position (0 if none). |
+| `SCAN_HEADING` | That enemy's heading, to aim ahead of it (0 if none). |
+| `SCAN_SPEED` | That enemy's speed, rounded (0 if none). |
 | `THREAT_DIST` | Distance to the projectile found by the last RADAR, or -1. |
-| `THREAT_ANGLE` | Absolute angle from you to that projectile. |
-| `THREAT_HEADING` | Direction that projectile is traveling. |
+| `THREAT_ANGLE` | Absolute angle from you to that projectile (0 if none). |
+| `THREAT_HEADING` | Direction that projectile is traveling (0 if none). |
 | `FRONT` | Rounded distance your whole circular body can travel along its current heading before touching a wall or obstacle. Other robots are not included. |
 | `LAST_HIT` | Ticks since you were last hit by a projectile, or -1 if never. |
 | `TICK` | Current simulation tick. |

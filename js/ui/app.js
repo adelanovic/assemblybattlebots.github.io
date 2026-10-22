@@ -89,8 +89,8 @@
       this.editor.setHelp((word) => this.helpFor(word));
 
       this.bindControls();
-      this.buildReference();
       this.restore();
+      this.buildReference(); // after restore: it depends on the saved Simple view setting
       this.renderMissions();
       this.resetMatch();
       requestAnimationFrame((timestamp) => this.frame(timestamp));
@@ -693,13 +693,16 @@
       box.scrollTop = box.scrollHeight;
     }
 
+    /** The Reference tab. Simple view leads with plain language and keeps the exact rules below it. */
     buildReference() {
       const { INSTRUCTIONS, SENSORS, LANGUAGE_NOTES } = BB.ISA;
+      const described = (plain, exact) => (this.simple && plain
+        ? `${esc(plain)}<div class="ref-exact">${esc(exact)}</div>` : esc(exact));
       let html = '<h3>Language basics</h3><ul class="notes">' +
         LANGUAGE_NOTES.map((n) => `<li>${esc(n).replace(/`([^`]+)`/g, '<code>$1</code>')}</li>`).join('') + '</ul>';
-      html += `<h3>Operands</h3><table><tr><td><code>dst</code></td><td>register <code>R0</code>..<code>R7</code> or memory <code>[n]</code>, <code>[Rx]</code>, <code>[Rx+n]</code></td></tr>
+      html += `<h3>Operands</h3><table><tr><td><code>dst</code></td><td>register <code>R0</code>..<code>R7</code> or memory <code>[n]</code>, <code>[Rx]</code>, <code>[Rx+n]</code>, <code>[Rx-n]</code></td></tr>
         <tr><td><code>src</code></td><td>anything <code>dst</code> accepts, plus a number or constant</td></tr>
-        <tr><td><code>target</code></td><td>a label</td></tr><tr><td><code>sensor</code></td><td>a sensor name (below)</td></tr></table>`;
+        <tr><td><code>target</code></td><td>a label (where to jump)</td></tr><tr><td><code>sensor</code></td><td>a sensor name (below)</td></tr></table>`;
       let group = null;
       for (const ins of INSTRUCTIONS) {
         if (ins.group !== group) {
@@ -708,11 +711,11 @@
           html += `<h3>${group}</h3><table class="ref">`;
         }
         const form = [ins.op, ins.args.join(', ')].filter(Boolean).join(' ');
-        html += `<tr><td><code>${esc(form)}</code>${ins.cost > 1 ? `<span class="cost">${ins.cost} cycles</span>` : ''}</td>
-          <td>${esc(ins.summary)}<div class="ex">${esc(ins.example)}</div></td></tr>`;
+        html += `<tr><td><code>${esc(form)}</code>${ins.cost > 1 ? `<span class="cost">${ins.cost} ${this.simple ? 'coins' : 'cycles'}</span>` : ''}</td>
+          <td>${described(BB.explain.instruction(ins.op), ins.summary)}<div class="ex">${esc(ins.example)}</div></td></tr>`;
       }
       html += '</table><h3>Sensors: <code>GET dst, NAME</code></h3><table class="ref">' +
-        SENSORS.map((s) => `<tr><td><code>${s.name}</code></td><td>${esc(s.desc)}</td></tr>`).join('') + '</table>';
+        SENSORS.map((s) => `<tr><td><code>${s.name}</code></td><td>${described(BB.explain.sensor(s.name), s.desc)}</td></tr>`).join('') + '</table>';
       html += '<h3>Appearance header (cosmetic)</h3><table class="ref">' +
         Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) => `<tr><td><code>.${key} preset</code></td><td>${spec.choices.join(', ')}. Default: ${spec.default}.</td></tr>`).join('') +
         '</table><p>Put these optional directives below the name, before labels, constants or instructions. Each may appear once. They change appearance only: collision size, movement, bullet origin and damage stay the same. Twin turrets still fire one shot.</p>';
@@ -722,9 +725,9 @@
         ['Budget', `${C.CYCLES_PER_TICK} cycles per robot per tick`],
         ['Movement', `speed ${C.MAX_REVERSE}..${C.MAX_SPEED}, acceleration ${C.ACCELERATION}/tick, body turns ${C.BODY_TURN_RATE}°/tick, turret ${C.TURRET_TURN_RATE}°/tick`],
         ['Weapons', `bullet speed ${C.BULLET_SPEED}, damage ${C.BULLET_DAMAGE}, cooldown ${C.FIRE_COOLDOWN} ticks`],
-        ['Collisions', 'Hitting a wall or obstacle at speed ≥ 2 deals speed/2 damage. Ramming another robot deals 1 damage to both.'],
+        ['Collisions', 'Hitting a wall or obstacle stops you and costs half your speed in health, rounded down: nothing at speed 1, 1 at speed 2 or 3, 2 at speed 4 or 5. Every tick a robot keeps driving into an enemy faster than 1 unit per tick, both take 1 damage, so pushing hurts both sides. Teammates never damage each other.'],
         ['Sensors', `SCAN cone up to ${C.SCAN_MAX_WIDTH}°, blocked by obstacles. Narrow cones reach farther: range ${C.SCAN_RANGE_FACTOR} / √width (${BB.World.scanRange(C.SCAN_MAX_WIDTH)} at ${C.SCAN_MAX_WIDTH}°, ${BB.World.scanRange(16)} at 16°). RADAR range ${C.RADAR_RANGE}.`],
-        ['Victory', `Last robot standing. After ${C.MAX_TICKS} ticks, highest health wins.`],
+        ['Victory', `Last robot standing wins. After ${C.MAX_TICKS} ticks, the highest health wins, and equal health is a draw. A practice match with only one robot never ends.`],
         ['Teams', 'In 2v2 / 3v3, teammates are invisible to SCAN and RADAR, can\'t hurt each other, and don\'t count in ENEMIES (use ALLIES). Team B spawns as the mirror image of team A. Last team standing wins; at the time limit, highest total health.'],
       ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>';
       $('#reference').innerHTML = html;
@@ -936,7 +939,7 @@
 
       $('#show-scans').onchange = (ev) => { this.renderer.showScans = ev.target.checked; };
       $('#show-counts').onchange = (ev) => { this.showCounts = ev.target.checked; this.updateDebug(); };
-      $('#simple-view').onchange = (ev) => { this.simple = ev.target.checked; this.persist(); this.updateDebug(); };
+      $('#simple-view').onchange = (ev) => { this.simple = ev.target.checked; this.persist(); this.updateDebug(); this.buildReference(); };
       $('#missions').addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-mission]');
         if (b) this.startMission(b.dataset.mission);

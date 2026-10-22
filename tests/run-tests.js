@@ -708,6 +708,38 @@ test('plain notes for jumps without a CMP in the same tick, crashes and angles',
   for (const s of BB.ISA.SENSORS) assert.ok(X.sensor(s.name), `plain help for ${s.name}`);
 });
 
+test('Reference claims match the engine (turning, SCAN timing, misses, collisions)', () => {
+  const world = (srcs, teams) => new BB.World({ entries: srcs.map((s, i) => ({ ...compile(s, i), team: teams && teams[i] })), arena: 'open' });
+  const put = (r, x, y, h) => { r.x = x; r.y = y; r.heading = r.targetHeading = r.turret = r.targetTurret = h; };
+  // TURN takes the shorter way: 270 and 180 both turn left.
+  for (const [deg, want] of [[90, 16], [180, 344], [270, 344], [-270, 16]]) {
+    const w = world([`T\nTURN ${deg}\nl: WAIT\nJMP l`]); put(w.robots[0], 400, 300, 0);
+    w.step(); w.step();
+    assert.strictEqual(Math.round(w.robots[0].heading), want, `TURN ${deg}`);
+  }
+  // SCAN uses the turret direction before this tick's AIM turns it; a miss zeroes the other SCAN_* values.
+  const s = world(['S\nAIM 180\nSCAN 10\nGET R0, SCAN_DIST\nGET R1, SCAN_ANGLE\nGET R2, SCAN_X\nl: WAIT\nJMP l', 'F\nl: WAIT\nJMP l']);
+  put(s.robots[0], 400, 300, 0); put(s.robots[1], 200, 300, 0);
+  s.step();
+  assert.deepStrictEqual([...s.robots[0].vm.regs.slice(0, 3)], [-1, 0, 0]);
+  // Walls cost half the speed, rounded down.
+  for (const [spd, dmg] of [[1, 0], [2, 1], [3, 1], [4, 2], [5, 2]]) {
+    const w = world([`W\nSPEED ${spd}\nl: WAIT\nJMP l`]); put(w.robots[0], 700, 300, 0);
+    for (let t = 0; t < 200; t++) w.step();
+    assert.strictEqual(100 - w.robots[0].health, dmg, `wall at speed ${spd}`);
+  }
+  // Pushing into an enemy hurts both every tick; slow bumps and teammates do not.
+  const ram = (spd, teams) => {
+    const w = world([`A\nSPEED ${spd}\nl: WAIT\nJMP l`, 'B\nl: WAIT\nJMP l'], teams); put(w.robots[0], 300, 300, 0); put(w.robots[1], 400, 300, 180);
+    for (let t = 0; t < 60; t++) w.step();
+    return [100 - w.robots[0].health, 100 - w.robots[1].health];
+  };
+  const [a, b] = ram(5);
+  assert.ok(a > 10 && a === b, `pushing an enemy: ${a}, ${b}`);
+  assert.deepStrictEqual(ram(1), [0, 0]);
+  assert.deepStrictEqual(ram(5, [0, 0]), [0, 0]);
+});
+
 test('every real VM crash gets a plain explanation, with its line', () => {
   const crash = (src) => { const vm = runVM(src, 2000); return vm.fault; };
   const cases = [

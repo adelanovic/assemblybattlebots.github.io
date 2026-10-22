@@ -10,7 +10,7 @@ There is nothing to install and no build step.
 
 1. Open `index.html` in a modern browser (Chrome, Edge or Firefox). Double-clicking the file works.
 2. Five example robots are preloaded. Press **▶ Start**.
-3. New to programming? Open the **🎯 Missions** tab for five short guided challenges.
+3. New to programming? Open the **🎯 Missions** tab for fifteen short guided challenges.
 
 If you prefer to serve it, any static server works, for example `python -m http.server` and then http://localhost:8000.
 

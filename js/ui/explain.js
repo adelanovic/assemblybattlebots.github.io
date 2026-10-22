@@ -46,11 +46,11 @@
     HALT: 'Stop your program for good. Your robot keeps following its last orders.',
     GET: 'Read a sensor into a box. GET R0, HEALTH asks "how much health do I have?"',
     SPEED: 'Drive at this speed: -3 (backward) up to 5 (full speed). The robot speeds up a little each tick.',
-    TURN: 'Turn this many degrees from where you face now. + turns right, - turns left.',
+    TURN: 'Turn this many degrees from where you face now: + turns right, - turns left. It always goes the shorter way, so TURN 270 turns 90° left.',
     HEAD: 'Turn to face an exact direction: 0 = right, 90 = down, 180 = left, 270 = up.',
     AIM: 'Point the turret at an exact direction: 0 = right, 90 = down, 180 = left, 270 = up.',
     FIRE: 'Fire, if the turret is ready. After firing it needs 15 ticks to reload.',
-    SCAN: 'Look for the nearest enemy in a cone around the turret, like a flashlight. Narrow cones see farther.',
+    SCAN: 'Look for the nearest enemy in a cone around the turret, like a flashlight. Narrow cones see farther. If nothing is found, SCAN_DIST is -1.',
     RADAR: 'Look for a bullet flying at you (within 250 units).',
   };
 
