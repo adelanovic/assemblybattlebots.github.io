@@ -135,10 +135,11 @@ main {
 .inspector summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 2px 0 6px; }
 .inspector summary:hover { color: var(--text); }
 
-.editor-head { display: flex; align-items: center; gap: 6px; }
+.editor-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } /* wraps on narrow panels instead of squashing */
+.editor-head button, .editor-head select, .editor-head .opt { white-space: nowrap; }
 .bp-state { color: var(--bad); }
 .editor-head .opt { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
-.editor-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-title { flex: 1 1 120px; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #btn-apply.dirty { background: #a8661a; border-color: #c97d22; }
 
 /* ---------- code editor ---------- */
@@ -249,7 +250,7 @@ main {
   position: fixed; z-index: 50; max-width: 320px; padding: 8px 10px;
   background: #1d2330; border: 1px solid var(--border); border-radius: 6px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, .45); font-size: 12.5px; line-height: 1.45;
-  color: var(--text); pointer-events: none;
+  color: var(--text);
 }
 .ce-tip .tip-head { margin-bottom: 4px; }
 .ce-tip .tip-head code { color: #6cb6ff; font-weight: 700; }
@@ -311,7 +312,7 @@ main {
 
 /* ---------- reference ---------- */
 .reference h3 { margin: 18px 0 6px; font-size: 14px; color: var(--accent); }
-.reference h3:first-child { margin-top: 0; }
+.reference .ref-sec:first-child h3 { margin-top: 0; }
 .reference table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .reference td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .reference td:first-child { white-space: nowrap; width: 1%; }
@@ -365,3 +366,35 @@ body.dropping .drop-hint { display: flex; }
   .roster { max-height: none; }
   .right { border-left: none; border-top: 1px solid var(--border); height: 85vh; }
 }
+
+/* ---------- Simple view: match settings tucked behind ⚙ Settings ---------- */
+#btn-settings { display: none; }
+body.simple #btn-settings { display: inline-block; }
+body.simple:not(.show-settings) .toolbar .advanced { display: none; }
+
+/* ---------- editor: tooltip link, Insert menu ---------- */
+.ce-tip .tip-more { display: block; margin-top: 6px; padding: 2px 8px; font-size: 12px; }
+#insert-select { max-width: 140px; }
+
+/* ---------- Reference: search, section jumps, link highlight ---------- */
+.ref-tools {
+  position: sticky; top: -10px; z-index: 2; margin: -10px -12px 8px; padding: 10px 12px 8px;
+  background: var(--panel); border-bottom: 1px solid var(--border); display: grid; gap: 6px;
+}
+#ref-search { width: 100%; box-sizing: border-box; }
+.ref-jump { display: flex; flex-wrap: wrap; gap: 4px; }
+.ref-jump button { padding: 2px 8px; font-size: 12px; }
+.reference .ref-sec[hidden], .reference tr[hidden], .reference li[hidden] { display: none; }
+.ref-flash { animation: ref-flash 1.8s ease-out; }
+@keyframes ref-flash { from { background: rgba(255, 201, 77, .35); } to { background: transparent; } }
+
+/* ---------- first-visit welcome ---------- */
+.welcome { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(6, 7, 10, .72); }
+.welcome[hidden] { display: none; }
+.welcome-card {
+  max-width: 460px; margin: 16px; padding: 22px 24px; line-height: 1.5;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+}
+.welcome-card h2 { margin: 0 0 8px; font-size: 20px; }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }

@@ -40,10 +40,13 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **Arena** | **Classic** is the fixed default layout, with four mud patches. **Random** generates a mirrored layout of obstacles and mud from the seed, so 🎲 gives a new map and the same seed always gives the same map. **Open** has no obstacles or mud, which is useful for testing aim and dodging. |
 | **Speed** | 0.1× to 60× (6 to 3600 ticks per second). |
 | **Scans** | Show or hide each robot's scan cone. |
+| **⚙ Settings** | Shown in Simple view: reveals Mode, Arena, Seed and Scans, which are tucked away to keep the toolbar simple for beginners. Untick Simple view to always see them. |
 | **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
 | **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |
 | **+ New robot / 📂 Load .asm files… / + Add example** | Add robots. Loading accepts several files at once, and you can also drag and drop `.asm` files onto the page. **Each file becomes one robot.** |
 | **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. **▶ Start** and **Step** apply the selected robot's edits automatically, so the code in the editor is always what runs; if it has syntax errors, nothing runs and the errors are shown. |
+| **➕ Insert code…** | Ready-made patterns with comments (main loop, IF, IF / ELSE, repeat, function, scan and fire, wall check, dodge), inserted at the cursor in one undoable step. Label names are renamed automatically if your program already uses them. |
+| **Reference** tab | Every instruction, sensor and rule. Search as you type, or jump to a section. In the editor, a tooltip's **More in Reference →** link opens the matching entry. |
 | **💾 Save .asm** (Ctrl+S) | Download the editor contents as a `.asm` file. |
 | **Revert** | Discard edits you have not applied. |
 

@@ -26,6 +26,7 @@
   const TEAMS = ['A', 'B'];
 
   const MISSION_KEY = 'battlebots.missions.v1';
+  const WELCOME_KEY = 'battlebots.welcomed';
 
   /** Registers (sorted) and sensors (in order of first use) a program refers to. */
   function usedByProgram(program) {
@@ -93,12 +94,16 @@
       this.fitArena();
       this.editor = new BB.CodeEditor($('#editor'));
       this.editor.setHelp((word) => this.helpFor(word));
+      this.editor.onHelpLink((ref) => this.openReference(ref));
 
       this.bindControls();
       this.restore();
       this.buildReference(); // after restore: it depends on the saved Simple view setting
       this.renderMissions();
       this.resetMatch();
+      let seen = false;
+      try { seen = !!localStorage.getItem(WELCOME_KEY); } catch (_) { seen = true; } // no storage: don't nag every visit
+      $('#welcome').hidden = seen;
       requestAnimationFrame((timestamp) => this.frame(timestamp));
     }
 
@@ -707,33 +712,35 @@
       box.scrollTop = box.scrollHeight;
     }
 
-    /** The Reference tab. Simple view leads with plain language and keeps the exact rules below it. */
+    /**
+     * The Reference tab, as sections (ids ref-sec-*) whose rows can be linked
+     * (ref-ins-OP, ref-sensor-NAME) and filtered by the search box. Simple view
+     * leads with plain language and keeps the exact rules below it.
+     */
     buildReference() {
       const { INSTRUCTIONS, SENSORS, LANGUAGE_NOTES } = BB.ISA;
       const described = (plain, exact) => (this.simple && plain
         ? `${esc(plain)}<div class="ref-exact">${esc(exact)}</div>` : esc(exact));
-      let html = '<h3>Language basics</h3><ul class="notes">' +
-        LANGUAGE_NOTES.map((n) => `<li>${esc(n).replace(/`([^`]+)`/g, '<code>$1</code>')}</li>`).join('') + '</ul>';
-      html += `<h3>Operands</h3><table><tr><td><code>dst</code></td><td>register <code>R0</code>..<code>R7</code> or memory <code>[n]</code>, <code>[Rx]</code>, <code>[Rx+n]</code>, <code>[Rx-n]</code></td></tr>
+      const sections = [];
+      const add = (id, title, label, body) => sections.push({ id, title, label, body });
+      add('basics', 'Language basics', 'Basics', '<ul class="notes">' +
+        LANGUAGE_NOTES.map((n) => `<li>${esc(n).replace(/`([^`]+)`/g, '<code>$1</code>')}</li>`).join('') + '</ul>');
+      add('operands', 'Operands', 'Operands', `<table><tr><td><code>dst</code></td><td>register <code>R0</code>..<code>R7</code> or memory <code>[n]</code>, <code>[Rx]</code>, <code>[Rx+n]</code>, <code>[Rx-n]</code></td></tr>
         <tr><td><code>src</code></td><td>anything <code>dst</code> accepts, plus a number or constant</td></tr>
-        <tr><td><code>target</code></td><td>a label (where to jump)</td></tr><tr><td><code>sensor</code></td><td>a sensor name (below)</td></tr></table>`;
-      let group = null;
-      for (const ins of INSTRUCTIONS) {
-        if (ins.group !== group) {
-          if (group) html += '</table>';
-          group = ins.group;
-          html += `<h3>${group}</h3><table class="ref">`;
-        }
-        const form = [ins.op, ins.args.join(', ')].filter(Boolean).join(' ');
-        html += `<tr><td><code>${esc(form)}</code>${ins.cost > 1 ? `<span class="cost">${ins.cost} ${this.simple ? 'coins' : 'cycles'}</span>` : ''}</td>
-          <td>${described(BB.explain.instruction(ins.op), ins.summary)}<div class="ex">${esc(ins.example)}</div></td></tr>`;
+        <tr><td><code>target</code></td><td>a label (where to jump)</td></tr><tr><td><code>sensor</code></td><td>a sensor name (below)</td></tr></table>`);
+      for (const group of [...new Set(INSTRUCTIONS.map((ins) => ins.group))]) {
+        add(group.toLowerCase(), group, group, '<table class="ref">' + INSTRUCTIONS.filter((ins) => ins.group === group).map((ins) => {
+          const form = [ins.op, ins.args.join(', ')].filter(Boolean).join(' ');
+          return `<tr id="ref-ins-${ins.op}"><td><code>${esc(form)}</code>${ins.cost > 1 ? `<span class="cost">${ins.cost} ${this.simple ? 'coins' : 'cycles'}</span>` : ''}</td>
+            <td>${described(BB.explain.instruction(ins.op), ins.summary)}<div class="ex">${esc(ins.example)}</div></td></tr>`;
+        }).join('') + '</table>');
       }
-      html += '</table><h3>Sensors: <code>GET dst, NAME</code></h3><table class="ref">' +
-        SENSORS.map((s) => `<tr><td><code>${s.name}</code></td><td>${described(BB.explain.sensor(s.name), s.desc)}</td></tr>`).join('') + '</table>';
-      html += '<h3>Appearance header (cosmetic)</h3><table class="ref">' +
+      add('sensors', 'Sensors: <code>GET dst, NAME</code>', 'Sensors', '<table class="ref">' +
+        SENSORS.map((s) => `<tr id="ref-sensor-${s.name}"><td><code>${s.name}</code></td><td>${described(BB.explain.sensor(s.name), s.desc)}</td></tr>`).join('') + '</table>');
+      add('appearance', 'Appearance header (cosmetic)', 'Appearance', '<table class="ref">' +
         Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) => `<tr><td><code>.${key} preset</code></td><td>${spec.choices.join(', ')}. Default: ${spec.default}.</td></tr>`).join('') +
-        '</table><p>Put these optional directives below the name, before labels, constants or instructions. Each may appear once. They change appearance only: collision size, movement, bullet origin and damage stay the same. Twin turrets still fire one shot.</p>';
-      html += '<h3>Arena rules</h3><table class="ref">' + [
+        '</table><p>Put these optional directives below the name, before labels, constants or instructions. Each may appear once. They change appearance only: collision size, movement, bullet origin and damage stay the same. Twin turrets still fire one shot.</p>');
+      add('rules', 'Arena rules', 'Rules', '<table class="ref">' + [
         ['Arena', `${C.ARENA_W} × ${C.ARENA_H}, robot radius ${C.ROBOT_RADIUS}. Layout: Classic, Open, or Random (mirrored obstacles and mud generated from the seed). Don't hard-code obstacle positions; use FRONT and SCAN.`],
         ['Mud', `Brown patches. While your center is in mud, speed is capped at ${C.MUD_MAX_SPEED} either way; GET MUD reads 1. Bullets, SCAN and RADAR pass over it. Open has none.`],
         ['Budget', `${C.CYCLES_PER_TICK} cycles per robot per tick`],
@@ -743,8 +750,43 @@
         ['Sensors', `SCAN cone up to ${C.SCAN_MAX_WIDTH}°, blocked by obstacles. Narrow cones reach farther: range ${C.SCAN_RANGE_FACTOR} / √width (${BB.World.scanRange(C.SCAN_MAX_WIDTH)} at ${C.SCAN_MAX_WIDTH}°, ${BB.World.scanRange(16)} at 16°). RADAR range ${C.RADAR_RANGE}.`],
         ['Victory', `Last robot standing wins. After ${C.MAX_TICKS} ticks, the highest health wins, and equal health is a draw. A practice match with only one robot never ends.`],
         ['Teams', 'In 2v2 / 3v3, teammates are invisible to SCAN and RADAR, can\'t hurt each other, and don\'t count in ENEMIES (use ALLIES). Team B spawns as the mirror image of team A. Last team standing wins; at the time limit, highest total health.'],
-      ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>';
-      $('#reference').innerHTML = html;
+      ].map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>');
+      $('#reference').innerHTML = sections.map((x) => `<section class="ref-sec" id="ref-sec-${x.id}"><h3>${x.title}</h3>${x.body}</section>`).join('');
+      $('#ref-jump').innerHTML = sections.map((x) => `<button data-sec="${x.id}">${esc(x.label)}</button>`).join('');
+      this.filterReference($('#ref-search').value);
+    }
+
+    /** Show only Reference rows containing `query` (any case); hide sections left empty. */
+    filterReference(query) {
+      const q = String(query || '').trim().toLowerCase();
+      let shown = 0;
+      for (const sec of document.querySelectorAll('#reference .ref-sec')) {
+        const rows = [...sec.querySelectorAll('tr, li')];
+        let visible = 0;
+        for (const row of rows) {
+          row.hidden = !!q && !row.textContent.toLowerCase().includes(q);
+          if (!row.hidden) visible++;
+        }
+        const titleHit = !!q && sec.querySelector('h3').textContent.toLowerCase().includes(q);
+        if (titleHit) { for (const row of rows) row.hidden = false; visible = rows.length; }
+        sec.hidden = !!q && !visible && !titleHit;
+        if (!sec.hidden) shown++;
+      }
+      $('#ref-none').hidden = shown > 0;
+    }
+
+    /** Open the Reference at 'ins:SCAN', 'sensor:HEALTH' or 'sec:basics', and highlight it. */
+    openReference(ref) {
+      const [kind, name] = String(ref).split(':');
+      const id = kind === 'ins' ? `ref-ins-${name}` : kind === 'sensor' ? `ref-sensor-${name}` : `ref-sec-${name}`;
+      this.showTab('reference');
+      if ($('#ref-search').value) { $('#ref-search').value = ''; this.filterReference(''); }
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ block: 'center' });
+      el.classList.remove('ref-flash');
+      void el.offsetWidth; // restart the highlight animation
+      el.classList.add('ref-flash');
     }
 
     showTab(name) {
@@ -767,26 +809,27 @@
       const W = word.toUpperCase(), X = BB.explain, simple = this.simple;
       const e = this.selected, r = e && this.robotFor(e.id);
       const live = (v) => `<div class="tip-live">Right now: <b>${v}</b></div>`;
+      const more = (ref) => `<button class="tip-more" data-ref="${ref}">More in Reference →</button>`;
       const ins = BB.ISA.INSTRUCTION_MAP[W];
       if (ins) {
         const form = [ins.op, ins.args.join(', ')].filter(Boolean).join(' ');
         const cost = ins.cost > 1 ? `<span class="tip-cost">${ins.cost} ${simple ? 'coins' : 'cycles'}</span>` : '';
         return `<div class="tip-head"><code>${esc(form)}</code>${cost}</div>` +
           `<div>${esc((simple && X.instruction(W)) || ins.summary)}</div>` +
-          `<div class="tip-ex">Example: <code>${esc(ins.example)}</code></div>`;
+          `<div class="tip-ex">Example: <code>${esc(ins.example)}</code></div>` + more(`ins:${W}`);
       }
       const sensor = BB.ISA.SENSOR_MAP[W];
       if (sensor) {
         return `<div class="tip-head"><code>${W}</code> <span class="tip-kind">sensor</span></div>` +
           `<div>${esc((simple && X.sensor(W)) || sensor.desc)}</div>` +
           (simple ? `<div class="tip-ex">Read it with <code>GET R0, ${W}</code></div>` : '') +
-          (r ? live(this.world.sense(r, sensor.id)) : '');
+          (r ? live(this.world.sense(r, sensor.id)) : '') + more(`sensor:${W}`);
       }
       const reg = /^R([0-7])$/.exec(W);
       if (reg) {
         return `<div class="tip-head"><code>${W}</code> <span class="tip-kind">register</span></div>` +
           `<div>${esc(simple ? X.REGISTER : 'One of 8 general-purpose 32-bit registers, R0..R7. Starts at 0.')}</div>` +
-          (r ? live(r.vm.regs[reg[1]]) : '');
+          (r ? live(r.vm.regs[reg[1]]) : '') + more('sec:basics');
       }
       return null;
     }
@@ -925,6 +968,7 @@
       } catch (_) { /* keep the empty mission state */ }
       if (saved && typeof saved.simple === 'boolean') this.simple = saved.simple;
       $('#simple-view').checked = this.simple;
+      document.body.classList.toggle('simple', this.simple);
       if (saved && Array.isArray(saved.entries) && saved.entries.length) {
         if (saved.seed) $('#seed').value = saved.seed;
         if (BB.World.ARENAS[saved.arena]) $('#arena-type').value = saved.arena;
@@ -972,7 +1016,44 @@
 
       $('#show-scans').onchange = (ev) => { this.renderer.showScans = ev.target.checked; };
       $('#show-counts').onchange = (ev) => { this.showCounts = ev.target.checked; this.updateDebug(); };
-      $('#simple-view').onchange = (ev) => { this.simple = ev.target.checked; this.persist(); this.updateDebug(); this.buildReference(); };
+      $('#simple-view').onchange = (ev) => {
+        this.simple = ev.target.checked;
+        document.body.classList.toggle('simple', this.simple);
+        this.persist(); this.updateDebug(); this.buildReference();
+      };
+      // Simple view tucks the match settings away; this shows or hides them.
+      $('#btn-settings').onclick = () => {
+        const open = document.body.classList.toggle('show-settings');
+        $('#btn-settings').classList.toggle('active', open);
+      };
+
+      // Reference: search as you type, and jump to a section.
+      $('#ref-search').addEventListener('input', (ev) => this.filterReference(ev.target.value));
+      $('#ref-jump').addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-sec]');
+        if (!b) return;
+        if ($('#ref-search').value) { $('#ref-search').value = ''; this.filterReference(''); }
+        // Scroll the section's heading to just below the sticky search bar (its height varies as buttons wrap).
+        const panel = $('#tab-reference'), sec = document.getElementById(`ref-sec-${b.dataset.sec}`);
+        panel.scrollTop += sec.getBoundingClientRect().top - $('.ref-tools').getBoundingClientRect().bottom - 6;
+      });
+
+      // Insert menu: ready-made code patterns, at the cursor.
+      const insert = $('#insert-select');
+      insert.innerHTML = '<option value="">➕ Insert code…</option>' +
+        BB.SNIPPETS.map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join('');
+      insert.onchange = () => {
+        const s = BB.SNIPPETS.find((x) => x.id === insert.value);
+        insert.value = '';
+        if (!s || !this.selected) return;
+        this.editor.insertBlock(BB.snippetFor(s.id, this.editor.value));
+        this.flash(`Inserted "${s.title}". Read its comments, then change it to suit your robot.`);
+      };
+
+      // First visit: a short welcome that points beginners at the missions.
+      const welcomed = () => { try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* fine */ } $('#welcome').hidden = true; };
+      $('#welcome-mission').onclick = () => { welcomed(); this.startMission(BB.MISSIONS[0].id); };
+      $('#welcome-explore').onclick = welcomed;
       $('#missions').addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-mission]');
         if (b) this.startMission(b.dataset.mission);

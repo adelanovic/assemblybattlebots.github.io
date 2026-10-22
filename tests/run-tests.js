@@ -570,6 +570,20 @@ const fs = require('fs');
 const path = require('path');
 const scriptVm = require('vm');
 require('../js/ui/explain.js'); // pure strings, used by the app's Simple view
+require('../js/ui/snippets.js'); // the editor's Insert menu patterns
+
+test('every Insert-menu snippet assembles, alone and inserted twice into one program', () => {
+  for (const s of BB.SNIPPETS) {
+    assert.deepStrictEqual(BB.assemble(`T\n${BB.snippetFor(s.id, '')}\nWAIT`).errors, [], s.id);
+  }
+  let prog = 'T\nmain:\n';
+  for (let round = 0; round < 2; round++) for (const s of BB.SNIPPETS) prog += `${BB.snippetFor(s.id, prog)}\n`;
+  assert.deepStrictEqual(BB.assemble(`${prog}    WAIT\n    JMP main`).errors, [], 'labels renamed so nothing clashes');
+  const twice = BB.snippetFor('if', BB.snippetFor('if', ''));
+  assert.match(twice, /JGE {2}skip2/);
+  assert.match(twice, /; NOT below 30\? skip the next part/, 'comments are not renamed');
+  assert.strictEqual(BB.snippetFor('nope', ''), null);
+});
 const uiBB = { ...BB };
 // Capture the controller rather than booting the page and animation loop.
 scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui/app.js'), 'utf8').replace('BB.app = new App();', 'BB.App = App;'), {
@@ -995,6 +1009,9 @@ test('editor hover help is plain in Simple view, technical otherwise, with live 
   app.world.step();
   assert.match(app.helpFor('r0'), /A box that holds one number[\s\S]*Right now: <b>1<\/b>/);
   assert.strictEqual(app.helpFor('loop'), null);
+  assert.match(app.helpFor('scan'), /data-ref="ins:SCAN"[^>]*>More in Reference/);
+  assert.match(app.helpFor('health'), /data-ref="sensor:HEALTH"/);
+  assert.match(app.helpFor('R3'), /data-ref="sec:basics"/);
   app.simple = false;
   assert.ok(app.helpFor('CMP').includes(BB.ISA.INSTRUCTION_MAP.CMP.summary.slice(0, 30)));
   assert.match(app.helpFor('SCAN'), /3 cycles/);

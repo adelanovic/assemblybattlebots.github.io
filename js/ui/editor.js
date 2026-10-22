@@ -74,7 +74,19 @@
       document.body.appendChild(this.tip);
       this.tipKey = '';
       this.input.addEventListener('mousemove', (ev) => this.onHover(ev));
-      for (const type of ['mouseleave', 'mousedown', 'keydown', 'scroll']) this.input.addEventListener(type, () => this.hideTip());
+      for (const type of ['mousedown', 'keydown', 'scroll']) this.input.addEventListener(type, () => this.hideTip());
+      // The tooltip is clickable ("More in Reference"), so leaving the code gives
+      // the mouse a moment to reach it before it closes.
+      this.input.addEventListener('mouseleave', () => this.hideTipSoon());
+      this.tip.addEventListener('mouseenter', () => clearTimeout(this.tipTimer));
+      this.tip.addEventListener('mouseleave', () => this.hideTip());
+      this.linkListeners = [];
+      this.tip.addEventListener('click', (ev) => {
+        const link = ev.target.closest('[data-ref]');
+        if (!link) return;
+        this.hideTip();
+        this.linkListeners.forEach((f) => f(link.dataset.ref));
+      });
 
       this.input.addEventListener('input', () => { this.render(); this.listeners.forEach((f) => f(this.value)); });
       this.gutter.addEventListener('click', (ev) => {
@@ -137,13 +149,21 @@
       return null;
     }
 
+    /** `fn(ref)` runs when a tooltip link like "More in Reference" is clicked. */
+    onHelpLink(fn) { this.linkListeners.push(fn); }
+
     onHover(ev) {
       const hit = this.helpProvider && this.wordAt(ev);
       const key = hit ? `${hit.line}:${hit.word}` : '';
       if (key === this.tipKey) return;
+      if (!hit) {
+        // Off the word: a short grace period lets the mouse travel onto the tooltip.
+        this.tipKey = '';
+        this.hideTipSoon();
+        return;
+      }
       this.hideTip();
       this.tipKey = key;
-      if (!hit) return;
       const at = { x: ev.clientX, y: ev.clientY };
       this.tipTimer = setTimeout(() => {
         const html = this.helpProvider(hit.word);
@@ -160,6 +180,33 @@
       clearTimeout(this.tipTimer);
       this.tip.hidden = true;
       this.tipKey = '';
+    }
+
+    /** Close the tooltip shortly, unless the mouse moves onto it first. */
+    hideTipSoon() {
+      clearTimeout(this.tipTimer);
+      if (this.tip.hidden) return;
+      this.tipTimer = setTimeout(() => this.hideTip(), 400);
+    }
+
+    /**
+     * Insert a block of lines at the cursor, as one undoable step: it replaces
+     * the current line if that is blank, and otherwise goes on the lines after it.
+     */
+    insertBlock(text) {
+      const ta = this.input;
+      ta.focus();
+      const v = ta.value, s = ta.selectionStart;
+      const lineStart = v.lastIndexOf('\n', s - 1) + 1;
+      let lineEnd = v.indexOf('\n', s);
+      if (lineEnd < 0) lineEnd = v.length;
+      if (/^\s*$/.test(v.slice(lineStart, lineEnd))) {
+        ta.setSelectionRange(lineStart, lineEnd);
+        this.insertText(text);
+      } else {
+        ta.setSelectionRange(lineEnd, lineEnd);
+        this.insertText(`\n${text}`);
+      }
     }
 
     setErrors(lines) { this.errorLines = new Set(lines); this.renderGutter(); }

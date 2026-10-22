@@ -19,21 +19,25 @@
       <input id="speed" type="range" min="0" step="1">
       <span id="speed-label" class="mono"></span>
     </div>
-    <div class="group">
+    <!-- Match settings: always shown in full view; behind ⚙ Settings in Simple view. -->
+    <div class="group advanced">
       <label for="mode-type">Mode</label>
       <select id="mode-type"></select>
     </div>
-    <div class="group">
+    <div class="group advanced">
       <label for="arena-type">Arena</label>
       <select id="arena-type"></select>
     </div>
-    <div class="group">
+    <div class="group advanced">
       <label for="seed">Seed</label>
       <input id="seed" type="number" value="1" min="1" class="seed">
       <button id="btn-dice" title="Random seed">🎲</button>
     </div>
-    <div class="group">
+    <div class="group advanced">
       <label title="Draw each robot's scan cone"><input id="show-scans" type="checkbox" checked> Scans</label>
+    </div>
+    <div class="group">
+      <button id="btn-settings" title="Show match settings: mode, arena, seed and scan cones">⚙ Settings</button>
       <label title="Plain-language help and a simpler CPU inspector. Untick for every detail."><input id="simple-view" type="checkbox" checked> Simple view</label>
     </div>
     <div class="group grow"></div>
@@ -69,6 +73,7 @@
           <div id="mission-bar" class="mission-bar" hidden></div>
           <div class="editor-head">
             <div class="editor-title"><b id="editor-name"></b> <span id="editor-file" class="muted mono"></span></div>
+            <select id="insert-select" title="Insert a ready-made code pattern where the cursor is"></select>
             <label class="opt" title="Show how many times each line has run this match; lines that never ran are dimmed"><input id="show-counts" type="checkbox"> Run counts</label>
             <button id="btn-revert" title="Discard unapplied edits">Revert</button>
             <button id="btn-save" title="Download as .asm (Ctrl+S)">💾 Save .asm</button>
@@ -90,6 +95,11 @@
       </div>
 
       <div id="tab-reference" class="tab-panel" hidden>
+        <div class="ref-tools">
+          <input id="ref-search" type="search" placeholder="Search the reference, e.g. SCAN or turn" aria-label="Search the reference">
+          <nav id="ref-jump" class="ref-jump" aria-label="Reference sections"></nav>
+        </div>
+        <div id="ref-none" class="muted" hidden>Nothing matches. Try a shorter word.</div>
         <div id="reference" class="reference"></div>
       </div>
 
@@ -98,6 +108,19 @@
       </div>
     </section>
   </main>
+
+  <div id="welcome" class="welcome" hidden>
+    <div class="welcome-card" role="dialog" aria-labelledby="welcome-title">
+      <h2 id="welcome-title">Welcome to Battle Bots! 🤖</h2>
+      <p>You write a program in assembly language, then watch your robot follow it in the arena. Once the match starts, your code is in charge!</p>
+      <p><b>New here?</b> The missions teach one idea at a time, with hints if you get stuck.</p>
+      <div class="welcome-actions">
+        <button id="welcome-mission" class="primary">🎯 Start the first mission</button>
+        <button id="welcome-explore">Look around first</button>
+      </div>
+      <p class="muted">Tip: point at any instruction in the code to see what it does.</p>
+    </div>
+  </div>
 
   <div id="flash" class="flash"></div>
   <div class="drop-hint">Drop .asm files to add robots</div>
@@ -112,6 +135,7 @@
   <script src="js/core/missions.js"></script>
   <!-- UI -->
   <script src="js/ui/explain.js"></script>
+  <script src="js/ui/snippets.js"></script>
   <script src="js/ui/terrain.js"></script>
   <script src="js/ui/renderer.js"></script>
   <script src="js/ui/editor.js"></script>
