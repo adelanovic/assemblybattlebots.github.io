@@ -414,7 +414,7 @@ attack:
     SCAN 10
     GET  R1, SCAN_DIST
     CMP  R1, -1
-    JE   turn_turret        ; nothing found: turn the turret a bit
+    JE   turn_turret     ; nothing found: turn the turret a bit
     GET  R2, SCAN_ANGLE
     AIM  R2
     FIRE
@@ -657,7 +657,7 @@ dodge_done:
             : { ok: false, text: `No crashes, but you only drove ${d} units. Drive a little faster: the goal is 1200.` };
         },
         starter: `Explorer
-; Mission 11: explore for 600 ticks without bumping into anything.
+; Mission 11: explore for 600 ticks and drive 1200 units without crashing.
 ; FRONT is a sensor: how far you can drive before you hit something.
 main:
     SPEED 3
@@ -840,8 +840,8 @@ main:
     JE   look
     GET  R2, SCAN_ANGLE   ; where the target is now
     GET  R3, SCAN_HEADING ; which way it is driving
-    CMP  R3, 180
-    JG   moving_up
+    CMP  R3, 180          ; heading 90 = moving down, 270 = moving up
+    JG   moving_up        ; more than 180? it is moving up
     ADD  R2, LEAD         ; moving down: aim a little further down
     JMP  fire_now
 moving_up:
@@ -884,12 +884,16 @@ main:
     WAIT
     JMP  main
 
+; ---- move: drive without crashing ----
 move:
-    ; <- your driving code from Mission 11 goes here
+    ; <- copy the lines from Mission 11 that set SPEED, check FRONT
+    ;    and TURN. Leave out WAIT and JMP main: main does those.
     RET
 
+; ---- attack: replace this whole function (both lines) ----
+; with the "attack" function from Mission 10, from "attack:"
+; down to its last RET, including its "turn_turret" part.
 attack:
-    ; <- your attack function from Mission 10 goes here
     RET
 
 ; Extra challenge: write a "dodge" function, CALL it from main,
