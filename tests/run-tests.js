@@ -750,6 +750,53 @@ test('unit 2 missions explain what went wrong, not just that it did', () => {
   assert.ok(play('boss', (s) => s.replace('TURN 90', 'TURN -90')).ok, 'turning the other way also dodges');
 });
 
+test('unit 3: sensible answers pass, mistakes get feedback that points the right way', () => {
+  const M = (id) => BB.MISSIONS.find((m) => m.id === id);
+  const play = (id, src, seed = 1) => {
+    const def = M(id), w = BB.buildMission(def, BB.assemble(src), seed);
+    for (let t = 0; t <= def.maxTicks && !w.over; t++) w.step();
+    return w.mission.result;
+  };
+  const ex = M('explore').solution;
+  for (const [gap, turn] of [[40, 90], [80, 90], [120, 90], [80, -90], [80, 45]]) {
+    assert.ok(play('explore', ex.replace('CMP  R0, 80', `CMP  R0, ${gap}`).replace('TURN 90', `TURN ${turn}`)).ok, `explore gap ${gap} turn ${turn}`);
+  }
+  assert.match(play('explore', M('explore').starter).text, /Stuck against something\? Check FRONT/);
+  assert.match(play('explore', ex.replace('SPEED 3', 'SPEED 2').replace('CMP  R0, 80', 'CMP  R0, 60')).text, /Drive a little faster/);
+
+  const fo = M('follow').solution;
+  for (const d of [60, 100, 140]) assert.ok(play('follow', fo.replace('CMP  R1, 100', `CMP  R1, ${d}`)).ok, `follow at ${d}`);
+  assert.match(play('follow', M('follow').starter).text, /stayed close 0% of the time/);
+
+  for (let seed = 1; seed <= 10; seed++) {
+    assert.ok(play('coords', M('coords').solution, seed).ok, `coords seed ${seed}`);
+    assert.ok(!play('coords', M('coords').starter, seed).ok, `coords starter seed ${seed}`);
+  }
+  assert.match(play('coords', M('coords').solution.replace('ATAN2 R4, R3, R2', 'ATAN2 R4, R2, R3')).text, /Eight misses/);
+
+  const lead = (n) => play('lead', M('lead').starter.replace('.def LEAD 0 ', `.def LEAD ${n}`));
+  for (const n of [0, 4, 6]) assert.match(lead(n).text, /passed behind the target: try a bigger LEAD/, `LEAD ${n}`);
+  for (const n of [8, 10, 12, 14]) assert.ok(lead(n).ok, `LEAD ${n} should pass`);
+  for (const n of [16, 20]) assert.match(lead(n).text, /passed in front of the target: try a smaller LEAD/, `LEAD ${n}`);
+
+  const gr = M('graduate');
+  assert.ok(play('graduate', gr.withDodge).ok, 'adding the dodge still wins');
+  assert.ok(!play('graduate', gr.solution.replace('    CALL move\n', '')).ok, 'attacking without moving loses');
+});
+
+test('Mission control keeps the target\'s coordinates in memory, even after a program reload', () => {
+  const def = BB.MISSIONS.find((m) => m.id === 'coords');
+  const w = BB.buildMission(def, BB.assemble('Idle\nWAIT'), 42);
+  const me = w.robots[0], t = w.robots[1];
+  assert.deepStrictEqual([me.vm.mem[0], me.vm.mem[1]], [Math.round(t.x), Math.round(t.y)], 'ready before the first tick');
+  assert.strictEqual(w.mission.labels[0].text, `(${Math.round(t.x)}, ${Math.round(t.y)})`);
+  me.vm = new BB.VM(BB.assemble(def.solution).program, w.makeIO(me)); // like pressing Apply mid-mission
+  w.step();
+  assert.deepStrictEqual([me.vm.mem[0], me.vm.mem[1]], [Math.round(t.x), Math.round(t.y)]);
+  const other = BB.buildMission(def, BB.assemble('Idle\nWAIT'), 43).robots[1];
+  assert.ok(other.x !== t.x || other.y !== t.y, 'a new seed moves the target');
+});
+
 test('Dodge accepts any turn-and-drive answer but not half of one', () => {
   const def = BB.MISSIONS.find((m) => m.id === 'dodge');
   const run = (body) => {

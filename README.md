@@ -61,7 +61,7 @@ The app is built for middle-school beginners and experienced programmers alike, 
 - **Trace notes:** Simple view words the last-tick trace as sentences, for example `80 is not less than 30, so keep going` or `Look in a 10° cone: enemy 560 away!`.
 - **Inspector:** Simple view shows only the registers and sensors your program uses. Untick it to see all 8 registers, the common sensors, the stack, the compare result and cycle use.
 
-The **🎯 Missions** tab has ten short challenges in two units, designed to come before and alongside the Field Guide's Wanderer challenges. Each one has starter code with one thing to fix, a goal, a hint that points to the right page of the guide, and a pass check. When a mission fails, the message says what went wrong (for example "You stopped after 1.0 laps. The goal is 3." or "Every CALL needs a RET").
+The **🎯 Missions** tab has fifteen short challenges in three units, designed to come before and alongside the Field Guide's Wanderer challenges. Each one has starter code with one thing to fix, a goal, a hint that points to the right page of the guide, and a pass check. When a mission fails, the message says what went wrong (for example "You stopped after 1.0 laps. The goal is 3." or "Every CALL needs a RET").
 
 **Unit 1: Getting started** (one instruction at a time)
 
@@ -78,6 +78,14 @@ The **🎯 Missions** tab has ten short challenges in two units, designed to com
 8. **Three laps** (counting with `INC`): count ticks in a register and stop after exactly 3 laps.
 9. **Come back!** (`CALL` and `RET`): one "fire_at" function for two targets, missing its `RET`.
 10. **Boss: dodge and attack** (building a program from functions): finish a `dodge` function; `attack` is already written.
+
+**Unit 3: Sensors, maths and science** (real-world STEM ideas)
+
+11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles, like the Field Guide's Wanderer.
+12. **Follow the leader** (IF / ELSE): drive when far, wait when close. The same feedback idea as cruise control.
+13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt, so the maths has to be right, not memorised.
+14. **Lead the target** (experimenting): hit a moving target by aiming ahead. The mission reports whether misses passed in front or behind, so students adjust `LEAD` like a real experiment (8 to 14 all work).
+15. **Graduation match** (putting it all together): build a robot from earlier functions and beat Rival. Optional extra: add the dodge and test whether it helps (it doesn't always!).
 
 While a mission runs, your own robots sit out. Click a robot card or **Exit mission** to return to them. Mission code and progress are saved in the browser. The tests check that every mission's starter code fails and its reference solution passes.
 

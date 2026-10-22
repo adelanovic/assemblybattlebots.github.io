@@ -267,6 +267,7 @@
       this.emitAmbientSmoke(world);
       this.drawParticles(ctx);
       for (const r of world.robots) if (r.alive) this.drawLabel(ctx, r, now);
+      if (world.mission) for (const l of world.mission.labels) this.drawNote(ctx, l.x, l.y, l.text);
       const selected = world.robots.find((r) => r.alive && r.entryId === selectedEntryId);
       if (selected && !world.over) this.drawIntent(ctx, selected, paused);
 
@@ -1023,6 +1024,20 @@
       ctx.fillStyle = '#7d8696';
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText(`tick ${world.tick} · press Rematch to play again`, W / 2, py + ph - 16);
+      ctx.restore();
+    }
+
+    /** A small mission note on the arena, such as a target's coordinates, centred on (x, y). */
+    drawNote(ctx, x, y, text) {
+      ctx.save();
+      ctx.font = '600 11px system-ui, sans-serif';
+      const w = ctx.measureText(text).width + 10;
+      const bx = Math.max(4, Math.min(C.ARENA_W - w - 4, x - w / 2)), by = Math.max(4, Math.min(C.ARENA_H - 20, y - 9));
+      ctx.fillStyle = 'rgba(10,12,18,0.75)';
+      roundRect(ctx, bx, by, w, 17, 4); ctx.fill();
+      ctx.fillStyle = '#b8f0c0';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, bx + w / 2, by + 12.5);
       ctx.restore();
     }
 

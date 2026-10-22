@@ -6,7 +6,11 @@
  * decides pass or fail. buildMission() returns an ordinary World whose
  * `mission` object is updated at the end of every step():
  *
- *   world.mission = { def, zone, result: null | { ok, text }, state }
+ *   world.mission = { def, zone, labels, result: null | { ok, text }, state }
+ *
+ * Optional hooks on a mission: setup(world, rng) places things that change
+ * from attempt to attempt (rng comes from buildMission's seed), and
+ * tick(world) runs at the end of every step, before the check.
  *
  * Each mission's `solution` is never shown in the app; the tests use it to
  * prove the mission can be passed, and that the starter code alone cannot.
@@ -48,6 +52,9 @@ sweep:
 
   /** The point `dist` units from (x, y) at arena angle `deg`, as { x, y }. */
   const around = (x, y, deg, dist) => ({ x: x + Math.cos(deg * BB.geo.DEG) * dist, y: y + Math.sin(deg * BB.geo.DEG) * dist });
+
+  const LEAD_SOLUTION = 10; // degrees; see the lead mission
+  const UNIT3 = makeUnit3();
 
   // The boss turret: tuned so standing still loses but dodging wins (see tests).
   const BOSS_REST = 10;
@@ -460,10 +467,13 @@ dodge_done:
     },
   ];
 
+  MISSIONS.push(...UNIT3);
+
   /** Missions grouped for the Missions tab, in order. */
   const UNITS = [
     { title: 'Getting started', ids: ['drive', 'angles', 'aim', 'scan', 'dodge'] },
     { title: 'Registers, loops and functions', ids: ['park', 'sweep', 'laps', 'call', 'boss'] },
+    { title: 'Sensors, maths and science', ids: ['explore', 'follow', 'coords', 'lead', 'graduate'] },
   ];
 
   /** End the mission once the player wins, loses or runs out of time. */
@@ -471,6 +481,7 @@ dodge_done:
     const m = world.mission;
     if (m.result) return;
     const me = world.robots[0];
+    if (m.def.tick) m.def.tick(world);
     let res = me.alive ? m.def.check(world, me) : { ok: false, text: 'Your robot was destroyed.' };
     if (!res && world.tick >= m.def.maxTicks) {
       res = m.def.timeUp ? m.def.timeUp(world, me) : { ok: false, text: 'Time\'s up! Change your code and try again.' };
@@ -482,15 +493,19 @@ dodge_done:
     world.addLog(res.ok ? `✓ Mission complete: ${res.text}` : `✗ ${res.text}`, res.ok ? 'win' : 'fault');
   }
 
-  /** A World for mission `def`, with `player` ({ name, program, appearance }) as robot 0. */
-  function buildMission(def, player) {
+  /**
+   * A World for mission `def`, with `player` ({ name, program, appearance }) as
+   * robot 0. `seed` varies whatever the mission randomises (a new one per attempt
+   * in the app; fixed in tests).
+   */
+  function buildMission(def, player, seed = 1) {
     const dummies = (def.dummies || []).map((d, i) => {
       const c = BB.assemble(d.source);
       return { id: ENTRY_ID - 1 - i, name: c.name, program: c.program, appearance: c.appearance };
     });
     const world = new BB.World({
       entries: [{ id: ENTRY_ID, name: player.name, program: player.program, appearance: player.appearance }, ...dummies],
-      seed: 1, obstacles: def.obstacles || [], mud: def.mud || [],
+      seed, obstacles: def.obstacles || [], mud: def.mud || [],
     });
     const place = (r, p) => {
       r.x = p.x; r.y = p.y;
@@ -501,9 +516,393 @@ dodge_done:
     (def.dummies || []).forEach((d, i) => place(world.robots[i + 1], d));
     world.log = [];
     world.addLog(`Mission ${MISSIONS.indexOf(def) + 1}: ${def.title}. ${def.goal}`);
-    // `state` is scratch space for a mission's check (laps driven, ticks parked...).
-    world.mission = { def, zone: def.zone || null, result: null, state: {}, update: updateMission };
+    // `state` is scratch space for a mission's check (laps driven, ticks parked...);
+    // `labels` are { x, y, text } notes the renderer draws on the arena.
+    world.mission = { def, zone: def.zone || null, labels: [], result: null, state: {}, update: updateMission };
+    if (def.setup) def.setup(world, BB.geo.makeRng((seed ^ 0x5EED1E55) >>> 0));
     return world;
+  }
+
+  // ------------------------------------------------------------------ unit 3
+
+  /** Unit 3: sensors, maths and science. Declared last; hoisted for MISSIONS above. */
+  function makeUnit3() {
+    const R = BB.CONFIG.ROBOT_RADIUS;
+    const BLOCKS = [
+      { x: 360, y: 260, w: 80, h: 80 },
+      { x: 150, y: 120, w: 140, h: 20 },
+      { x: 510, y: 460, w: 140, h: 20 },
+      { x: 610, y: 90, w: 20, h: 120 },
+      { x: 170, y: 400, w: 20, h: 120 },
+    ];
+
+    const LEADER = `Leader
+.shape wedge
+.drive wheels
+loop:
+    SPEED 2
+    TURN 2
+    WAIT
+    JMP loop`;
+
+    const MOVER = `Mover
+.shape circle
+.drive hover
+    HEAD 90
+    SPEED 2
+loop:
+    GET  R0, Y
+    CMP  R0, 130
+    JL   go_down
+    CMP  R0, 470
+    JG   go_up
+    WAIT
+    JMP  loop
+go_down:
+    HEAD 90
+    WAIT
+    JMP  loop
+go_up:
+    HEAD 270
+    WAIT
+    JMP  loop`;
+
+    const RIVAL = `Rival
+.shape wedge
+.drive wheels
+main:
+    SPEED 3
+    GET  R0, FRONT
+    CMP  R0, 70
+    JG   look
+    TURN 100
+look:
+    SCAN 20
+    GET  R1, SCAN_DIST
+    CMP  R1, -1
+    JE   spin
+    GET  R2, SCAN_ANGLE
+    AIM  R2
+    FIRE
+    MOV  R3, 30          ; rest between shots
+rest:
+    WAIT
+    DEC  R3
+    CMP  R3, 0
+    JG   rest
+    JMP  main
+spin:
+    GET  R2, TURRET
+    ADD  R2, 15
+    AIM  R2
+    WAIT
+    JMP  main`;
+
+    // The graduation solution: earlier missions' functions, put together.
+    const MOVE_FN = `move:
+    SPEED 3
+    GET  R0, FRONT
+    CMP  R0, 80
+    JG   move_done
+    TURN 90
+move_done:
+    RET`;
+    const ATTACK_FN = `attack:
+    SCAN 10
+    GET  R1, SCAN_DIST
+    CMP  R1, -1
+    JE   turn_turret
+    GET  R2, SCAN_ANGLE
+    AIM  R2
+    FIRE
+    RET
+turn_turret:
+    GET  R2, TURRET
+    ADD  R2, 10
+    AIM  R2
+    RET`;
+    const DODGE_FN = `dodge:
+    RADAR
+    GET  R0, THREAT_DIST
+    CMP  R0, -1
+    JE   dodge_done
+    TURN 90
+    SPEED 5
+dodge_done:
+    RET`;
+
+    const unit = [
+      {
+        id: 'explore',
+        title: 'Don\'t crash',
+        teaches: 'sensor loops with FRONT',
+        goal: 'Explore for 600 ticks and drive at least 1200 units without crashing (two gentle bumps are allowed).',
+        hint: 'FRONT is a sensor that tells you how far you can drive before you hit something. Every tick, compare it with a safe distance like 80. If it is smaller, TURN 90. This is how the Field Guide\'s Wanderer works!',
+        guide: 'Field Guide: "Let\'s read a real robot" (Wanderer)',
+        start: { x: 90, y: 300, heading: 0 },
+        obstacles: [BLOCKS[0]],
+        maxTicks: 600,
+        check: (w, me) => {
+          const s = w.mission.state;
+          if (s.x !== undefined) s.dist += Math.hypot(me.x - s.x, me.y - s.y); else { s.dist = 0; s.bumps = 0; s.hp = me.health; }
+          s.x = me.x; s.y = me.y;
+          if (me.health < s.hp) { s.bumps++; s.hp = me.health; }
+          if (s.bumps > 2) return { ok: false, text: 'Three crashes! Check FRONT every tick and turn before you get too close.' };
+          return null;
+        },
+        timeUp: (w) => {
+          const d = Math.round(w.mission.state.dist);
+          return d >= 1200 ? { ok: true, text: `${d} units explored without crashing!` }
+            : d < 600 ? { ok: false, text: `You only drove ${d} units. Stuck against something? Check FRONT and TURN before you reach it.` }
+            : { ok: false, text: `No crashes, but you only drove ${d} units. Drive a little faster: the goal is 1200.` };
+        },
+        starter: `Explorer
+; Mission 11: explore for 600 ticks without bumping into anything.
+; FRONT is a sensor: how far you can drive before you hit something.
+main:
+    SPEED 3
+    GET  R0, FRONT    ; R0 = distance to whatever is ahead
+                      ; <- if R0 is less than 80, TURN 90 (use CMP and a jump)
+    WAIT
+    JMP  main
+`,
+        solution: 'Explorer\nmain:\n    SPEED 3\n    GET  R0, FRONT\n    CMP  R0, 80\n    JG   clear\n    TURN 90\nclear:\n    WAIT\n    JMP  main',
+      },
+      {
+        id: 'follow',
+        title: 'Follow the leader',
+        teaches: 'IF / ELSE: choosing between two actions',
+        goal: 'Stay within 150 units of the Leader for most of the mission, without bumping into it.',
+        hint: 'An IF / ELSE picks one of two actions. Compare the distance (R1) with 100. If it is bigger, jump to a label that sets SPEED 4. Otherwise carry on to SPEED 0, then JMP past the other branch so only one of them runs.',
+        guide: 'Field Guide: "Making decisions"',
+        start: { x: 200, y: 300, heading: 0 },
+        dummies: [{ source: LEADER, x: 450, y: 300, heading: 270 }],
+        maxTicks: 600,
+        check: (w, me) => {
+          const s = w.mission.state, leader = w.robots[1];
+          if (w.tick > 60) {
+            s.counted = (s.counted || 0) + 1;
+            if (Math.hypot(leader.x - me.x, leader.y - me.y) <= 150) s.close = (s.close || 0) + 1;
+          }
+          if (me.health < 85 || leader.health < 85) return { ok: false, text: 'Too many bumps! Slow right down when you are close to the Leader.' };
+          return null;
+        },
+        timeUp: (w) => {
+          const s = w.mission.state, pct = Math.round(100 * (s.close || 0) / Math.max(1, s.counted));
+          return pct >= 85 ? { ok: true, text: `You stayed close ${pct}% of the time. Great following!` }
+            : { ok: false, text: `You stayed close ${pct}% of the time. The goal is 85%.` };
+        },
+        starter: `Follower
+; Mission 12: follow the Leader without bumping into it.
+main:
+    SCAN 40              ; look for the Leader
+    GET  R1, SCAN_DIST   ; R1 = how far away it is (-1 = not found)
+    CMP  R1, -1
+    JE   search
+    GET  R2, SCAN_ANGLE
+    HEAD R2              ; face the Leader
+    AIM  R2              ; and keep the turret on it
+    ; IF R1 is more than 100 (far away), drive: SPEED 4
+    ; ELSE (close), wait for it: SPEED 0
+    SPEED 0              ; <- replace this line with your IF / ELSE
+    WAIT
+    JMP  main
+search:
+    GET  R2, TURRET
+    ADD  R2, 20
+    AIM  R2
+    WAIT
+    JMP  main
+`,
+        solution: `Follower
+main:
+    SCAN 40
+    GET  R1, SCAN_DIST
+    CMP  R1, -1
+    JE   search
+    GET  R2, SCAN_ANGLE
+    HEAD R2
+    AIM  R2
+    CMP  R1, 100
+    JG   far
+    SPEED 0
+    JMP  done
+far:
+    SPEED 4
+done:
+    WAIT
+    JMP  main
+search:
+    GET  R2, TURRET
+    ADD  R2, 20
+    AIM  R2
+    WAIT
+    JMP  main`,
+      },
+      {
+        id: 'coords',
+        title: 'Mission control',
+        teaches: 'coordinates, memory and ATAN2',
+        goal: 'Mission control has sent the target\'s position. Work out the angle to it and destroy it. It is somewhere new every attempt!',
+        hint: 'Your position is (X, Y) and the target\'s is in memory: [0] is its x and [1] is its y. Subtract to get dx and dy, how far right and how far down the target is. ATAN2 R4, R3, R2 turns dy (R3) and dx (R2) into an angle in R4.',
+        guide: 'Field Guide: "Geometry helpers" (ATAN2) and "The arena"',
+        start: { x: 150, y: 300, heading: 0 },
+        dummies: [{ source: dummy('Target'), x: 600, y: 150, heading: 180, health: 30 }],
+        maxTicks: 600,
+        setup: (w, rng) => {
+          // Anywhere on the right, but never straight ahead, where AIM 0 would hit by luck.
+          const t = w.robots[1];
+          t.x = 450 + Math.floor(rng() * 250);
+          t.y = rng() < 0.5 ? 90 + Math.floor(rng() * 130) : 380 + Math.floor(rng() * 130);
+          w.mission.state.target = { x: Math.round(t.x), y: Math.round(t.y) };
+          w.mission.labels.push({ x: t.x, y: t.y + R + 22, text: `(${Math.round(t.x)}, ${Math.round(t.y)})` });
+          w.mission.def.tick(w); // memory is ready before the first tick
+        },
+        tick: (w) => {
+          // Mission control keeps memory [0] and [1] up to date, even after Apply.
+          const me = w.robots[0], t = w.mission.state.target;
+          me.vm.mem[0] = t.x;
+          me.vm.mem[1] = t.y;
+        },
+        check: (w, me) => {
+          if (!w.robots[1].alive) return { ok: true, text: 'Right on target, navigator!' };
+          if (me.stats.shots - me.stats.hits >= 8) return { ok: false, text: 'Eight misses. Is R4 set by ATAN2 before you AIM?' };
+          return null;
+        },
+        starter: `Navigator
+; Mission 13: mission control sent the target's position:
+;   memory [0] holds its x, memory [1] holds its y.
+; Work out the angle from you to the target, then fire.
+main:
+    GET  R0, X         ; my x
+    GET  R1, Y         ; my y
+    MOV  R2, [0]       ; R2 = target x
+    SUB  R2, R0        ; R2 = dx: how far right the target is
+    MOV  R3, [1]       ; R3 = target y
+    SUB  R3, R1        ; R3 = dy: how far down the target is
+                       ; <- turn dy and dx into an angle: ATAN2 R4, R3, R2
+    AIM  R4            ; point the turret at the angle in R4
+    FIRE
+    WAIT
+    JMP  main
+`,
+        solution: 'Navigator\nmain:\n    GET  R0, X\n    GET  R1, Y\n    MOV  R2, [0]\n    SUB  R2, R0\n    MOV  R3, [1]\n    SUB  R3, R1\n    ATAN2 R4, R3, R2\n    AIM  R4\n    FIRE\n    WAIT\n    JMP  main',
+      },
+      {
+        id: 'lead',
+        title: 'Lead the target',
+        teaches: 'experimenting: aim ahead of a moving target',
+        goal: 'Hit the moving target 3 times. Your fires take time to fly, so aim ahead of it. Find the right LEAD by experimenting!',
+        hint: 'Scientists test an idea, look at the result, and adjust. Try LEAD 5, then watch: the mission tells you whether your fires pass behind or in front of the target. Behind? Make LEAD bigger. In front? Make it smaller.',
+        guide: 'Field Guide: "Sensors" (SCAN_HEADING)',
+        start: { x: 150, y: 300, heading: 0 },
+        dummies: [{ source: MOVER, x: 380, y: 300, heading: 90, health: 30 }], // LEAD 8 to 14 all work here
+        maxTicks: 900,
+        check: (w, me) => {
+          const s = w.mission.state, t = w.robots[1];
+          if (!t.alive) return { ok: true, text: 'Three hits on a moving target. Great experimenting!' };
+          // Follow each of our fires: where did it pass the target, in front or behind?
+          s.live = s.live || new Map();
+          const vx = Math.cos(t.heading * BB.geo.DEG), vy = Math.sin(t.heading * BB.geo.DEG);
+          const seen = new Set();
+          for (const p of w.projectiles) {
+            if (p.owner !== 0) continue;
+            seen.add(p.id);
+            const dx = p.x - t.x, dy = p.y - t.y, d = Math.hypot(dx, dy);
+            const f = s.live.get(p.id);
+            // Misses while the target turns round at the end of its track don't count: front and behind flip there.
+            const straight = Math.abs(BB.geo.angleDiff(t.heading, 90)) < 20 || Math.abs(BB.geo.angleDiff(t.heading, 270)) < 20;
+            if (!f || d < f.best) s.live.set(p.id, { best: d, ahead: dx * vx + dy * vy > 0, straight });
+          }
+          for (const [id, f] of s.live) {
+            if (seen.has(id)) continue;
+            s.live.delete(id);
+            if (f.best > R + 2 && f.straight) s[f.ahead ? 'ahead' : 'behind'] = (s[f.ahead ? 'ahead' : 'behind'] || 0) + 1;
+          }
+          if (me.stats.shots - me.stats.hits >= 10) {
+            const ahead = s.ahead || 0, behind = s.behind || 0;
+            const tip = ahead > behind ? `${ahead} of your misses passed in front of the target: try a smaller LEAD.`
+              : behind > ahead ? `${behind} of your misses passed behind the target: try a bigger LEAD.` : 'Keep experimenting with LEAD.';
+            return { ok: false, text: `Ten misses. ${tip}` };
+          }
+          return null;
+        },
+        starter: `Predictor
+; Mission 14: the target keeps moving, so aim AHEAD of it.
+; Your fires take time to fly. Try different LEAD values and
+; watch where they go: the mission tells you if they pass
+; in front of or behind the target.
+.def LEAD 0           ; <- how many degrees ahead to aim. Experiment!
+main:
+    SCAN 20
+    GET  R1, SCAN_DIST
+    CMP  R1, -1
+    JE   look
+    GET  R2, SCAN_ANGLE   ; where the target is now
+    GET  R3, SCAN_HEADING ; which way it is driving
+    CMP  R3, 180
+    JG   moving_up
+    ADD  R2, LEAD         ; moving down: aim a little further down
+    JMP  fire_now
+moving_up:
+    SUB  R2, LEAD         ; moving up: aim a little further up
+fire_now:
+    AIM  R2
+    FIRE
+    WAIT
+    JMP  main
+look:
+    GET  R2, TURRET
+    ADD  R2, 10
+    AIM  R2
+    WAIT
+    JMP  main
+`,
+        solution: null, // filled in below from the starter
+      },
+      {
+        id: 'graduate',
+        title: 'Graduation match',
+        teaches: 'putting it all together',
+        goal: 'Beat Rival in a real match: destroy it, or have more health when time runs out.',
+        hint: 'Build your robot from functions you already wrote: "move" from Mission 11 and "attack" from Mission 10. Copy each one in, and rename labels if two functions use the same name. Extra challenge: add your dodge too, and test whether it really helps!',
+        guide: 'Field Guide: Challenges, then battle your friends!',
+        start: { x: 120, y: 300, heading: 0 },
+        obstacles: [BLOCKS[0], BLOCKS[1], BLOCKS[2]],
+        dummies: [{ source: RIVAL, x: 680, y: 300, heading: 180, health: 60 }],
+        maxTicks: 3000,
+        check: (w) => (!w.robots[1].alive ? { ok: true, text: 'You beat Rival. Congratulations, graduate!' } : null),
+        timeUp: (w, me) => (me.health > w.robots[1].health
+          ? { ok: true, text: `Time's up, and you have more health (${Math.ceil(me.health)} vs ${Math.ceil(w.robots[1].health)}). You win, graduate!` }
+          : { ok: false, text: `Time's up, and Rival has more health (${Math.ceil(w.robots[1].health)} vs ${Math.ceil(me.health)}).` }),
+        starter: `Graduate
+; Mission 15: beat Rival in a real match!
+; Build your robot from functions you wrote in earlier missions.
+main:
+    CALL move        ; drive around without crashing (Mission 11)
+    CALL attack      ; find Rival and fire (Mission 10)
+    WAIT
+    JMP  main
+
+move:
+    ; <- your driving code from Mission 11 goes here
+    RET
+
+attack:
+    ; <- your attack function from Mission 10 goes here
+    RET
+
+; Extra challenge: write a "dodge" function, CALL it from main,
+; and test whether it helps. Scientists check their ideas!
+`,
+        solution: `Graduate\nmain:\n    CALL move\n    CALL attack\n    WAIT\n    JMP  main\n${MOVE_FN}\n${ATTACK_FN}`,
+        withDodge: `Graduate\nmain:\n    CALL move\n    CALL attack\n    CALL dodge\n    WAIT\n    JMP  main\n${MOVE_FN}\n${ATTACK_FN}\n${DODGE_FN}`,
+      },
+    ];
+    // Lead: the starter with a LEAD that works (found by the tests' sweep of values).
+    const lead = unit.find((m) => m.id === 'lead');
+    lead.solution = lead.starter.replace('.def LEAD 0 ', `.def LEAD ${LEAD_SOLUTION}`);
+    return unit;
   }
 
   BB.MISSIONS = MISSIONS;

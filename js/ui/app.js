@@ -255,7 +255,8 @@
       const ok = !e.compiled.errors.length;
       for (const x of this.entries) x.runningSource = null;
       e.runningSource = ok ? e.source : null;
-      this.world = ok ? BB.buildMission(this.mission, e.compiled) : new BB.World({ entries: [] });
+      // A fresh seed per attempt, so missions like "Mission control" can't be solved by memorising numbers.
+      this.world = ok ? BB.buildMission(this.mission, e.compiled, 1 + Math.floor(Math.random() * 1e6)) : new BB.World({ entries: [] });
       if (!ok) {
         this.world.log = [];
         this.world.addLog('Fix the errors in your code, then press Apply.', 'fault');
