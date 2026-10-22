@@ -108,6 +108,7 @@
       let seen = false;
       try { seen = !!localStorage.getItem(WELCOME_KEY); } catch (_) { seen = true; } // no storage: don't nag every visit
       $('#welcome').hidden = seen;
+      if (!seen) $('#welcome-mission').focus(); // Enter starts the first mission
       requestAnimationFrame((timestamp) => this.frame(timestamp));
     }
 
@@ -808,6 +809,12 @@
 
     // ------------------------------------------------------------ layout
 
+    /** Dismiss the first-visit welcome for good. */
+    closeWelcome() {
+      try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* fine: it just shows again next time */ }
+      $('#welcome').hidden = true;
+    }
+
     showShortcuts(open) {
       $('#shortcuts').hidden = !open;
       if (open) $('#shortcuts-close').focus();
@@ -820,16 +827,24 @@
     bindSplitter() {
       const main = $('main'), splitter = $('#splitter'), right = $('section.right');
       const MIN = 320, ARENA_MIN = 380, STEP = 24;
-      const setWidth = (w, save) => {
-        if (w) main.style.setProperty('--right-w', `${Math.round(Math.max(MIN, Math.min(innerWidth - ARENA_MIN, w)))}px`);
+      // `chosen` is the width the user picked. A small window squeezes it to fit,
+      // but doesn't overwrite it, so growing the window brings it back.
+      let chosen = null;
+      const fit = (w) => Math.round(Math.max(MIN, Math.min(innerWidth - ARENA_MIN, w)));
+      const apply = () => {
+        if (chosen) main.style.setProperty('--right-w', `${fit(chosen)}px`);
         else main.style.removeProperty('--right-w');
+      };
+      const setWidth = (w, save) => {
+        chosen = w ? fit(w) : null;
+        apply();
         if (save) {
-          try { localStorage.setItem(LAYOUT_KEY, JSON.stringify({ right: w ? right.offsetWidth : null })); } catch (_) { /* fine */ }
+          try { localStorage.setItem(LAYOUT_KEY, JSON.stringify({ right: chosen })); } catch (_) { /* fine */ }
         }
       };
       try {
         const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
-        if (saved && Number.isFinite(saved.right)) setWidth(saved.right, false);
+        if (saved && Number.isFinite(saved.right)) { chosen = saved.right; apply(); }
       } catch (_) { /* default layout */ }
       splitter.addEventListener('pointerdown', (ev) => {
         ev.preventDefault();
@@ -844,7 +859,7 @@
         if (!splitter.classList.contains('dragging')) return;
         splitter.classList.remove('dragging');
         document.body.classList.remove('resizing');
-        setWidth(right.offsetWidth, true);
+        setWidth(chosen, true);
       };
       splitter.addEventListener('pointerup', stop);
       splitter.addEventListener('pointercancel', stop);
@@ -855,7 +870,7 @@
       });
       splitter.addEventListener('dblclick', () => setWidth(null, true));
       // A smaller window must still fit the arena and the panel.
-      window.addEventListener('resize', () => { if (main.style.getPropertyValue('--right-w')) setWidth(right.offsetWidth, false); });
+      window.addEventListener('resize', apply);
     }
 
     // ------------------------------------------------------------ help
@@ -1114,9 +1129,8 @@
       this.bindSplitter();
 
       // First visit: a short welcome that points beginners at the missions.
-      const welcomed = () => { try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* fine */ } $('#welcome').hidden = true; };
-      $('#welcome-mission').onclick = () => { welcomed(); this.startMission(BB.MISSIONS[0].id); };
-      $('#welcome-explore').onclick = welcomed;
+      $('#welcome-mission').onclick = () => { this.closeWelcome(); this.startMission(BB.MISSIONS[0].id); };
+      $('#welcome-explore').onclick = () => this.closeWelcome();
       $('#missions').addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-mission]');
         if (b) this.startMission(b.dataset.mission);
@@ -1196,6 +1210,11 @@
       document.addEventListener('keydown', (ev) => {
         // A focused button handles Space/Enter natively, so the shortcuts would fire twice.
         const inField = /^(TEXTAREA|INPUT|SELECT|BUTTON|SUMMARY)$/.test(document.activeElement && document.activeElement.tagName);
+        // While the welcome card is open, Esc closes it ("look around first") and nothing else reacts.
+        if (!$('#welcome').hidden) {
+          if (ev.key === 'Escape') { ev.preventDefault(); this.closeWelcome(); }
+          return;
+        }
         // While the shortcuts list is open, Esc or ? closes it and nothing else reacts.
         if (!$('#shortcuts').hidden) {
           if (ev.key === 'Escape' || isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(false); }

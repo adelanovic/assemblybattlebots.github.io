@@ -106,6 +106,8 @@
         if (item) this.acceptCompletion(Number(item.dataset.i));
       });
       for (const type of ['blur', 'scroll', 'mousedown']) this.input.addEventListener(type, () => this.closeCompletions());
+      // Popups are placed in window coordinates, so a resize would leave them stranded.
+      window.addEventListener('resize', () => { this.closeCompletions(); this.hideTip(); });
       this.gutter.addEventListener('click', (ev) => {
         const row = ev.target.closest('[data-n]');
         if (row) this.gutterListeners.forEach((f) => f(Number(row.dataset.n)));
@@ -362,6 +364,7 @@
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         // Comment out (or back in) every line the selection touches.
         e.preventDefault();
+        this.closeCompletions();
         const before = ta.value, r = BB.assist.toggleComments(before, ta.selectionStart, ta.selectionEnd);
         if (r.text === before) return;
         const oldEnd = r.to - (r.text.length - before.length);
