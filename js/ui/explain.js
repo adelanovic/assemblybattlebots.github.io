@@ -1,6 +1,6 @@
 /*
- * explain.js — Plain-language help for Simple view, worded like the Student
- * Field Guide (registers are "boxes", cycles are "coins", labels are
+ * explain.js — Plain-language help for Simple view, in beginner-friendly
+ * words (registers are "boxes", cycles are "coins", labels are
  * "bookmarks"). No DOM access: the editor tooltips, the CPU inspector and the
  * trace use these strings, and tests load this file in Node.
  */
@@ -39,7 +39,7 @@
     JLE: 'Jump if the first number in the last CMP was smaller or equal.',
     JG: 'Jump if the first number in the last CMP was bigger.',
     JGE: 'Jump if the first number in the last CMP was bigger or equal.',
-    CALL: 'Jump to a function and remember where you came from. (The Field Guide calls a function a subroutine.) Every CALL needs a RET.',
+    CALL: 'Jump to a function and remember where you came from. (A function is also called a subroutine.) Every CALL needs a RET.',
     RET: 'Finish a function: go back to the line right after the CALL.',
     NOP: 'Do nothing. It just uses up one coin.',
     WAIT: '"I\'m done for this tick." Ends your turn so the game can move everything.',

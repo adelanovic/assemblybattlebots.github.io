@@ -843,9 +843,9 @@
       }).join('');
       box.innerHTML = `
         <p class="missions-intro">Short challenges that each teach one idea. Fix the starter code, then press <b>▶ Start</b>: it always runs the code in the editor.
-          Hover over any instruction in the editor to see what it does. Your Student Field Guide explains everything in more detail.</p>
+          Hover over any instruction in the editor to see what it does, or open the Reference tab to see them all.</p>
         ${units}
-        ${all ? '<p class="missions-done">🏆 All missions complete! Try the Field Guide\'s challenges next, then battle your friends.</p>' : ''}`;
+        ${all ? '<p class="missions-done">🏆 All missions complete! Now build your own robot from scratch and battle your friends.</p>' : ''}`;
     }
 
     renderMissionBar() {
@@ -868,8 +868,7 @@
         <details class="mb-hint"${this.hintOpen ? ' open' : ''}><summary>Need a hint?${more}</summary>
           <p>${esc(m.hint)}</p>
           ${fails >= 2 ? `<p><b>Bigger hint:</b> ${esc(m.hint2)}</p>` : ''}
-          ${answer}
-          <p class="muted">${esc(m.guide)}</p></details>
+          ${answer}</details>
         <div class="mb-actions">
           ${passed && next ? `<button data-mb="next" class="primary">Next mission: ${esc(next.title)} →</button>` : ''}
           <button data-mb="restart" title="Throw away your changes and load the starter code again">Start over</button>

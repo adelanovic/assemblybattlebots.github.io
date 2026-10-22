@@ -57,11 +57,11 @@ The editor checks your code as you type. Errors appear under the editor and in t
 
 The app is built for middle-school beginners and experienced programmers alike, and **Simple view** (in the toolbar) switches between the two:
 
-- **Hover help:** point at any instruction, sensor or register in the editor. Simple view explains it in plain words, using the same terms as the Student Field Guide ("boxes" for registers, "coins" for cycles), and shows the live value of a register or sensor. With Simple view off, the tooltip shows the technical summary instead.
+- **Hover help:** point at any instruction, sensor or register in the editor. Simple view explains it in plain words with beginner-friendly terms ("boxes" for registers, "coins" for cycles), and shows the live value of a register or sensor. With Simple view off, the tooltip shows the technical summary instead.
 - **Trace notes:** Simple view words the last-tick trace as sentences, for example `80 is not less than 30, so keep going` or `Look in a 10° cone: enemy 560 away!`.
 - **Inspector:** Simple view shows only the registers and sensors your program uses. Untick it to see all 8 registers, the common sensors, the stack, the compare result and cycle use.
 
-The **🎯 Missions** tab has fifteen short challenges in three units, designed to come before and alongside the Field Guide's Wanderer challenges. Each one has starter code with one thing to fix, a goal, a hint that points to the right page of the guide, and a pass check. When a mission fails, the message says what went wrong (for example "You stopped after 1.0 laps. The goal is 3." or "Every CALL needs a RET").
+The **🎯 Missions** tab has fifteen short challenges in three units. Each one has starter code with one thing to fix, a goal, a hint, and a pass check. When a mission fails, the message says what went wrong (for example "You stopped after 1.0 laps. The goal is 3." or "Every CALL needs a RET").
 
 **Unit 1: Getting started** (one instruction at a time)
 
@@ -81,7 +81,7 @@ The **🎯 Missions** tab has fifteen short challenges in three units, designed 
 
 **Unit 3: Sensors, math and science** (real-world STEM ideas)
 
-11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles, like the Field Guide's Wanderer.
+11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles.
 12. **Follow the leader** (IF / ELSE): drive when far, wait when close. The same feedback idea as cruise control.
 13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt, so the math has to be right, not memorized.
 14. **Lead the target** (experimenting): hit a moving target by aiming ahead. The mission reports whether misses passed in front or behind, so students adjust `LEAD` like a real experiment (8 to 14 all work).
