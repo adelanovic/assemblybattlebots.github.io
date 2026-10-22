@@ -61,6 +61,12 @@
     return out;
   }
 
+  /** True if two assembled programs run the same instructions (line numbers aside). */
+  function sameInstructions(a, b) {
+    return a.length === b.length &&
+      a.every((ins, i) => ins.op === b[i].op && JSON.stringify(ins.args) === JSON.stringify(b[i].args));
+  }
+
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -466,6 +472,14 @@
       if (this.world.tick === 0 || this.world.over) {
         this.resetMatch();
         this.flash('Applied. The arena has been reset.');
+      } else if (robot && sameInstructions(robot.vm.program, e.compiled.program)) {
+        // Only comments, spacing or the appearance changed: keep the CPU (registers,
+        // position in the program), with the new line numbers for markers and breakpoints.
+        robot.vm.program = e.compiled.program;
+        this.world.renameRobot(robot, e.compiled.name);
+        robot.appearance = { ...e.compiled.appearance };
+        e.runningSource = e.source;
+        this.flash('Applied. Only comments or spacing changed, so your robot kept going.');
       } else if (robot) {
         // Hot-swap: fresh CPU, same body.
         robot.vm = new BB.VM(e.compiled.program, this.world.makeIO(robot));

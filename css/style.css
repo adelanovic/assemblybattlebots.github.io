@@ -269,6 +269,8 @@ main {
 .mission-bar .mb-hint summary { cursor: pointer; color: var(--warn); }
 .mission-bar .mb-hint p { margin: 4px 0; }
 .mission-bar .mb-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+/* An open hint (with the answer) scrolls inside itself, so the editor stays in view to type it in. */
+.mission-bar .mb-hint[open] { max-height: 45vh; overflow: auto; }
 .mission-bar .mb-answer {
   max-height: 200px; overflow: auto; margin: 4px 0; padding: 6px 8px;
   background: #0d1015; border: 1px solid var(--border); border-radius: 4px;
@@ -302,6 +304,8 @@ main {
   .mission-bar .mb-goal { margin: 2px 0; }
   .mission-bar .mb-actions { margin-top: 4px; }
   .mission-bar .mb-actions button { padding-top: 2px; padding-bottom: 2px; }
+  .mission-bar .mb-hint[open] { max-height: 30vh; }
+  .mission-bar .mb-answer { max-height: 130px; }
 }
 .kv.sensors { grid-template-columns: repeat(3, 1fr); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 

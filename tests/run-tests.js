@@ -819,6 +819,22 @@ test('Start and Step run the code in the editor, never its old version', () => {
   assert.notStrictEqual(e.source, e.draft, 'and is not applied');
 });
 
+test('applying a comment-only edit mid-match keeps the robot\'s CPU running', () => {
+  const app = uiHarness();
+  const e = app.selected, robot = app.robotFor(0);
+  for (let i = 0; i < 3; i++) app.world.step();
+  const cpu = robot.vm, r0 = cpu.regs[0];
+  e.draft = 'A\n; a new comment\n    INC R0   ; count\nWAIT';
+  app.applyDraft();
+  assert.strictEqual(robot.vm, cpu, 'same CPU');
+  assert.strictEqual(robot.vm.regs[0], r0, 'registers kept');
+  assert.strictEqual(robot.vm.program[0].line, 3, 'new line numbers');
+  assert.match(app.message, /kept going/);
+  e.draft = 'A\nINC R1\nWAIT';
+  app.applyDraft();
+  assert.notStrictEqual(robot.vm, cpu, 'a real code change still reloads');
+});
+
 test('failed mission attempts are counted, unlocking more help', () => {
   const app = uiHarness();
   const def = BB.MISSIONS[0];
