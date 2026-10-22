@@ -66,7 +66,7 @@
       this.countsKey = '';
       this.listeners = [];
       this.gutterListeners = [];
-      // Hover help: `helpProvider(word)` returns tooltip HTML or null.
+      // Hover help: `helpProvider(word, { line, index })` returns tooltip HTML or null.
       this.helpProvider = null;
       this.tip = document.createElement('div');
       this.tip.className = 'ce-tip';
@@ -163,7 +163,7 @@
       let m;
       while ((m = re.exec(text))) {
         if (comment >= 0 && m.index > comment) break;
-        if (col >= vis[m.index] && col < vis[m.index + m[0].length]) return { word: m[0], line: row + 1 };
+        if (col >= vis[m.index] && col < vis[m.index + m[0].length]) return { word: m[0], line: row + 1, index: m.index };
       }
       return null;
     }
@@ -185,7 +185,7 @@
       this.tipKey = key;
       const at = { x: ev.clientX, y: ev.clientY };
       this.tipTimer = setTimeout(() => {
-        const html = this.helpProvider(hit.word);
+        const html = this.helpProvider(hit.word, hit);
         if (!html) return;
         this.tip.innerHTML = html;
         this.tip.hidden = false;

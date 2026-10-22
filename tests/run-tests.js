@@ -1052,6 +1052,35 @@ test('editor hover help is plain in Simple view, technical otherwise, with live 
   assert.match(app.helpFor('SCAN'), /3 cycles/);
 });
 
+test('hover help reads words where they are written (directives, presets, labels, constants)', () => {
+  const src = 'Bot\n.turret standard\n.def X 5\n.def FAST 4\nfront: GET R0, TURRET ; turret\n    SPEED FAST\n    ADD R1, X\n    JMP front';
+  const at = (row, word, from = 0) => BB.assist.wordContext(src, row, src.split('\n')[row].indexOf(word, from));
+  const role = (...a) => { const c = at(...a); return c && c.role; };
+  assert.deepStrictEqual({ ...at(1, 'turret') }, { role: 'directive', word: 'turret', key: 'turret' });
+  assert.deepStrictEqual({ ...at(1, 'standard') }, { role: 'preset', word: 'standard', key: 'turret' });
+  assert.strictEqual(role(2, 'def'), 'directive');
+  assert.deepStrictEqual({ ...at(2, 'X') }, { role: 'constant', word: 'X', value: '5' });
+  assert.strictEqual(role(4, 'front'), 'label');
+  assert.strictEqual(role(4, 'GET'), 'instruction');
+  assert.strictEqual(role(4, 'R0'), 'register');
+  assert.strictEqual(role(4, 'TURRET'), 'sensor');
+  assert.strictEqual(at(4, 'turret', 20), null); // in a comment
+  assert.strictEqual(role(5, 'FAST'), 'constant');
+  assert.strictEqual(role(6, 'X'), 'constant'); // a constant, not the X sensor
+  assert.strictEqual(role(7, 'front'), 'label'); // a label, not the FRONT sensor
+  assert.strictEqual(at(0, 'Bot'), null); // the name line
+
+  const app = uiHarness();
+  app.editor.value = src;
+  const hover = (row, word) => app.helpFor(word, { line: row + 1, index: src.split('\n')[row].indexOf(word) });
+  assert.match(hover(1, 'turret'), /appearance[\s\S]*twin[\s\S]*data-ref="sec:appearance"/);
+  assert.doesNotMatch(hover(1, 'turret'), /sensor/);
+  assert.match(hover(1, 'standard'), /appearance/);
+  assert.match(hover(6, 'X'), /constant[\s\S]*<b>5<\/b>/);
+  assert.match(hover(4, 'TURRET'), /sensor[\s\S]*data-ref="sensor:TURRET"/);
+  assert.match(hover(7, 'front'), /label/);
+});
+
 test('Step records a trace for the selected robot only', () => {
   const app = uiHarness();
   app.stepOnce();

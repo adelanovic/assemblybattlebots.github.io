@@ -2,6 +2,7 @@
  * assist.js — Editing help with no DOM access, so tests can check it:
  *   completions(text, caret)  what autocomplete offers at the caret
  *   toggleComments(text, from, to)  Ctrl+/ on the lines touched by a selection
+ *   wordContext(text, row, index)  what a hovered word means where it is written
  */
 (function (BB) {
   'use strict';
@@ -12,18 +13,75 @@
   /** First sentence of a description, for the short note beside a suggestion. */
   const firstSentence = (s) => (s ? s.split(/(?<=[.!?])\s/)[0] : '');
 
-  /** Labels and constants defined anywhere in the program (as written). */
+  /** Labels and constants defined anywhere in the program (as written), plus each constant's value. */
   function namesIn(text) {
-    const labels = [], constants = [];
+    const labels = [], constants = [], values = Object.create(null);
     text.split('\n').forEach((line, i) => {
       if (i === 0) return; // line 1 is the robot's name
       let code = line.replace(/[;#].*$/, '');
-      const def = /^\s*\.(def|const|equ)\s+([A-Za-z_]\w*)/i.exec(code);
-      if (def) { constants.push(def[2]); return; }
+      const def = /^\s*\.(def|const|equ)\s+([A-Za-z_]\w*)(?:\s+(\S+))?/i.exec(code);
+      if (def) { constants.push(def[2]); values[def[2].toUpperCase()] = def[3]; return; }
       let m;
       while ((m = /^\s*([A-Za-z_]\w*)\s*:/.exec(code))) { labels.push(m[1]); code = code.slice(m[0].length); }
     });
-    return { labels, constants };
+    return { labels, constants, values };
+  }
+
+  const DEF_RE = /^(def|const|equ)$/i;
+
+  /**
+   * What the word starting at `index` on line `row` (0-based) means where it is written,
+   * for hover help: { role, word, key?, value? } or null.
+   * Roles: 'directive' (key: shape/drive/turret/def), 'preset' (key), 'constant' (value),
+   * 'label', 'instruction', 'sensor', 'register'.
+   */
+  function wordContext(text, row, index) {
+    if (row < 1) return null; // the name line
+    const line = (text.split('\n')[row] || '').replace(/\r$/, '');
+    const comment = line.search(/[;#]/);
+    if (comment >= 0 && index >= comment) return null;
+    const code = comment >= 0 ? line.slice(0, comment) : line;
+    const m = /^[A-Za-z_]\w*/.exec(code.slice(index));
+    if (!m || /\w/.test(code.charAt(index - 1))) return null;
+    const word = m[0], W = word.toUpperCase();
+    const { labels, constants, values } = namesIn(text);
+    const has = (list) => list.some((n) => n.toUpperCase() === W);
+    // Directive lines: `.turret twin`, `.def SPEED_UP 5`.
+    const dir = /^\s*\.([A-Za-z_]\w*)/.exec(code);
+    if (dir) {
+      const key = DEF_RE.test(dir[1]) ? 'def' : dir[1].toLowerCase();
+      const known = key === 'def' || Object.prototype.hasOwnProperty.call(BB.ISA.APPEARANCE, key);
+      if (!known) return null;
+      if (index < dir[0].length) return { role: 'directive', word, key };
+      if (key === 'def') {
+        const name = /^(\s*\S+\s+)([A-Za-z_]\w*)/.exec(code);
+        if (name && index === name[1].length) return { role: 'constant', word, value: values[W] };
+        return has(constants) ? { role: 'constant', word, value: values[W] } : null;
+      }
+      return { role: 'preset', word, key };
+    }
+    // Labels at the start: `loop:` (several are allowed).
+    let pos = 0, lm;
+    const rest = () => code.slice(pos);
+    while ((lm = /^\s*([A-Za-z_]\w*)\s*:/.exec(rest()))) {
+      const at = pos + lm[0].indexOf(lm[1]);
+      if (index === at) return { role: 'label', word };
+      pos += lm[0].length;
+    }
+    const op = /^\s*([A-Za-z_]\w*)/.exec(rest());
+    if (!op) return null;
+    const opAt = pos + op[0].length - op[1].length;
+    if (index === opAt) return INSTRUCTION_MAP[W] ? { role: 'instruction', word } : null;
+    if (index < opAt) return null;
+    const spec = INSTRUCTION_MAP[op[1].toUpperCase()];
+    const argIndex = (code.slice(opAt + op[1].length, index).match(/,/g) || []).length;
+    const kind = spec && spec.args[argIndex];
+    if (kind === 'sensor') return BB.ISA.SENSOR_MAP[W] ? { role: 'sensor', word } : null;
+    if (kind === 'target') return has(labels) ? { role: 'label', word } : null;
+    if (REGISTERS.includes(W)) return { role: 'register', word };
+    if (has(constants)) return { role: 'constant', word, value: values[W] };
+    if (has(labels)) return { role: 'label', word };
+    return null;
   }
 
   /**
@@ -102,5 +160,5 @@
     return { text: text.slice(0, lineStart) + out + text.slice(lineEnd), from: lineStart, to: lineStart + out.length };
   }
 
-  BB.assist = { completions, toggleComments, namesIn };
+  BB.assist = { completions, toggleComments, namesIn, wordContext };
 })(globalThis.BB = globalThis.BB || {});

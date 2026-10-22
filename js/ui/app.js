@@ -97,7 +97,7 @@
       this.renderer = new BB.Renderer($('#arena'));
       this.fitArena();
       this.editor = new BB.CodeEditor($('#editor'));
-      this.editor.setHelp((word) => this.helpFor(word));
+      this.editor.setHelp((word, at) => this.helpFor(word, at));
       this.editor.onHelpLink((ref) => this.openReference(ref));
 
       this.bindControls();
@@ -875,13 +875,39 @@
 
     // ------------------------------------------------------------ help
 
-    /** Tooltip HTML for a word hovered in the editor, or null. */
-    helpFor(word) {
+    /**
+     * Tooltip HTML for a word hovered in the editor, or null. With `at` ({ line, index }),
+     * the word is read where it is written, so `.turret twin` or a label named `front`
+     * isn't mistaken for the TURRET or FRONT sensor.
+     */
+    helpFor(word, at) {
       const W = word.toUpperCase(), X = BB.explain, simple = this.simple;
       const e = this.selected, r = e && this.robotFor(e.id);
       const live = (v) => `<div class="tip-live">Right now: <b>${v}</b></div>`;
       const more = (ref) => `<button class="tip-more" data-ref="${ref}">More in Reference →</button>`;
-      const ins = BB.ISA.INSTRUCTION_MAP[W];
+      const head = (code, kind) => `<div class="tip-head"><code>${esc(code)}</code> <span class="tip-kind">${kind}</span></div>`;
+      const ctx = at && BB.assist.wordContext(this.editor.value, at.line - 1, at.index);
+      if (at && !ctx) return null;
+      const role = ctx && ctx.role;
+      if (role === 'directive' && ctx.key === 'def') {
+        return head('.def NAME value', 'constant') +
+          '<div>Gives a number a name, so <code>.def FAST 4</code> lets you write <code>SPEED FAST</code>. Uses no coins or cycles.</div>' + more('sec:basics');
+      }
+      if (role === 'directive' || role === 'preset') {
+        const spec = BB.ISA.APPEARANCE[ctx.key];
+        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style' }[ctx.key] || 'look';
+        return head(`.${ctx.key} preset`, 'appearance') +
+          `<div>Picks your robot's ${what}. Choices: ${spec.choices.map((c) => `<code>${c}</code>`).join(', ')} (default ${spec.default}). Looks only: it doesn't change how the robot plays.</div>` +
+          more('sec:appearance');
+      }
+      if (role === 'constant') {
+        const value = ctx.value !== undefined ? ` for <b>${esc(ctx.value)}</b>` : '';
+        return head(word, 'constant') + `<div>A name you made${value} with <code>.def</code>. It never changes while the robot runs.</div>`;
+      }
+      if (role === 'label') {
+        return head(`${word}:`, 'label') + '<div>A bookmark in your program. Jumps like <code>JMP</code> and <code>CALL</code> go here.</div>';
+      }
+      const ins = role && role !== 'instruction' ? null : BB.ISA.INSTRUCTION_MAP[W];
       if (ins) {
         const form = [ins.op, ins.args.join(', ')].filter(Boolean).join(' ');
         const cost = ins.cost > 1 ? `<span class="tip-cost">${ins.cost} ${simple ? 'coins' : 'cycles'}</span>` : '';
@@ -889,16 +915,16 @@
           `<div>${esc((simple && X.instruction(W)) || ins.summary)}</div>` +
           `<div class="tip-ex">Example: <code>${esc(ins.example)}</code></div>` + more(`ins:${W}`);
       }
-      const sensor = BB.ISA.SENSOR_MAP[W];
+      const sensor = role && role !== 'sensor' ? null : BB.ISA.SENSOR_MAP[W];
       if (sensor) {
-        return `<div class="tip-head"><code>${W}</code> <span class="tip-kind">sensor</span></div>` +
+        return head(W, 'sensor') +
           `<div>${esc((simple && X.sensor(W)) || sensor.desc)}</div>` +
           (simple ? `<div class="tip-ex">Read it with <code>GET R0, ${W}</code></div>` : '') +
           (r ? live(this.world.sense(r, sensor.id)) : '') + more(`sensor:${W}`);
       }
-      const reg = /^R([0-7])$/.exec(W);
+      const reg = role && role !== 'register' ? null : /^R([0-7])$/.exec(W);
       if (reg) {
-        return `<div class="tip-head"><code>${W}</code> <span class="tip-kind">register</span></div>` +
+        return head(W, 'register') +
           `<div>${esc(simple ? X.REGISTER : 'One of 8 general-purpose 32-bit registers, R0..R7. Starts at 0.')}</div>` +
           (r ? live(r.vm.regs[reg[1]]) : '') + more('sec:basics');
       }
