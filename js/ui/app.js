@@ -1172,11 +1172,10 @@
         const s = BB.SNIPPETS.find((x) => x.id === insert.value);
         insert.value = '';
         if (!s || !this.selected) return;
-        const before = this.editor.value, code = BB.snippetFor(s.id, before);
+        const before = this.editor.value, { code, cursor } = BB.snippetToInsert(s.id, before);
         const at = this.editor.insertBlock(code, { replaceable: BB.isSnippetPlaceholder, below: BB.assist.headerEnd(before) });
-        // The cursor goes to the snippet's "code here" line, so typing (or the next Insert) lands inside it.
-        const spot = BB.snippetPlaceholder(code);
-        this.editor.select(spot ? at.from + spot.start : at.to, spot ? at.from + spot.end : at.to);
+        // The cursor waits on a fresh, indented line where the student's own code goes (typing or the next Insert).
+        this.editor.select(at.from + cursor);
         const dead = BB.assist.deadAfter(this.editor.value, this.editor.value.slice(0, at.from).split('\n').length - 1);
         if (dead) this.flash(`Heads up: this landed right after "${dead}", so it will never run. Press Ctrl+Z, click where it should go (inside your loop), and insert it again.`, 8000);
         else this.flash(`Inserted "${s.title}". Read its comments, then change it to suit your robot.`);

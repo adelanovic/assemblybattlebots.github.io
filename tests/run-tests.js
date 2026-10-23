@@ -693,14 +693,15 @@ test('the Insert menu knows where code may go, and when it could never run there
   assert.strictEqual(A.deadAfter(prog, 2), null, 'just below a label');
   assert.strictEqual(A.deadAfter('Bot\nmain:\n    CMP R0, 1\n    JG main\n    FIRE', 4), null, 'after a conditional jump');
   assert.strictEqual(A.deadAfter('Bot\nl: JMP   l   ; spin\n\n    ; note\n    FIRE', 4), 'JMP l', 'blank and comment lines are skipped');
-  // The "code here" line is where the cursor goes after inserting, and what the next snippet replaces.
-  for (const id of ['loop', 'if', 'repeat', 'function']) {
-    const code = BB.snippetFor(id, ''), spot = BB.snippetPlaceholder(code);
-    assert.ok(spot, id);
-    assert.match(code.slice(spot.start, spot.end), /^; (your )?code here/, id);
-    assert.ok(BB.isSnippetPlaceholder(code.slice(code.lastIndexOf('\n', spot.start) + 1, spot.end)), id);
+  // After inserting, the cursor waits on a fresh indented line: under the "code here" comment, or after the pattern.
+  for (const s of BB.SNIPPETS) {
+    const { code, cursor } = BB.snippetToInsert(s.id, '');
+    const lines = code.slice(0, cursor).split('\n');
+    assert.strictEqual(lines[lines.length - 1], '    ', `${s.id}: an indented blank line`);
+    if (/code here/.test(s.code)) assert.ok(BB.isSnippetPlaceholder(lines[lines.length - 2]), `${s.id}: right under its "code here" comment`);
+    else assert.strictEqual(cursor, code.length, `${s.id}: right after the pattern`);
+    assert.deepStrictEqual(BB.assemble(`T\n${code}\nWAIT`).errors, [], s.id);
   }
-  for (const id of ['ifelse', 'scan', 'wall', 'dodge']) assert.strictEqual(BB.snippetPlaceholder(BB.snippetFor(id, '')), null, id);
   assert.strictEqual(BB.isSnippetPlaceholder('    ; <- add the firing line here'), false, 'mission hints are not replaced');
 });
 test('shipped programs assemble without warnings', () => {

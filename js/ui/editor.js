@@ -399,10 +399,12 @@
         e.preventDefault();
         this.insertText('    ');
       } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
-        // keep indentation
+        // Keep the indentation; after a line that is just a label ("loop:"), indent the code under it.
         const s = ta.selectionStart;
         const lineStart = ta.value.lastIndexOf('\n', s - 1) + 1;
-        const indent = /^\s*/.exec(ta.value.slice(lineStart, s))[0];
+        const before = ta.value.slice(lineStart, s);
+        let indent = /^\s*/.exec(before)[0];
+        if (!indent && lineStart > 0 && /^[A-Za-z_]\w*\s*:\s*([;#].*)?$/.test(before)) indent = '    ';
         if (indent) {
           e.preventDefault();
           this.insertText('\n' + indent);
