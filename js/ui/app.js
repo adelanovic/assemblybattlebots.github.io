@@ -810,12 +810,13 @@
       for (const p of document.querySelectorAll('.tab-panel')) p.hidden = p.id !== `tab-${name}`;
     }
 
-    flash(msg) {
+    /** A short message at the bottom of the page, for `ms` milliseconds. */
+    flash(msg, ms = 3500) {
       const el = $('#flash');
       el.textContent = msg;
       el.classList.add('show');
       clearTimeout(this.flashTimer);
-      this.flashTimer = setTimeout(() => el.classList.remove('show'), 3500);
+      this.flashTimer = setTimeout(() => el.classList.remove('show'), ms);
     }
 
     // ------------------------------------------------------------ layout
@@ -1171,8 +1172,14 @@
         const s = BB.SNIPPETS.find((x) => x.id === insert.value);
         insert.value = '';
         if (!s || !this.selected) return;
-        this.editor.insertBlock(BB.snippetFor(s.id, this.editor.value));
-        this.flash(`Inserted "${s.title}". Read its comments, then change it to suit your robot.`);
+        const before = this.editor.value, code = BB.snippetFor(s.id, before);
+        const at = this.editor.insertBlock(code, { replaceable: BB.isSnippetPlaceholder, below: BB.assist.headerEnd(before) });
+        // The cursor goes to the snippet's "code here" line, so typing (or the next Insert) lands inside it.
+        const spot = BB.snippetPlaceholder(code);
+        this.editor.select(spot ? at.from + spot.start : at.to, spot ? at.from + spot.end : at.to);
+        const dead = BB.assist.deadAfter(this.editor.value, this.editor.value.slice(0, at.from).split('\n').length - 1);
+        if (dead) this.flash(`Heads up: this landed right after "${dead}", so it will never run. Press Ctrl+Z, click where it should go (inside your loop), and insert it again.`, 8000);
+        else this.flash(`Inserted "${s.title}". Read its comments, then change it to suit your robot.`);
       };
 
       // Shortcuts list: the ? button or key; Close, Esc or a click outside the card closes it.

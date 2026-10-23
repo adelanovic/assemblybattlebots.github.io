@@ -3,6 +3,7 @@
  *   completions(text, caret)  what autocomplete offers at the caret
  *   toggleComments(text, from, to)  Ctrl+/ on the lines touched by a selection
  *   wordContext(text, row, index)  what a hovered word means where it is written
+ *   headerEnd(text), deadAfter(text, row)  where the Insert menu may put code, and whether it can run there
  */
 (function (BB) {
   'use strict';
@@ -160,5 +161,40 @@
     return { text: text.slice(0, lineStart) + out + text.slice(lineEnd), from: lineStart, to: lineStart + out.length };
   }
 
-  BB.assist = { completions, toggleComments, namesIn, wordContext };
+  /** Code part of a line: no comment, trimmed. */
+  const codeOf = (line) => (line || '').replace(/[;#].*$/, '').trim();
+  const LABELS_RE = /^([A-Za-z_]\w*\s*:\s*)+/;
+
+  /** Index (0-based) of the last line of the name and appearance header. Inserted code goes below it. */
+  function headerEnd(text) {
+    const lines = text.split('\n');
+    let end = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const code = codeOf(lines[i]);
+      if (/^\.(shape|drive|turret)\b/i.test(code)) end = i;
+      else if (code) break;
+    }
+    return end;
+  }
+
+  /**
+   * Code starting at line `row` (0-based) can never run if the code line above it
+   * always jumps away and nothing can jump to it. Returns that line's instruction
+   * ("JMP main", "RET" or "HALT"), or null when the code can run.
+   */
+  function deadAfter(text, row) {
+    const lines = text.split('\n');
+    const first = lines.slice(row).map(codeOf).find(Boolean);
+    if (!first || LABELS_RE.test(first)) return null; // a label: a jump can reach it
+    for (let i = row - 1; i >= 1; i--) {
+      const code = codeOf(lines[i]);
+      if (!code) continue;
+      const ins = code.replace(LABELS_RE, '');
+      if (!ins) return null; // a label just above
+      return /^(JMP|RET|HALT)\b/i.test(ins) ? ins.replace(/\s+/g, ' ') : null;
+    }
+    return null;
+  }
+
+  BB.assist = { completions, toggleComments, namesIn, wordContext, headerEnd, deadAfter };
 })(globalThis.BB = globalThis.BB || {});

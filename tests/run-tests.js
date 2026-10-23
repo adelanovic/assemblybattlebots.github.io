@@ -680,6 +680,29 @@ test('every Insert-menu snippet assembles, alone and inserted twice into one pro
   assert.match(twice, /; NOT below 30\? skip the next part/, 'comments are not renamed');
   assert.strictEqual(BB.snippetFor('nope', ''), null);
 });
+test('the Insert menu knows where code may go, and when it could never run there', () => {
+  const A = BB.assist;
+  assert.strictEqual(A.headerEnd(BB.NEW_ROBOT_TEMPLATE), 3, 'below .shape, .drive and .turret');
+  assert.strictEqual(A.headerEnd('Bot\nmain:\n    WAIT'), 0, 'no header: just below the name');
+  assert.strictEqual(A.headerEnd('Bot\n; a comment\n.shape circle\n\nmain:'), 2);
+  const prog = 'Bot\nmain:\n    SPEED 3\n    JMP main\n    FIRE\nfunc:\n    RET\n    FIRE\n    HALT\n    WAIT';
+  assert.strictEqual(A.deadAfter(prog, 4), 'JMP main', 'right after a JMP');
+  assert.strictEqual(A.deadAfter(prog, 5), null, 'a label can be jumped to');
+  assert.strictEqual(A.deadAfter(prog, 7), 'RET');
+  assert.strictEqual(A.deadAfter(prog, 9), 'HALT');
+  assert.strictEqual(A.deadAfter(prog, 2), null, 'just below a label');
+  assert.strictEqual(A.deadAfter('Bot\nmain:\n    CMP R0, 1\n    JG main\n    FIRE', 4), null, 'after a conditional jump');
+  assert.strictEqual(A.deadAfter('Bot\nl: JMP   l   ; spin\n\n    ; note\n    FIRE', 4), 'JMP l', 'blank and comment lines are skipped');
+  // The "code here" line is where the cursor goes after inserting, and what the next snippet replaces.
+  for (const id of ['loop', 'if', 'repeat', 'function']) {
+    const code = BB.snippetFor(id, ''), spot = BB.snippetPlaceholder(code);
+    assert.ok(spot, id);
+    assert.match(code.slice(spot.start, spot.end), /^; (your )?code here/, id);
+    assert.ok(BB.isSnippetPlaceholder(code.slice(code.lastIndexOf('\n', spot.start) + 1, spot.end)), id);
+  }
+  for (const id of ['ifelse', 'scan', 'wall', 'dodge']) assert.strictEqual(BB.snippetPlaceholder(BB.snippetFor(id, '')), null, id);
+  assert.strictEqual(BB.isSnippetPlaceholder('    ; <- add the firing line here'), false, 'mission hints are not replaced');
+});
 test('shipped programs assemble without warnings', () => {
   const programs = [...BB.EXAMPLES.map((e) => [e.file, e.source]), ['template', BB.NEW_ROBOT_TEMPLATE]];
   for (const m of BB.MISSIONS) {

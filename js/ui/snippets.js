@@ -5,6 +5,8 @@
  *
  * Labels inside a snippet are renamed (skip -> skip2) when the program
  * already uses them, so inserting the same pattern twice still assembles.
+ * A "; code here" comment marks where the student's own code goes: the editor
+ * puts the cursor there, and the next snippet inserted replaces it.
  */
 (function (BB) {
   'use strict';
@@ -135,6 +137,17 @@ no_danger:`,
     return code;
   }
 
+  /** A snippet's "; code here" comment line, where the student's own code goes. */
+  const isSnippetPlaceholder = (line) => /^[ \t]*; (your )?code here/.test(line);
+
+  /** Where `code`'s placeholder comment is, as { start, end } offsets of the comment text, or null. */
+  function snippetPlaceholder(code) {
+    const m = /^([ \t]*)(; (your )?code here.*)$/m.exec(code);
+    return m ? { start: m.index + m[1].length, end: m.index + m[0].length } : null;
+  }
+
   BB.SNIPPETS = SNIPPETS;
   BB.snippetFor = snippetFor;
+  BB.isSnippetPlaceholder = isSnippetPlaceholder;
+  BB.snippetPlaceholder = snippetPlaceholder;
 })(globalThis.BB = globalThis.BB || {});

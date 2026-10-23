@@ -209,23 +209,43 @@
     }
 
     /**
-     * Insert a block of lines at the cursor, as one undoable step: it replaces
-     * the current line if that is blank, and otherwise goes on the lines after it.
+     * Insert a block of lines where the cursor is, as one undoable step. It
+     * replaces the cursor's line if that is blank (or `replaceable(line)`), goes
+     * above the line when the cursor is before its code, and below it otherwise.
+     * Lines 0..`below` (the name and header) stay on top: the block goes after them.
+     * Returns where the block landed, as { from, to } offsets.
      */
-    insertBlock(text) {
+    insertBlock(text, { replaceable = () => false, below = 0 } = {}) {
       const ta = this.input;
       ta.focus();
-      const v = ta.value, s = ta.selectionStart;
-      const lineStart = v.lastIndexOf('\n', s - 1) + 1;
-      let lineEnd = v.indexOf('\n', s);
-      if (lineEnd < 0) lineEnd = v.length;
-      if (/^\s*$/.test(v.slice(lineStart, lineEnd))) {
+      const v = ta.value, lines = v.split('\n'), s = ta.selectionStart;
+      const caretLine = v.slice(0, s).split('\n').length - 1;
+      const n = Math.max(caretLine, below);
+      const line = lines[n] || '';
+      const lineStart = lines.slice(0, n).reduce((sum, l) => sum + l.length + 1, 0), lineEnd = lineStart + line.length;
+      const beforeCode = n === caretLine && s <= lineStart + /^\s*/.exec(line)[0].length;
+      let from;
+      if (n > below && (!line.trim() || replaceable(line))) {
         ta.setSelectionRange(lineStart, lineEnd);
+        from = lineStart;
         this.insertText(text);
+      } else if (n > below && beforeCode) {
+        ta.setSelectionRange(lineStart, lineStart);
+        from = lineStart;
+        this.insertText(`${text}\n`);
       } else {
         ta.setSelectionRange(lineEnd, lineEnd);
+        from = lineEnd + 1;
         this.insertText(`\n${text}`);
       }
+      return { from, to: from + text.length };
+    }
+
+    /** Select `from`..`to` (just a cursor when equal) and scroll it into view. */
+    select(from, to = from) {
+      this.input.focus();
+      this.input.setSelectionRange(from, to);
+      this.revealLine(this.input.value.slice(0, from).split('\n').length);
     }
 
     setErrors(lines) { this.errorLines = new Set(lines); this.renderGutter(); }
