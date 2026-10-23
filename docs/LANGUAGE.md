@@ -62,7 +62,7 @@ The drive is drawn beneath the hull and follows the body heading. Every style us
 
 #### Turret styles: `.turret`
 
-The turret follows `TURRET` and your `AIM` commands independently of the hull. These settings change the barrel drawing, not the weapon or its aiming speed.
+The turret follows `TURRET` and your `AIM` commands independently of the hull. These settings change the barrel drawing, not how it fires or how fast it aims.
 
 | Preset | Appearance |
 |---|---|
@@ -106,7 +106,7 @@ main:
 
 Appearance is part of the source text. Save .asm exports it, Load .asm reads it, and duplication copies it with the robot program. The browser also saves your source and draft with the roster.
 
-Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.
+Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. In a mission, applying changed code starts the attempt again instead, because a mission judges the whole attempt. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.
 
 #### Built-in example combinations
 
@@ -160,7 +160,7 @@ search:
 |---|---|
 | `dst` | register `R0`..`R7` or memory `[n]`, `[Rx]`, `[Rx+n]`, `[Rx-n]` |
 | `src` | anything `dst` accepts, plus a number or `.def` constant |
-| `target` | a label or a numeric, zero-based instruction index; registers and constants are not accepted |
+| `target` | a label, or a numeric zero-based instruction index (the editor warns, because it is easy to mistake for a line number); registers and constants are not accepted |
 | `sensor` | a sensor name (see below) |
 
 Instructions are indexed from 0, excluding the name, blank lines, comments, labels and directives. A target equal to the instruction count is legal and wraps to instruction 0; negative targets and targets beyond that count are assembly errors. Labels are usually easier to maintain than numeric targets.
@@ -176,7 +176,8 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 - Desired speed and headings persist across ticks, `WAIT`, `HALT` and CPU faults. Absolute headings wrap into 0..359. `TURN` is relative to the current body heading, so repeated `TURN 90` commands do not add 90 degrees to the previous desired target.
 - At most one projectile is fired every 15 ticks. A shot sets the cooldown to 15, then the world decrements it to 14 before the next CPU tick. A `FIRE` request while cooling down is discarded rather than queued for a later tick.
 - Each robot's `RAND` draws from its own random-number stream, seeded from the match seed and the robot's roster slot, so another robot's random calls never change your results. Replaying requires the same seed, arena, roster order, rules and programs.
-- Division/modulo by zero, an invalid memory address, stack underflow/overflow, a nonpositive `RAND` range, or a negative `SQRT` input faults the CPU and reports the instruction's source line.
+- Division/modulo by zero, an invalid memory address, stack underflow/overflow, a nonpositive `RAND` range, or a negative `SQRT` input faults the CPU and reports the instruction's source line. When the bad value is written in the code itself (`DIV R0, 0`, `[300]`, `RAND R0, 0`, `SQRT R0, -1`), the assembler reports an error instead, before the robot runs.
+- `SPEED` and `SCAN` clamp out-of-range values: `SPEED 10` drives at 5 and `SCAN 360` looks 90° wide. A number or constant outside the range assembles with a warning.
 
 ## Instructions
 
@@ -282,7 +283,7 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 ### Sensor result details
 
 - All sensor values are integers. Positions, distances, angles and speeds are rounded to the nearest integer, with halfway cases rounded toward positive infinity; health is rounded up. Angles are absolute arena angles unless stated otherwise.
-- `SCAN_*` values are a snapshot from the most recent `SCAN`, not a continuously updated track. They remain unchanged until another scan, even if the target moves or dies. `SCAN_ANGLE` is the absolute bearing; `SCAN_HEADING` is the target's body heading. A negative `SCAN_SPEED` means the target is reversing.
+- `SCAN_*` values are a snapshot from the most recent `SCAN`, not a continuously updated track. They remain unchanged until another scan, even if the target moves or is destroyed. `SCAN_ANGLE` is the absolute bearing; `SCAN_HEADING` is the target's body heading. A negative `SCAN_SPEED` means the target is reversing.
 - `THREAT_*` values likewise come from the most recent `RADAR`. `THREAT_ANGLE` is the bearing to the projectile; `THREAT_HEADING` is its travel direction. Radar tests projectile velocity toward your current position, without predicting your own future motion.
 - Before the first scan/radar call, and after a call finds nothing, the corresponding distance is -1 and all its other result fields are 0. Check the distance before using the other fields.
 - Mud patches (brown, on Classic and Random) cap your speed at 2 in either direction while your center is inside; the cap applies immediately and lifts as soon as you leave. `GET R0, MUD` reads 1 in mud. Mud does not block movement, bullets, `SCAN`, `RADAR` or `FRONT`.

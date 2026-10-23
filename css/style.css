@@ -209,7 +209,7 @@ main {
 }
 .ce-input::selection { background: rgba(79, 163, 255, .35); }
 .t-name { color: #fff; font-weight: 700; }
-.t-comment { color: #5f6b80; font-style: italic; }
+.t-comment { color: #7f8a9e; font-style: italic; } /* 5.5:1 on the editor: mission instructions live in comments */
 .t-op { color: #6cb6ff; font-weight: 600; }
 .t-reg { color: #f69d50; }
 .t-num { color: #b392f0; }
@@ -294,6 +294,8 @@ main {
 .mission-list .m-goal { color: #c3cad8; margin-top: 2px; }
 .mission-list .m-teaches { color: var(--muted); font-size: 11.5px; margin-top: 3px; }
 .missions-done { margin-top: 12px; color: var(--good); }
+.missions-reset { margin: 18px 0 4px; text-align: right; }
+.missions-reset button { font-size: 12px; color: var(--muted); }
 .ref-exact { margin-top: 3px; font-size: 11.5px; color: var(--muted); }
 .unit-title { margin: 14px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
 .unit-title .unit-progress { float: right; text-transform: none; letter-spacing: 0; color: var(--good); }

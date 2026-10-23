@@ -87,12 +87,70 @@ test('beginner mistakes get specific, correct help', () => {
   assert.deepStrictEqual([named.name, named.errors.length], ['Bot ; my robot', 0]);
   assert.match(named.warnings[0].message, /Put comments on line 2 or later/);
 });
+test('more beginner slips get a specific fix, and code that always crashes is caught first', () => {
+  const msg = (src) => BB.assemble(src).errors.map((e) => e.message).join(' ');
+  const warn = (src) => BB.assemble(src).warnings.map((e) => e.message).join(' ');
+  // A label without its colon: one clear error, not "Did you mean MIN?" plus an "Unknown label" at the jump.
+  const colonless = errorsOf('T\nmain\n    SPEED 5\n    JMP main');
+  assert.strictEqual(colonless.length, 1);
+  assert.match(colonless[0].message, /"main" is used as a label, so it needs a colon at the end: write "main:"/);
+  assert.match(msg('T\nloop\n    JMP loop'), /needs a colon/, 'even a word with its own beginner tip');
+  assert.match(msg('T\nmain\n    WAIT'), /Did you mean MIN\? Or, if it's a label, add a colon/);
+  assert.match(msg('T\nbanana'), /If it's a label, add a colon at the end: "banana:"/);
+  // Spaces where commas belong.
+  assert.match(msg('T\nMOV R0 5'), /Did you forget a comma\? Write "MOV R0, 5"/);
+  assert.match(msg('T\nGET R0 HEALTH'), /Write "GET R0, HEALTH"/);
+  assert.match(msg('T\nCMP R0 < 5'), /Put a comma between operands/);
+  assert.match(msg('T\nMOV R0\uFF0C 5'), /The "\uFF0C" isn't a plain comma: type the , key instead/);
+  // "=" from other languages.
+  assert.match(msg('T\nR0 = 5'), /no "="\. Use MOV, like "MOV R0, 5"/);
+  assert.match(msg('T\nR1 += 2'), /Use ADD, like "ADD R1, 2"/);
+  // Dashes pasted from a document instead of a minus sign.
+  assert.match(msg('T\nTURN \u201390'), /copied from a document, not a minus sign\. Type the - key instead: "-90"/);
+  assert.match(msg('T\nMOV R0, [R1\u20134]'), /Type the - key instead: "\[R1-4\]"/);
+  assert.match(msg('T\n.def BACK \u22123'), /Type the - key instead: "\.def BACK -3"/);
+  // Directives in the wrong shape or place.
+  assert.match(msg('T\nloop: .shape tank\n    WAIT'), /\.shape must appear in the appearance header/);
+  assert.match(msg('T\n.def FAST, 4\n    SPEED 4'), /\.def doesn't use commas\. Write "\.def FAST 4"/);
+  // Crashes that would happen every time are errors before the match.
+  assert.match(msg('T\nDIV R0, 0'), /DIV by 0 would crash your robot/);
+  assert.match(msg('T\n.def NONE 0\nMOD R0, NONE'), /MOD by 0 would crash your robot/);
+  assert.match(msg('T\nRAND R0, 0'), /RAND needs a number bigger than 0, like "RAND R0, 360"/);
+  assert.match(msg('T\nSQRT R0, -4'), /SQRT of a negative number would crash/);
+  assert.match(msg('T\nMOV R0, [300]'), /Memory slots go from \[0\] to \[255\], so \[300\] would crash/);
+  assert.deepStrictEqual(errorsOf('T\nMOV R1, 300\nMOV R0, [R1]'), [], 'an address in a register is checked when it runs');
+  // Warnings explain a surprise but still let the code run.
+  for (const [src, re] of [
+    ['T\nSPEED 10', /"SPEED 10" drives at 5: SPEED goes from -3 to 5/],
+    ['T\n.def FAST 9\nSPEED FAST', /"SPEED FAST" \(FAST is 9\) drives at 5/],
+    ['T\nSCAN 360', /"SCAN 360" looks 90° wide/],
+    ['T\nSCAN 0', /looks 1° wide/],
+    ['T\nJMP 3\nWAIT\nWAIT\nWAIT', /"JMP 3" goes to instruction number 3 \(counting from 0\), not line 3/],
+  ]) {
+    const res = BB.assemble(src);
+    assert.deepStrictEqual([res.errors.length, res.program.length > 0], [0, true], src);
+    assert.match(warn(src), re, src);
+  }
+  assert.strictEqual(warn('T\nSPEED 5\nSCAN 90\nSPEED -3\nSCAN 1'), '', 'the limits themselves are fine');
+});
+test('code on the name line gets a warning; ordinary names do not', () => {
+  const warn = (src) => BB.assemble(src).warnings.map((w) => w.message).join(' ');
+  for (const line of ['main:', 'SPEED 5', 'GET R0, HEALTH', '.shape tank', 'JMP main', 'loop: WAIT']) {
+    assert.match(warn(`${line}\nmain:\n    WAIT\n    JMP main`), /Line 1 is only your robot's name, so ".+" won't run as code/, line);
+  }
+  for (const name of ['Rookie', 'Fire Ant', 'Turn Left', 'Wait', 'Mission 1: drive', 'Head Hunter', 'Call Me Maybe', 'R2D2']) {
+    assert.doesNotMatch(warn(`${name}\nWAIT`), /won't run as code/, name);
+  }
+  const lost = errorsOf('main:\n    SPEED 5\n    WAIT\n    JMP main');
+  assert.match(lost[0].message, /Unknown label "main"\. Line 1 is your robot's name, so the "main:" there doesn't count as a label/);
+});
 
 test('every example assembles cleanly', () => {
   for (const ex of BB.EXAMPLES) assert.deepStrictEqual(errorsOf(ex.source), [], ex.file);
 });
 test('the "+ New robot" template assembles cleanly', () => {
   assert.deepStrictEqual(errorsOf(BB.NEW_ROBOT_TEMPLATE), []);
+  assert.match(BB.NEW_ROBOT_TEMPLATE.trimEnd(), /JMP\s+main$/, 'loops back on purpose, not by running off the end');
 });
 test('a label named after an instruction is one error, not one per jump', () => {
   const e = errorsOf('Bot\nJMP turn\nJL turn\nturn: NOP');
@@ -208,7 +266,7 @@ test('trace notes what each instruction did, and why the turn ended', () => {
   assert.deepStrictEqual([vm.trace.map((t) => t.note), vm.lastStop], [['call line 4', 'return to line 3', 'CPU stopped'], 'halt']);
   vm = traced('T\nl: JMP l', 5);
   assert.deepStrictEqual([vm.trace.length, vm.trace[0].note, vm.lastStop], [5, 'jump to line 2', 'budget']);
-  vm = traced('T\nDIV R0, 0');
+  vm = traced('T\nDIV R0, R1');
   assert.deepStrictEqual([vm.trace.map((t) => t.note), vm.lastStop], [['division by zero.'], 'fault']);
   vm = new BB.VM(BB.assemble('T\nINC R0\nWAIT').program, {});
   vm.run(50);
@@ -241,7 +299,7 @@ console.log('World');
 const compile = (src, id) => { const r = BB.assemble(src); return { id, name: r.name, program: r.program, appearance: r.appearance }; };
 test('a faulty / looping robot does not affect others', () => {
   const looper = compile('Looper\nl: JMP l', 0);
-  const crasher = compile('Crasher\nDIV R0, 0', 1);
+  const crasher = compile('Crasher\nDIV R0, R1', 1);
   const mover = compile('Mover\nSPEED 5\nWAIT', 2);
   const w = new BB.World({ entries: [looper, crasher, mover], seed: 3 });
   const start = { x: w.robots[2].x, y: w.robots[2].y };
@@ -449,6 +507,9 @@ function fuzzProgram(n) {
     const spec = fuzzPick(BB.ISA.INSTRUCTIONS);
     const args = spec.args.map((k) => (k === 'dst' ? fuzzPick(dst) : k === 'src' ? fuzzPick(src)
       : k === 'sensor' ? fuzzPick(BB.ISA.SENSORS).name : `L${fuzzInt(0, n)}`));
+    // A literal that always crashes (DIV R0, 0) is an assembly error; a register can still be 0 at run time.
+    const crashes = { DIV: (v) => v === 0, MOD: (v) => v === 0, RAND: (v) => v <= 0, SQRT: (v) => v < 0 }[spec.op];
+    if (crashes && /^-?\d+$/.test(args[1]) && crashes(Number(args[1]))) args[1] = 'R1';
     lines.push(`L${i}: ${spec.op} ${args.join(', ')}`);
   }
   lines.push(`L${n}: WAIT`);
@@ -619,6 +680,15 @@ test('every Insert-menu snippet assembles, alone and inserted twice into one pro
   assert.match(twice, /; NOT below 30\? skip the next part/, 'comments are not renamed');
   assert.strictEqual(BB.snippetFor('nope', ''), null);
 });
+test('shipped programs assemble without warnings', () => {
+  const programs = [...BB.EXAMPLES.map((e) => [e.file, e.source]), ['template', BB.NEW_ROBOT_TEMPLATE]];
+  for (const m of BB.MISSIONS) {
+    for (const k of ['starter', 'solution', 'withDodge']) if (m[k]) programs.push([`${m.id} ${k}`, m[k]]);
+    for (const d of m.dummies || []) programs.push([`${m.id} dummy`, d.source]);
+  }
+  for (const s of BB.SNIPPETS) programs.push([`snippet ${s.id}`, `T\n${BB.snippetFor(s.id, '')}\nWAIT`]);
+  for (const [name, src] of programs) assert.deepStrictEqual(BB.assemble(src).warnings, [], name);
+});
 const uiBB = { ...BB };
 // Capture the controller rather than booting the page and animation loop.
 scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui/app.js'), 'utf8').replace('BB.app = new App();', 'BB.App = App;'), {
@@ -626,6 +696,7 @@ scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui/app.js')
   window: { addEventListener(event, callback) { if (event === 'DOMContentLoaded') callback(); } },
   requestAnimationFrame() {},
   performance: { now: () => 0 },
+  confirm: () => true, // "Are you sure?" dialogs answer yes
 });
 
 function uiHarness(mode = 'ffa') {
@@ -757,6 +828,30 @@ test('plain notes for jumps without a CMP in the same tick, crashes and angles',
   for (const s of BB.ISA.SENSORS) assert.ok(X.sensor(s.name), `plain help for ${s.name}`);
 });
 
+test('trace notes say what TURN, SCAN and SPEED really do', () => {
+  const note = (op, value, extra = {}) => BB.explain.traceNote({ op, value, ...extra }, null);
+  assert.strictEqual(note('TURN', 90), 'Turn 90° right');
+  assert.strictEqual(note('TURN', 270), 'Turn 90° left (the shorter way round)');
+  assert.strictEqual(note('TURN', -270), 'Turn 90° right (the shorter way round)');
+  assert.strictEqual(note('TURN', 180), 'Turn around: 180°, to the left');
+  assert.strictEqual(note('TURN', -180), 'Turn around: 180°, to the left');
+  assert.strictEqual(note('TURN', 360), 'No turn: 360° goes all the way round');
+  assert.strictEqual(note('TURN', 0), 'No turn (0°)');
+  assert.strictEqual(note('SPEED', 3), 'Drive at speed 3');
+  assert.strictEqual(note('SPEED', 10), 'Drive at speed 5 (the fastest)');
+  assert.strictEqual(note('SPEED', -10), 'Drive at speed -3 (the fastest backward)');
+  assert.strictEqual(note('SCAN', 360, { found: -1 }), 'Look in a 90° cone (the widest): nobody found');
+  assert.strictEqual(note('SCAN', 0, { found: 120 }), 'Look in a 1° cone (the narrowest): enemy 120 away!');
+  // And the engine agrees: TURN 270 and TURN 180 turn left, TURN 360 doesn't turn at all.
+  for (const [deg, way] of [[270, -1], [180, -1], [-270, 1], [360, 0], [90, 1]]) {
+    const w = new BB.World({ entries: [compile(`T\nTURN ${deg}\nl: WAIT\nJMP l`, 0)], arena: 'open' });
+    const r = w.robots[0], before = r.heading;
+    w.step();
+    const turned = Math.round(BB.geo.angleDiff(r.heading, before));
+    assert.ok(way === 0 ? turned === 0 : Math.sign(turned) === way, `TURN ${deg} turned ${turned}`);
+  }
+});
+
 test('Reference claims match the engine (turning, SCAN timing, misses, collisions)', () => {
   const world = (srcs, teams) => new BB.World({ entries: srcs.map((s, i) => ({ ...compile(s, i), team: teams && teams[i] })), arena: 'open' });
   const put = (r, x, y, h) => { r.x = x; r.y = y; r.heading = r.targetHeading = r.turret = r.targetTurret = h; };
@@ -792,14 +887,14 @@ test('Reference claims match the engine (turning, SCAN timing, misses, collision
 test('every real VM crash gets a plain explanation, with its line', () => {
   const crash = (src) => { const vm = runVM(src, 2000); return vm.fault; };
   const cases = [
-    ['T\nDIV R0, 0', /line 2: it tried to divide by zero/],
-    ['T\nMOD R0, 0', /MOD by zero is impossible/],
+    ['T\nDIV R0, R1', /line 2: it tried to divide by zero/],
+    ['T\nMOD R0, R1', /MOD by zero is impossible/],
     ['T\nl: CALL l', /too many CALLs without a RET/],
     ['T\nRET', /RET ran without a CALL first/],
     ['T\nPOP R0', /nothing was PUSHed first/],
-    ['T\nMOV R0, [300]', /tried to use \[300\]/],
+    ['T\nMOV R1, 300\nMOV R0, [R1]', /tried to use \[300\]/],
     ['T\nMOV R1, -1\nSQRT R0, R1', /SQRT of a negative number/],
-    ['T\nRAND R0, 0', /RAND needs a number bigger than 0/],
+    ['T\nRAND R0, R1', /RAND needs a number bigger than 0/],
   ];
   for (const [src, re] of cases) assert.match(BB.explain.fault(crash(src)), re, src);
 });
@@ -1033,6 +1128,76 @@ test('a mission result is reported once and a pass is remembered', () => {
   app.checkMissionResult();
   assert.deepStrictEqual([[...app.missionState.done], app.running], [[def.id], false]);
   assert.match(app.message, /Mission complete/);
+});
+
+test('in a mission, applying changed code starts the attempt again, so a correct fix passes', () => {
+  const app = uiHarness();
+  const def = BB.MISSIONS.find((m) => m.id === 'laps');
+  app.missionState = { done: [], code: {}, fails: {} };
+  app.renderMissionBar = app.renderMissions = () => {};
+  app.renderer = { clearEffects() {} };
+  app.mission = def;
+  app.missionEntry = app.makeEntry('laps.asm', def.starter, { id: BB.MISSION_ENTRY_ID });
+  app.selectedId = BB.MISSION_ENTRY_ID;
+  app.resetMatch();
+  const e = app.missionEntry;
+  for (let i = 0; i < 50; i++) app.world.step();
+  e.draft = `${e.source}\n; just a note`;
+  app.applyDraft();
+  assert.strictEqual(app.world.tick, 50, 'comments only: the attempt carries on');
+  for (let i = 0; i < 50; i++) app.world.step();
+  // Mid-attempt, the starter has already driven 1.6 laps. Continuing would fail the fix with "4.7 laps".
+  e.draft = def.solution;
+  app.running = true;
+  app.applyDraft();
+  assert.deepStrictEqual([app.world.tick, app.running], [0, true], 'a fresh attempt, still running');
+  assert.match(app.message, /mission starts again with your new code/);
+  while (!app.world.over) app.world.step();
+  assert.ok(app.world.mission.result.ok, app.world.mission.result.text);
+});
+
+test('Step after the end says how to play again', () => {
+  const app = uiHarness();
+  app.world.over = true;
+  app.stepOnce();
+  assert.match(app.message, /The match is over\. Press ▶ Rematch/);
+  app.mission = BB.MISSIONS[0];
+  app.stepOnce();
+  assert.match(app.message, /This attempt is over\. Press ▶ Try again/);
+});
+
+test('missions say what to change when time runs out', () => {
+  const play = (id, src) => {
+    const def = BB.MISSIONS.find((m) => m.id === id);
+    const w = BB.buildMission(def, BB.assemble(src || def.starter));
+    while (!w.over) w.step();
+    return w.mission.result;
+  };
+  for (const [id, src, re] of [
+    ['drive', null, /never moved\. Change SPEED 0 to a bigger number/],
+    ['drive', 'R\nmain:\n    SPEED -2\n    WAIT\n    JMP main', /drove backward, away from the goal/],
+    ['drive', 'R\nmain:\n    SPEED 1\n    WAIT\n    JMP main', /Try a bigger SPEED/],
+    ['angles', null, /faced right, but the goal is up\. Which HEAD number points up\?/],
+    ['aim', null, /shots missed\. Your turret points at 0°/],
+    ['aim', 'A\nmain:\n    AIM 315\n    WAIT\n    JMP main', /never fired/],
+    ['scan', null, /never fired\. Keep FIRE on the line right after AIM R2/],
+    ['coords', 'N\nmain:\n    WAIT\n    JMP main', /never fired/],
+    ['lead', 'P\nmain:\n    WAIT\n    JMP main', /never fired/],
+  ]) {
+    const result = play(id, src);
+    assert.ok(!result.ok, id);
+    assert.match(result.text, re, `${id}: ${result.text}`);
+  }
+});
+
+test('Reset mission progress clears progress, hints and mission code, but keeps the robots', () => {
+  const app = uiHarness();
+  app.missionState = { done: ['drive'], code: { drive: { source: 'X', draft: 'X' } }, fails: { drive: 3 } };
+  app.renderMissions = () => {};
+  app.resetMissionProgress();
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(app.missionState)), { done: [], code: {}, fails: {} });
+  assert.strictEqual(app.entries.length, 1, 'the roster stays');
+  assert.match(app.message, /Mission progress reset/);
 });
 
 test('editor hover help is plain in Simple view, technical otherwise, with live values', () => {

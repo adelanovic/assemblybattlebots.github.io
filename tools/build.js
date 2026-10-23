@@ -40,7 +40,7 @@ out.push('', '#### Hull shapes: `.shape`', '',
   '| `wheels` | Four small wheels, two along each side of the hull. |',
   '| `hover` | An oval platform with a colored rim beneath the hull. It still collides with walls, obstacles and other robots; it does not fly over them. |', '',
   '#### Turret styles: `.turret`', '',
-  'The turret follows `TURRET` and your `AIM` commands independently of the hull. These settings change the barrel drawing, not the weapon or its aiming speed.', '',
+  'The turret follows `TURRET` and your `AIM` commands independently of the hull. These settings change the barrel drawing, not how it fires or how fast it aims.', '',
   '| Preset | Appearance |', '|---|---|',
   '| `standard` | One full-length barrel on the central turret dome. Default. |',
   '| `short` | One shorter barrel on the same dome. Range, bullet speed, damage and bullet origin are unchanged. |',
@@ -62,7 +62,7 @@ out.push('', '#### Hull shapes: `.shape`', '',
   '| `.drive hover` after `.def CRUISE 3` or `main:` | The appearance header has already ended. Move the directive above constants and labels. |', '',
   '#### Saving, applying and resetting', '',
   'Appearance is part of the source text. Save .asm exports it, Load .asm reads it, and duplication copies it with the robot program. The browser also saves your source and draft with the roster.', '',
-  'Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.', '',
+  'Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. In a mission, applying changed code starts the attempt again instead, because a mission judges the whole attempt. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.', '',
   '#### Built-in example combinations', '', '| Robot | Shape | Drive | Turret |', '|---|---|---|---|');
 for (const ex of BB.EXAMPLES) {
   const { name, appearance } = BB.assemble(ex.source);
@@ -82,7 +82,7 @@ out.push('## Operands', '');
 out.push('| Kind | Accepts |', '|---|---|');
 out.push('| `dst` | register `R0`..`R7` or memory `[n]`, `[Rx]`, `[Rx+n]`, `[Rx-n]` |');
 out.push('| `src` | anything `dst` accepts, plus a number or `.def` constant |');
-out.push('| `target` | a label or a numeric, zero-based instruction index; registers and constants are not accepted |');
+out.push('| `target` | a label, or a numeric zero-based instruction index (the editor warns, because it is easy to mistake for a line number); registers and constants are not accepted |');
 out.push('| `sensor` | a sensor name (see below) |', '');
 out.push('Instructions are indexed from 0, excluding the name, blank lines, comments, labels and directives. A target equal to the instruction count is legal and wraps to instruction 0; negative targets and targets beyond that count are assembly errors. Labels are usually easier to maintain than numeric targets.', '',
   'For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals or constants; arbitrary expressions and multiple registers are not supported. Use `[R1-4]`, not `[R1+-4]`. In the instruction table, `dy` and `dx` in `ATAN2` and `a` and `b` in `CMP` accept any `src` operand.', '',
@@ -94,7 +94,8 @@ out.push('Instructions are indexed from 0, excluding the name, blank lines, comm
   '- Desired speed and headings persist across ticks, `WAIT`, `HALT` and CPU faults. Absolute headings wrap into 0..359. `TURN` is relative to the current body heading, so repeated `TURN 90` commands do not add 90 degrees to the previous desired target.',
   `- At most one projectile is fired every ${C.FIRE_COOLDOWN} ticks. A shot sets the cooldown to ${C.FIRE_COOLDOWN}, then the world decrements it to ${C.FIRE_COOLDOWN - 1} before the next CPU tick. A \`FIRE\` request while cooling down is discarded rather than queued for a later tick.`,
   '- Each robot\'s `RAND` draws from its own random-number stream, seeded from the match seed and the robot\'s roster slot, so another robot\'s random calls never change your results. Replaying requires the same seed, arena, roster order, rules and programs.',
-  '- Division/modulo by zero, an invalid memory address, stack underflow/overflow, a nonpositive `RAND` range, or a negative `SQRT` input faults the CPU and reports the instruction\'s source line.', '',
+  '- Division/modulo by zero, an invalid memory address, stack underflow/overflow, a nonpositive `RAND` range, or a negative `SQRT` input faults the CPU and reports the instruction\'s source line. When the bad value is written in the code itself (`DIV R0, 0`, `[300]`, `RAND R0, 0`, `SQRT R0, -1`), the assembler reports an error instead, before the robot runs.',
+  `- \`SPEED\` and \`SCAN\` clamp out-of-range values: \`SPEED 10\` drives at ${C.MAX_SPEED} and \`SCAN 360\` looks ${C.SCAN_MAX_WIDTH}° wide. A number or constant outside the range assembles with a warning.`, '',
   '## Instructions');
 let group = null;
 for (const ins of INSTRUCTIONS) {
@@ -109,7 +110,7 @@ out.push('', '## Sensors (read with `GET dst, SENSOR`)', '', '| Sensor | Meaning
 for (const s of SENSORS) out.push(`| \`${s.name}\` | ${s.desc} |`);
 out.push('', '### Sensor result details', '',
   '- All sensor values are integers. Positions, distances, angles and speeds are rounded to the nearest integer, with halfway cases rounded toward positive infinity; health is rounded up. Angles are absolute arena angles unless stated otherwise.',
-  '- `SCAN_*` values are a snapshot from the most recent `SCAN`, not a continuously updated track. They remain unchanged until another scan, even if the target moves or dies. `SCAN_ANGLE` is the absolute bearing; `SCAN_HEADING` is the target\'s body heading. A negative `SCAN_SPEED` means the target is reversing.',
+  '- `SCAN_*` values are a snapshot from the most recent `SCAN`, not a continuously updated track. They remain unchanged until another scan, even if the target moves or is destroyed. `SCAN_ANGLE` is the absolute bearing; `SCAN_HEADING` is the target\'s body heading. A negative `SCAN_SPEED` means the target is reversing.',
   '- `THREAT_*` values likewise come from the most recent `RADAR`. `THREAT_ANGLE` is the bearing to the projectile; `THREAT_HEADING` is its travel direction. Radar tests projectile velocity toward your current position, without predicting your own future motion.',
   '- Before the first scan/radar call, and after a call finds nothing, the corresponding distance is -1 and all its other result fields are 0. Check the distance before using the other fields.',
   '- Mud patches (brown, on Classic and Random) cap your speed at ' + C.MUD_MAX_SPEED + ' in either direction while your center is inside; the cap applies immediately and lifts as soon as you leave. `GET R0, MUD` reads 1 in mud. Mud does not block movement, bullets, `SCAN`, `RADAR` or `FRONT`.',

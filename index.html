@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Battle Bots</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A4%96%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -49,7 +50,7 @@
   <main>
     <section class="left">
       <div class="arena-wrap">
-        <canvas id="arena" width="800" height="600"></canvas>
+        <canvas id="arena" width="800" height="600" role="img" aria-label="The arena, where the robots run their programs. The Match log tab lists what happens."></canvas>
       </div>
       <div class="roster-bar">
         <h2>Robots</h2>
@@ -146,7 +147,7 @@
     </div>
   </div>
 
-  <div id="flash" class="flash"></div>
+  <div id="flash" class="flash" role="status" aria-live="polite"></div>
   <div class="drop-hint">Drop .asm files to add robots</div>
 
   <!-- Core: no DOM access, also runs in Node (see tools/ and tests/) -->

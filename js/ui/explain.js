@@ -7,6 +7,8 @@
 (function (BB) {
   'use strict';
 
+  const C = BB.CONFIG;
+
   const INSTRUCTIONS = {
     MOV: 'Copy the second value into the first. MOV R1, 90 puts 90 into R1.',
     PUSH: 'Save a number on top of the stack, like adding a plate to a pile.',
@@ -126,6 +128,21 @@
     return DIRECTIONS[d] ? `${deg}° (${DIRECTIONS[d]})` : `${deg}°`;
   };
 
+  /** What TURN really does: it takes the shorter way round, so TURN 270 turns 90° left. */
+  function turnNote(deg) {
+    const d = ((((deg + 180) % 360) + 360) % 360) - 180; // -180..179, like NORM
+    if (d === 0) return deg === 0 ? 'No turn (0°)' : `No turn: ${deg}° goes all the way round`;
+    if (d === -180) return 'Turn around: 180°, to the left';
+    const turn = `Turn ${Math.abs(d)}° ${d < 0 ? 'left' : 'right'}`;
+    return Math.abs(d) === Math.abs(deg) ? turn : `${turn} (the shorter way round)`;
+  }
+
+  /** The value the world really uses after clamping, and a note when it differs from what was asked. */
+  function clamped(value, lo, hi, low, high) {
+    const v = Math.max(lo, Math.min(hi, value));
+    return [v, v === value ? '' : ` (${v === hi ? high : low})`];
+  }
+
   /**
    * Plain sentence for one VM trace entry. `cmp` is the latest CMP entry
    * earlier in the same trace, or null, so jumps can say why they jumped.
@@ -141,12 +158,18 @@
       case 'HALT': return 'Program stopped for good';
       case 'NOP': return 'Do nothing';
       case 'GET': return `Read ${t.sensor}: ${t.dst} is now ${t.value}`;
-      case 'SPEED': return `Drive at speed ${t.value}`;
-      case 'TURN': return `Turn ${Math.abs(t.value)}° ${t.value < 0 ? 'left' : 'right'}`;
+      case 'SPEED': {
+        const [v, why] = clamped(t.value, C.MAX_REVERSE, C.MAX_SPEED, 'the fastest backward', 'the fastest');
+        return `Drive at speed ${v}${why}`;
+      }
+      case 'TURN': return turnNote(t.value);
       case 'HEAD': return `Turn to face ${direction(t.value)}`;
       case 'AIM': return `Point the turret at ${direction(t.value)}`;
       case 'PUSH': return `Save ${t.value} on the stack`;
-      case 'SCAN': return t.found < 0 ? `Look in a ${t.value}° cone: nobody found` : `Look in a ${t.value}° cone: enemy ${t.found} away!`;
+      case 'SCAN': {
+        const [w, why] = clamped(t.value, 1, C.SCAN_MAX_WIDTH, 'the narrowest', 'the widest');
+        return `Look in a ${w}° cone${why}: ${t.found < 0 ? 'nobody found' : `enemy ${t.found} away!`}`;
+      }
       case 'RADAR': return t.found < 0 ? 'No bullets coming' : `A bullet is coming, ${t.found} away!`;
       case 'FIRE': return t.cooldown > 0 ? `Turret still reloading (${t.cooldown} more ticks)` : 'Fire!';
     }

@@ -2,7 +2,7 @@
 
 Measured on 2026-10-09 with the current rules: per-robot `RAND` streams, width-based scan range (`SCAN_RANGE_FACTOR` 2400) and mud (`MUD_MAX_SPEED` 2). All figures come from [balance-results.json](balance-results.json). The report covers the five stock example robots in headless simulations; it does not cover custom robots, browser layout or accessibility.
 
-An earlier review (2026-10-07) found five correctness issues. Four are fixed: FRONT now measures swept-body clearance, playback runs on elapsed time with bounded catch-up, robot contacts are resolved iteratively, and CLI integer options are validated. The fifth is still open; see [Open issues](#open-issues).
+An earlier review (2026-10-07) found five correctness issues. Four are fixed: FRONT now measures swept-body clearance, playback runs on elapsed time with bounded catch-up, robot contacts are resolved iteratively, and CLI integer options are validated. The fifth, an emptied roster coming back as the examples after a reload, is now intended behavior; see [Open issues](#open-issues).
 
 ## Reproducing the experiments
 
@@ -111,7 +111,9 @@ Every robot program is unchanged; one `CONFIG` value changes at a time.
 
 ## Open issues
 
-- **Low: clearing the roster does not survive a reload.** `restore()` in `js/ui/app.js` only accepts a saved roster with at least one robot, so an intentionally empty roster comes back as the examples. Treat an empty saved array as valid state.
+None. One earlier item is now a deliberate choice:
+
+- **An emptied roster comes back as the examples after a reload.** `restore()` in `js/ui/app.js` starts with the examples whenever the saved roster is empty, so a beginner never opens the app to an empty arena with nothing to run. Load or create a robot, then remove the examples, to keep a roster of your own.
 
 ## Suggested next steps
 

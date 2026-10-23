@@ -50,6 +50,12 @@ sweep:
 
   const inZone = (r, z) => BB.geo.pointInRect(r.x, r.y, z);
 
+  /** The nearest of the four main directions to `deg`, in words. */
+  const facing = (deg) => ['right', 'down', 'left', 'up'][Math.round(BB.geo.normAngle(deg) / 90) % 4];
+
+  /** "Time's up" for target missions: a robot that never fired needs different help from one that missed. */
+  const notFired = (where) => ({ ok: false, text: `Time's up, and your robot never fired. Keep FIRE ${where}.` });
+
   /** The point `dist` units from (x, y) at arena angle `deg`, as { x, y }. */
   const around = (x, y, deg, dist) => ({ x: x + Math.cos(deg * BB.geo.DEG) * dist, y: y + Math.sin(deg * BB.geo.DEG) * dist });
 
@@ -71,6 +77,12 @@ sweep:
       zone: { x: 560, y: 240, w: 140, h: 120 },
       maxTicks: 400,
       check: (w, me) => (inZone(me, w.mission.zone) ? { ok: true, text: 'You reached the goal!' } : null),
+      timeUp: (w, me) => {
+        const s = w.mission.def.start;
+        if (Math.hypot(me.x - s.x, me.y - s.y) < 5) return { ok: false, text: 'Time\'s up, and your robot never moved. Change SPEED 0 to a bigger number, like 5.' };
+        if (me.x < s.x) return { ok: false, text: 'Your robot drove backward, away from the goal. Positive SPEED numbers drive forward.' };
+        return { ok: false, text: 'Time\'s up before your robot reached the goal. Try a bigger SPEED.' };
+      },
       starter: `Rookie
 ; Mission 1: drive into the green goal zone.
 ; SPEED sets how fast your robot drives:
@@ -92,6 +104,9 @@ main:
       zone: { x: 340, y: 60, w: 120, h: 100 },
       maxTicks: 400,
       check: (w, me) => (inZone(me, w.mission.zone) ? { ok: true, text: 'You found the way up!' } : null),
+      timeUp: (w, me) => (facing(me.heading) === 'up'
+        ? { ok: false, text: 'Your robot faces up, but it didn\'t reach the goal. Keep the SPEED line so it drives.' }
+        : { ok: false, text: `Your robot faced ${facing(me.heading)}, but the goal is up. Which HEAD number points up?` }),
       starter: `Climber
 ; Mission 2: the goal is straight UP from you.
 ; HEAD turns your robot to face a direction:
@@ -114,6 +129,8 @@ main:
       dummies: [{ source: dummy('Target'), x: 450, y: 170, heading: 180, health: 30 }],
       maxTicks: 600,
       check: (w) => (!w.robots[1].alive ? { ok: true, text: 'Target destroyed!' } : null),
+      timeUp: (w, me) => (!me.stats.shots ? notFired('in the loop')
+        : { ok: false, text: `Time's up, and your shots missed. Your turret points at ${Math.round(me.turret) % 360}°, but the target is exactly halfway between up (270) and right (360).` }),
       starter: `Aimer
 ; Mission 3: hit the target 3 times.
 ; AIM points your turret: 0 = right, 90 = down, 180 = left, 270 = up.
@@ -136,6 +153,8 @@ main:
       dummies: [{ source: dummy('Target'), x: 640, y: 130, heading: 180, health: 30 }],
       maxTicks: 900,
       check: (w) => (!w.robots[1].alive ? { ok: true, text: 'Found it and hit it!' } : null),
+      timeUp: (w, me) => (!me.stats.shots ? notFired('on the line right after AIM R2')
+        : { ok: false, text: 'Time\'s up, and the target is still there. Keep FIRE right after AIM R2, so it fires where SCAN found the target.' }),
       starter: `Seeker
 ; Mission 4: this robot spins its turret and looks with SCAN.
 ; When SCAN finds the target, it aims at it... but never fires!
@@ -782,6 +801,8 @@ search:
           if (me.stats.shots - me.stats.hits >= 8) return { ok: false, text: 'Eight misses. Is R4 set by ATAN2 before you AIM?' };
           return null;
         },
+        timeUp: (w, me) => (!me.stats.shots ? notFired('after AIM R4')
+          : { ok: false, text: 'Time\'s up, and the target is still there. Is R4 set by ATAN2 before you AIM?' }),
         starter: `Navigator
 ; Mission 13: mission control sent the target's position:
 ;   memory [0] holds its x, memory [1] holds its y.
@@ -839,6 +860,8 @@ main:
           }
           return null;
         },
+        timeUp: (w, me) => (!me.stats.shots ? notFired('after AIM R2')
+          : { ok: false, text: `Time's up with ${me.stats.hits} of 3 hits. Keep experimenting with LEAD.` }),
         starter: `Predictor
 ; Mission 14: the target keeps moving, so aim AHEAD of it.
 ; Your bullets take time to fly. Try different LEAD values and

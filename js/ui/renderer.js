@@ -948,10 +948,14 @@
       const reason = world.endReason ? world.endReason[0].toUpperCase() + world.endReason.slice(1) : '';
 
       ctx.save();
+      // "Time limit reached, highest total health wins" needs two lines in the winner's column; the card grows to fit.
+      const pw = 480, maxW = pw - 270;
+      ctx.font = '13px system-ui, sans-serif';
+      const why = heroes.length ? wrapText(ctx, reason, maxW, 2) : [reason], below = (why.length - 1) * 16;
+      const ph = 270 + below, px = (W - pw) / 2, py = (H - ph) / 2 + (1 - ease) * 20;
       ctx.globalAlpha = ease;
       ctx.fillStyle = 'rgba(6,7,10,0.62)';
       ctx.fillRect(0, 0, W, H);
-      const pw = 480, ph = 270, px = (W - pw) / 2, py = (H - ph) / 2 + (1 - ease) * 20;
       ctx.shadowColor = hexA(color, 0.45);
       ctx.shadowBlur = 24;
       ctx.fillStyle = 'rgba(16,19,26,0.94)';
@@ -1006,7 +1010,7 @@
           ctx.restore();
         });
 
-        const tx = px + 250, maxW = pw - 270;
+        const tx = px + 250;
         ctx.textAlign = 'left';
         ctx.fillStyle = hexA(color, 0.9);
         ctx.font = '700 12px system-ui, sans-serif';
@@ -1016,9 +1020,9 @@
         ctx.fillText(fitText(ctx, teamWin ? `Team ${BB.World.TEAM_NAMES[world.winnerTeam]}` : heroes[0].name, maxW), tx, py + 82);
         ctx.fillStyle = '#aab2c2';
         ctx.font = '13px system-ui, sans-serif';
-        ctx.fillText(fitText(ctx, reason, maxW), tx, py + 102);
-        if (teamWin) this.drawTeamLines(ctx, heroes, tx, py + 132, maxW);
-        else this.drawWinnerStats(ctx, heroes[0], tx, py + 124);
+        why.forEach((line, i) => ctx.fillText(line, tx, py + 102 + i * 16));
+        if (teamWin) this.drawTeamLines(ctx, heroes, tx, py + 132 + below, maxW);
+        else this.drawWinnerStats(ctx, heroes[0], tx, py + 124 + below);
       }
       ctx.textAlign = 'center';
       ctx.fillStyle = '#7d8696';
@@ -1119,13 +1123,27 @@
       ctx.restore();
     }
 
-    /** End of a mission: a green "complete" or amber "not yet" card with the reason. */
+    /**
+     * End of a mission: a green "complete" or amber "not yet" card with the reason.
+     * The reason is the feedback that says what to change, so it wraps onto more
+     * lines (smaller if need be) instead of being cut short.
+     */
     drawMissionCard(ctx, world, now) {
       if (this.overAt === undefined) this.overAt = now;
       const ease = 1 - (1 - Math.min(1, (now - this.overAt) / 500)) ** 3;
       const { ok, text } = world.mission.result;
       const W = C.ARENA_W, H = C.ARENA_H, color = ok ? '#66d17a' : '#ffc94d';
-      const pw = 420, ph = 170, px = (W - pw) / 2, py = (H - ph) / 2 + (1 - ease) * 16;
+      const pw = 460, maxW = pw - 48, message = ok ? `✓ ${text}` : text;
+      // The largest size that fits on two lines, else on three, else the smallest.
+      const layouts = [24, 20, 17].map((s) => {
+        ctx.font = `700 ${s}px system-ui, sans-serif`;
+        return { size: s, lines: wrapText(ctx, message, maxW, 4) };
+      });
+      const { size, lines } = layouts.find((l) => l.lines.length <= 2) || layouts.find((l) => l.lines.length <= 3) || layouts[2];
+      const lh = Math.round(size * 1.3);
+      const ph = Math.max(160, 120 + size + (lines.length - 1) * lh);
+      const px = (W - pw) / 2, py = (H - ph) / 2 + (1 - ease) * 16;
+      const first = py + 46 + size, last = first + (lines.length - 1) * lh; // text baselines
       ctx.save();
       ctx.globalAlpha = ease;
       ctx.fillStyle = 'rgba(6,7,10,0.55)';
@@ -1141,12 +1159,12 @@
       ctx.textAlign = 'center';
       ctx.fillStyle = color;
       ctx.font = '700 12px system-ui, sans-serif';
-      ctx.fillText(ok ? 'M I S S I O N   C O M P L E T E' : 'N O T   Y E T', W / 2, py + 40);
-      ctx.font = '700 26px system-ui, sans-serif';
-      ctx.fillText(fitText(ctx, ok ? `✓ ${text}` : text, pw - 40), W / 2, py + 82);
+      ctx.fillText(ok ? 'M I S S I O N   C O M P L E T E' : 'N O T   Y E T', W / 2, py + 36);
+      ctx.font = `700 ${size}px system-ui, sans-serif`;
+      lines.forEach((line, i) => ctx.fillText(line, W / 2, first + i * lh));
       ctx.fillStyle = '#9aa4b8';
       ctx.font = '13px system-ui, sans-serif';
-      ctx.fillText(ok ? 'Try the next mission, or make this one even better.' : 'Change your code, then press ▶ Try again.', W / 2, py + 120);
+      ctx.fillText(ok ? 'Try the next mission, or make this one even better.' : 'Change your code, then press ▶ Try again.', W / 2, last + 32);
       ctx.fillStyle = '#7d8696';
       ctx.font = '12px system-ui, sans-serif';
       ctx.fillText(`tick ${world.tick}`, W / 2, py + ph - 18);
@@ -1201,6 +1219,21 @@
     let t = text;
     while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
     return t + '…';
+  }
+
+  /**
+   * Break text into lines that fit maxWidth at the current font, between words.
+   * Past maxLines, the rest joins the last line, shortened with an ellipsis.
+   */
+  function wrapText(ctx, text, maxWidth, maxLines = Infinity) {
+    const lines = [];
+    for (const word of String(text).split(/\s+/).filter(Boolean)) {
+      const line = lines.length ? `${lines[lines.length - 1]} ${word}` : word;
+      if (lines.length && ctx.measureText(line).width <= maxWidth) lines[lines.length - 1] = line;
+      else lines.push(word);
+    }
+    if (lines.length > maxLines) lines.splice(maxLines - 1, lines.length, lines.slice(maxLines - 1).join(' '));
+    return lines.map((line) => fitText(ctx, line, maxWidth)); // a single overlong word still fits
   }
 
   const round1 = (v) => Math.round(v * 10) / 10;

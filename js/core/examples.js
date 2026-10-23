@@ -520,6 +520,7 @@ sweep:
     ADD  R1, 20
     AIM  R1
     WAIT
+    JMP  main
 `;
 
   BB.NEW_ROBOT_TEMPLATE = NEW_ROBOT_TEMPLATE;

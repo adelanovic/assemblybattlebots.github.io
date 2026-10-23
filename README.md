@@ -44,7 +44,7 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
 | **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |
 | **+ New robot / 📂 Load .asm files… / + Add example** | Add robots. Loading accepts several files at once, and you can also drag and drop `.asm` files onto the page. **Each file becomes one robot.** |
-| **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. **▶ Start** and **Step** apply the selected robot's edits automatically, so the code in the editor is always what runs; if it has syntax errors, nothing runs and the errors are shown. |
+| **Editor → Apply** (Ctrl+Enter) | Assemble the code and use it. Before the match starts, the arena resets. During a match, the robot hot-swaps to the new program without losing its position or health. In a mission, changed code starts the attempt again instead, so a correct fix is never failed for mistakes the old code made. **▶ Start** and **Step** apply the selected robot's edits automatically, so the code in the editor is always what runs; if it has syntax errors, nothing runs and the errors are shown. |
 | **➕ Insert code…** | Ready-made patterns with comments (main loop, IF, IF / ELSE, repeat, function, scan and fire, wall check, dodge), inserted at the cursor in one undoable step. Label names are renamed automatically if your program already uses them. |
 | **Reference** tab | Every instruction, sensor and rule. Search as you type, or jump to a section. In the editor, a tooltip's **More in Reference →** link opens the matching entry. |
 | **Autocomplete** | While typing, suggestions appear for what fits where the cursor is: instructions at the start of a line, sensors after `GET R0,`, your own labels after a jump or `CALL`, and registers or constants elsewhere. ↑ ↓ to choose, Enter or Tab to use, Esc to close. |
@@ -54,7 +54,7 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **💾 Save .asm** (Ctrl+S) | Download the editor contents as a `.asm` file. |
 | **Revert** | Discard edits you have not applied. |
 
-The editor checks your code as you type. Errors appear under the editor and in the line gutter, and clicking an error jumps to that line. Robots with syntax errors stay in the roster but are left out of the arena until fixed. The **CPU inspector** under the editor shows the selected robot's registers and sensors live. Click its heading to collapse it and give the editor more room.
+The editor checks your code as you type. Errors appear under the editor and in the line gutter, and clicking an error jumps to that line. The messages are written for beginners: a missing comma (`MOV R0 5`), a label without its colon (`main` instead of `main:`), `R0 = 5`, a minus sign pasted from a document, or code that would always crash (`DIV R0, 0`) each get a specific fix. Warnings (in yellow) don't stop the code from running: for example `SPEED 10` (it drives at 5), `JMP 3` (instruction 3, not line 3) or code left on line 1, which is only the robot's name. Robots with syntax errors stay in the roster but are left out of the arena until fixed. The **CPU inspector** under the editor shows the selected robot's registers and sensors live. Click its heading to collapse it and give the editor more room.
 
 **Debugging tools.** Click a line number to set a breakpoint (a red dot); click it again to clear it. When that robot reaches the line, the match pauses just *before* the line runs, the robot is selected, and the yellow marker and the CPU inspector show the state going into that line. Press Step or Start to carry on. The robot gives up the rest of that tick's CPU cycles when it stops, and runs the line on the next tick. Breakpoints are saved with the robot and can only go on lines that hold an instruction. Tick **Run counts** to see how many times each line has run this match, with lines that never ran dimmed: a quick way to spot a routine that never gets called. Whenever the match is paused, the inspector also lists the selected robot's **last tick** instruction by instruction, with what each one did (`R0 = 42`, `5 < 100`, `jump to line 12`) and why the turn ended (WAIT, a breakpoint, or running out of cycles). Click a row to jump to that line.
 
@@ -98,6 +98,13 @@ The **🎯 Missions** tab has fifteen short challenges in three units. Each one 
 
 While a mission runs, your own robots sit out. Click a robot card or **Exit mission** to return to them. Mission code and progress are saved in the browser. The tests check that every mission's starter code fails and its reference solution passes.
 
+### For teachers
+
+- **Progress lives in the browser.** Robots, mission progress and mission code are saved in the browser's `localStorage`, separately for each browser profile. On computers that students share under one login, everyone sees the same progress: give each student their own browser profile or login, or use **Reset mission progress…** at the bottom of the Missions tab between classes (it clears the ✓ marks, unlocked hints and mission code, and keeps the robots).
+- **Keeping work.** **💾 Save .asm** downloads a robot's code as a file, and **📂 Load .asm files…** (or drag and drop) brings it back on any computer. That is also how students hand in a robot.
+- **Nothing to install, nothing sent anywhere.** The app is a static page with no accounts, no network requests and no tracking. It works offline from a downloaded copy.
+- **Pacing.** Each mission teaches one idea and each unit builds on the one before, so you can stop after any mission. The help ladder (hint, bigger hint, working answer) means no one stays stuck, and the Reference tab and hover help cover every instruction.
+
 Apply rejects drafts with syntax errors and keeps the robot's previously applied program. The draft remains in the editor so you can fix it. Single-robot command-line practice runs stop after 6000 ticks and report a practice result; browser practice mode continues until paused.
 
 The roster, seed and arena choice are saved in your browser's `localStorage`. Keyboard shortcuts (Space, `.`, `R`) are ignored while you're typing in the editor or a form field.
@@ -125,7 +132,7 @@ main:
 | `.drive` | `tracks`, `wheels`, `hover` | `tracks` |
 | `.turret` | `standard`, `short`, `twin` | `standard` |
 
-These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and weapon stats. Twin turrets still fire one shot. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
+These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and firing stats. Twin turrets still fire one shot. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
 
 ```asm
 Sniper Sam                ; line 1 = robot name
@@ -154,7 +161,7 @@ The full instruction and sensor reference is on the in-app **Reference** tab and
 - **Math:** ATAN2 SIN COS SQRT NORM
 - **Flow:** CMP JMP JE JNE JL JLE JG JGE CALL RET NOP WAIT HALT
 - **Robot:** GET (read a sensor), SPEED, TURN, HEAD, AIM, FIRE, SCAN (enemies), RADAR (incoming projectiles)
-- **Sensors:** X Y HEADING SPEED HEALTH COOLDOWN TURRET SCAN_* THREAT_* FRONT LAST_HIT TICK ENEMIES ALLIES ARENA_W ARENA_H
+- **Sensors:** X Y HEADING SPEED HEALTH COOLDOWN TURRET SCAN_* (including SCAN_RANGE) THREAT_* FRONT LAST_HIT TICK ENEMIES ALLIES ARENA_W ARENA_H MUD
 
 There is no "dodge" instruction. Robots dodge by calling `RADAR` to find an incoming projectile and its direction, then moving out of its path with `HEAD` and `SPEED`. See `dodge:` in the Sentinel and Dodger examples.
 
@@ -197,7 +204,7 @@ There is no "dodge" instruction. Robots dodge by calling `RADAR` to find an inco
 
 ## Limits
 
-Out-of-range values are clamped without an error, so `SPEED 100` gives 5 and `SCAN 500` gives 90.
+Out-of-range values are clamped, so `SPEED 100` gives 5 and `SCAN 500` gives 90. When the value is written in the code, the editor shows a warning saying so; the code still runs.
 
 | Thing | Limit |
 |---|---|
@@ -246,7 +253,7 @@ See [docs/LANGUAGE.md](docs/LANGUAGE.md) for instruction details, sensor behavio
 ## Safety: bad code can't break the arena
 
 - **Infinite loops:** the VM stops after the robot's cycle budget each tick and resumes on the next tick, so a `loop: JMP loop` only wastes its own robot's time.
-- **Runtime errors** (division by zero, stack overflow, memory out of range, SQRT of a negative number): the robot's CPU *faults* and halts with a message such as `Line 12: division by zero`, shown in the inspector and the match log, and the crashing line is marked red in the editor. Its body stays in the arena. Other robots are unaffected.
+- **Runtime errors** (division by zero, stack overflow, memory out of range, SQRT of a negative number): the robot's CPU *faults* and halts with a message such as `Line 12: division by zero`, shown in the inspector and the match log, and the crashing line is marked red in the editor. Its body stays in the arena. Other robots are unaffected. When the bad value is written right in the code (`DIV R0, 0`, `[300]`), the assembler reports it before the match instead.
 - **Isolation:** a VM only has its own registers, memory and stack, plus a narrow I/O interface (`sense`, `speed`, `aim`, …). It never touches world objects directly. JavaScript exceptions are trapped per robot.
 
 ## Keeping robots private

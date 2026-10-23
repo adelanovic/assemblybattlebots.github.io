@@ -16,11 +16,16 @@
   'use strict';
 
   const { INSTRUCTION_MAP, SENSOR_MAP } = BB.ISA;
-  const { NUM_REGS } = BB.CONFIG;
+  const C = BB.CONFIG;
+  const { NUM_REGS, MEMORY_SIZE } = C;
 
   const IDENT_RE = /^[A-Z_][A-Z0-9_]*$/;
   const REG_RE = /^R(\d+)$/;
   const NUM_RE = /^[+-]?(0X[0-9A-F]+|\d+)$/;
+  // Dashes that word processors put in place of a minus sign, so code pasted from a document breaks.
+  const DASH_RE = /[\u2010-\u2015\u2212\uFE63\uFF0D]/;
+  // Commas from other keyboard layouts (，、﹐﹑،), which look like a comma but don't separate operands.
+  const ODD_COMMA_RE = /[\uFF0C\u3001\uFE50\uFE51\u060C]/;
   const MAX_NAME = 24;
 
   const ARG_HINT = {
@@ -60,6 +65,23 @@
     return best ? ` Did you mean ${best}?` : '';
   }
 
+  /**
+   * Line 1 is only the name, so code there never runs. It usually gets there when
+   * the real name line is deleted. Returns null for a name, or { label } (the label
+   * it would define, upper case, or null) when the line looks like code.
+   */
+  function codeOnNameLine(line) {
+    const label = /^([A-Za-z_]\w*)\s*:/.exec(line);
+    if (label) return { label: label[1].toUpperCase() };
+    if (line[0] === '.') return { label: null };
+    const m = /^([A-Za-z]+)\s+(\S.*)$/.exec(line);
+    const spec = m && INSTRUCTION_MAP[m[1].toUpperCase()];
+    if (!spec || !spec.args.length) return null; // "Fire" or "Turn Left" are fine names
+    // A jump to a label is code even though the label is defined further down.
+    if (spec.args[0] === 'target' && /^[A-Za-z_]\w*$/.test(m[2].trim())) return { label: null };
+    return assemble(`Name\n${line}`).errors.length ? null : { label: null };
+  }
+
   /** Words beginners often try, from other languages or plain English. */
   const FRIENDLY = {
     IF: 'Assembly has no IF: compare with CMP, then jump with JL, JG, JE and friends.',
@@ -79,6 +101,12 @@
     STOP: 'Use "SPEED 0" to stop, or HALT to end the program.',
     END: 'Use HALT to stop the program for good.',
   };
+
+  /** For text holding a pasted dash: say what it is and what to type instead. */
+  function dashMessage(raw) {
+    const fixed = raw.replace(new RegExp(DASH_RE.source, 'g'), '-');
+    return `"${raw}" has a "${DASH_RE.exec(raw)[0]}" copied from a document, not a minus sign. Type the - key instead: "${fixed}".`;
+  }
 
   /** Split "a, b , [R1 + 2]" into trimmed operand strings. */
   function splitArgs(text) {
@@ -102,6 +130,10 @@
 
     // ---- Line 1: robot name ----
     let name = (lines[0] || '').replace(/^\s*[;#]+/, '').trim();
+    const nameCode = name ? codeOnNameLine(name) : null;
+    if (nameCode) {
+      warnings.push({ line: 1, message: `Line 1 is only your robot's name, so "${name}" won't run as code. Put a name on line 1 (like "Rookie") and start your code on line 2.` });
+    }
     if (!name) {
       err(1, 'Line 1 must contain the robot\'s name (for example: "Sentinel").');
       name = 'Unnamed';
@@ -167,7 +199,10 @@
       if (text[0] === '.') {
         const parts = text.split(/\s+/);
         const dir = parts[0].toUpperCase();
+        const late = dir.slice(1).toLowerCase();
         if (dir === '.DEF' || dir === '.CONST' || dir === '.EQU') {
+          if (text.includes(',')) { err(lineNo, `${parts[0]} doesn't use commas. Write "${text.replace(/\s*,\s*/g, ' ')}".`); continue; }
+          if (DASH_RE.test(text)) { err(lineNo, dashMessage(text)); continue; }
           if (parts.length !== 3) { err(lineNo, `${dir} expects a name and a value, e.g. ".def RANGE 200".`); continue; }
           const id = parts[1].toUpperCase();
           const v = parseNumber(parts[2].toUpperCase());
@@ -177,6 +212,9 @@
             continue;
           }
           if (checkNewName(lineNo, id, 'constant')) constants[id] = v;
+        } else if (Object.prototype.hasOwnProperty.call(BB.ISA.APPEARANCE, late)) {
+          // "loop: .shape tank": a header line after a label is too late, not unknown.
+          err(lineNo, `.${late} must appear in the appearance header below the name, before labels, constants or instructions.`);
         } else {
           err(lineNo, `Unknown directive "${parts[0]}". Supported: .def NAME value; header presets .shape, .drive, .turret.`);
         }
@@ -184,9 +222,9 @@
       }
 
       const sp = text.search(/\s/);
-      const opTok = (sp < 0 ? text : text.slice(0, sp)).toUpperCase();
+      const word = sp < 0 ? text : text.slice(0, sp);
       const argText = sp < 0 ? '' : text.slice(sp + 1);
-      statements.push({ op: opTok, args: splitArgs(argText), line: lineNo, text: raw.trim() });
+      statements.push({ op: word.toUpperCase(), word, args: splitArgs(argText), argText, line: lineNo, text: raw.trim() });
     }
 
     // ---- Pass 2: resolve operands ----
@@ -232,6 +270,11 @@
         if (v === null) return null;
         off = m[2] === '-' ? -v : v;
       }
+      // A fixed address outside memory would crash the robot every time it runs.
+      if (r < 0 && (off < 0 || off >= MEMORY_SIZE)) {
+        err(lineNo, `Memory slots go from [0] to [${MEMORY_SIZE - 1}], so [${off}] would crash your robot.`);
+        return null;
+      }
       return { k: 'mem', r, off };
     }
 
@@ -239,17 +282,26 @@
       const tok = raw.toUpperCase();
       const where = `${op} operand ${idx + 1}`;
       if (!tok) { err(lineNo, `${where} is empty.`); return null; }
+      if (DASH_RE.test(raw)) { err(lineNo, dashMessage(raw)); return null; }
 
       if (kind === 'target') {
         if (labels[tok] !== undefined) return { k: 'imm', v: labels[tok] };
         const n = parseNumber(tok);
-        if (n !== null) return { k: 'imm', v: n };
+        if (n !== null) {
+          // Legal, but beginners read it as a line number, which it isn't.
+          const where = n === 0 ? 'the first instruction' : `instruction number ${n} (counting from 0), not line ${n}`;
+          warnings.push({ line: lineNo, message: `"${op} ${raw}" goes to ${where}. A label, like "${op} main", is clearer.` });
+          return { k: 'imm', v: n };
+        }
         if (rejectedLabels.has(tok)) return null; // error already reported at the label
         if (constants[tok] !== undefined) {
           err(lineNo, `"${raw}" is a constant, not a label (names are case-insensitive).`);
           return null;
         }
-        err(lineNo, `Unknown label "${raw}".${suggest(tok, Object.keys(labels))}`);
+        const hint = nameCode && nameCode.label === tok
+          ? ` Line 1 is your robot's name, so the "${raw}:" there doesn't count as a label.`
+          : suggest(tok, Object.keys(labels));
+        err(lineNo, `Unknown label "${raw}".${hint}`);
         return null;
       }
 
@@ -291,11 +343,74 @@
       return null;
     }
 
+    // Names jumped to. A lone word that is one of them is a label missing its colon ("main" for "main:"):
+    // reported once at that word, not again at every jump to it.
+    const jumpTargets = new Set();
+    for (const st of statements) {
+      const spec = INSTRUCTION_MAP[st.op];
+      if (spec && spec.args[0] === 'target' && st.args.length === 1) jumpTargets.add(st.args[0].toUpperCase());
+    }
+    const colonless = (st) => !st.args.length && IDENT_RE.test(st.op) && !REG_RE.test(st.op) && jumpTargets.has(st.op);
+    for (const st of statements) if (!INSTRUCTION_MAP[st.op] && colonless(st)) rejectedLabels.add(st.op);
+
+    /** "Unknown instruction", with the hint that fits what was probably meant. */
+    const unknownInstruction = (st) => {
+      if (colonless(st)) return `"${st.word}" is used as a label, so it needs a colon at the end: write "${st.word}:".`;
+      const base = `Unknown instruction "${st.op}".`;
+      const assign = /^([+\-*/]?)=\s*(.*)$/.exec(st.argText.trim()); // "R0 = 5", "x += 1"
+      if (assign) {
+        const op = { '': 'MOV', '+': 'ADD', '-': 'SUB', '*': 'MUL', '/': 'DIV' }[assign[1]];
+        const reg = REG_RE.test(st.op) ? st.word : 'R0';
+        return `${base} Assembly has no "${assign[1]}=". Use ${op}, like "${op} ${reg}, ${assign[2].trim() || 5}".`;
+      }
+      if (FRIENDLY[st.op]) return `${base} ${FRIENDLY[st.op]}`;
+      if (REG_RE.test(st.op)) return `${base} A line starts with an instruction, like "MOV ${st.word}, 5".`;
+      const hint = suggest(st.op, Object.keys(INSTRUCTION_MAP));
+      if (st.args.length || !IDENT_RE.test(st.op)) return `${base}${hint}`;
+      // A lone word may be a label missing its colon, even when nothing jumps to it yet.
+      return `${base}${hint}${hint ? ' Or, if' : ' If'} it's a label, add a colon at the end: "${st.word}:".`;
+    };
+
+    /** "MOV R0 5": operands separated by spaces instead of commas. */
+    const commaTip = (st, spec) => {
+      if (st.args.length >= spec.args.length) return '';
+      const odd = ODD_COMMA_RE.exec(st.argText);
+      if (odd) return ` The "${odd[0]}" isn't a plain comma: type the , key instead.`;
+      const parts = st.args.flatMap((a) => (/[[\]]/.test(a) ? [a] : a.split(/\s+/)));
+      if (parts.length === spec.args.length) return ` Did you forget a comma? Write "${spec.op} ${parts.join(', ')}".`;
+      return st.args.some((a) => /\S\s+\S/.test(a.replace(/\[[^\]]*\]/g, '[]'))) ? ' Put a comma between operands.' : '';
+    };
+
+    /** Code that would crash every time it runs, caught before the match: a message, or null. */
+    const certainCrash = (spec, args, st) => {
+      const b = args[1];
+      if (!b || b.k !== 'imm') return null;
+      if ((spec.op === 'DIV' || spec.op === 'MOD') && b.v === 0) return `${spec.op} by 0 would crash your robot: nothing can be divided by zero. Use a different number.`;
+      if (spec.op === 'RAND' && b.v <= 0) return `RAND needs a number bigger than 0, like "RAND ${st.args[0]}, 360".`;
+      if (spec.op === 'SQRT' && b.v < 0) return 'SQRT of a negative number would crash your robot. Use 0 or more.';
+      return null;
+    };
+
+    /** Values the world quietly clamps (SPEED 10 drives at 5): a gentle warning, since it still runs. */
+    const clampWarning = (spec, args, st) => {
+      const a = args[0];
+      if (!a || a.k !== 'imm') return null;
+      const said = `"${spec.op} ${st.args[0]}"${/^[+-]?\d+$/.test(st.args[0]) ? '' : ` (${st.args[0]} is ${a.v})`}`;
+      if (spec.op === 'SPEED' && (a.v > C.MAX_SPEED || a.v < C.MAX_REVERSE)) {
+        const to = Math.max(C.MAX_REVERSE, Math.min(C.MAX_SPEED, a.v));
+        return `${said} drives at ${to}: SPEED goes from ${C.MAX_REVERSE} to ${C.MAX_SPEED}.`;
+      }
+      if (spec.op === 'SCAN' && (a.v > C.SCAN_MAX_WIDTH || a.v < 1)) {
+        const to = Math.max(1, Math.min(C.SCAN_MAX_WIDTH, a.v));
+        return `${said} looks ${to}° wide: SCAN cones go from 1° to ${C.SCAN_MAX_WIDTH}°.`;
+      }
+      return null;
+    };
+
     for (const st of statements) {
       const spec = INSTRUCTION_MAP[st.op];
       if (!spec) {
-        const hint = FRIENDLY[st.op] ? ` ${FRIENDLY[st.op]}` : suggest(st.op, Object.keys(INSTRUCTION_MAP));
-        err(st.line, `Unknown instruction "${st.op}".${hint}`);
+        err(st.line, unknownInstruction(st));
         continue;
       }
       if (st.args.length > 1 && st.args.some((a) => !a)) {
@@ -304,7 +419,7 @@
       }
       if (st.args.length !== spec.args.length) {
         const form = spec.args.length ? `${spec.op} ${spec.args.join(', ')}` : spec.op;
-        err(st.line, `${spec.op} takes ${spec.args.length} operand${spec.args.length === 1 ? '' : 's'} (${form}), but got ${st.args.length}.`);
+        err(st.line, `${spec.op} takes ${spec.args.length} operand${spec.args.length === 1 ? '' : 's'} (${form}), but got ${st.args.length}.${commaTip(st, spec)}`);
         continue;
       }
       const args = [];
@@ -314,10 +429,13 @@
         if (!o) ok = false;
         args.push(o);
       });
-      if (ok) {
-        const asm = st.args.length ? `${spec.op} ${st.args.join(', ')}` : spec.op; // no label or comment
-        program.push({ op: spec.op, args, cost: spec.cost, line: st.line, text: st.text, asm });
-      }
+      if (!ok) continue;
+      const crash = certainCrash(spec, args, st);
+      if (crash) { err(st.line, crash); continue; }
+      const clamped = clampWarning(spec, args, st);
+      if (clamped) warnings.push({ line: st.line, message: clamped });
+      const asm = st.args.length ? `${spec.op} ${st.args.join(', ')}` : spec.op; // no label or comment
+      program.push({ op: spec.op, args, cost: spec.cost, line: st.line, text: st.text, asm });
     }
 
     // Jumps to an index past the end are legal (they wrap to 0), but not beyond that.

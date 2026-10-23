@@ -338,7 +338,11 @@
 
     stepOnce() {
       if (!this.applyPendingEdits()) return;
-      if (this.world.over) return;
+      if (this.world.over) {
+        this.flash(this.mission ? 'This attempt is over. Press ▶ Try again, or R to reset and then Step.'
+          : 'The match is over. Press ▶ Rematch, or R to reset and then Step.');
+        return;
+      }
       if (!this.world.robots.length) { this.flash(this.emptyArenaReason()); return; }
       const problem = this.teamProblem();
       if (problem) { this.flash(problem); return; }
@@ -490,6 +494,13 @@
         robot.appearance = { ...e.compiled.appearance };
         e.runningSource = e.source;
         this.flash('Applied. Only comments or spacing changed, so your robot kept going.');
+      } else if (this.mission) {
+        // A mission is judged over the whole attempt (laps driven, shots missed, time close to the
+        // Leader...), so new code starts the attempt again: a correct fix never fails for old mistakes.
+        const wasRunning = this.running;
+        this.resetMatch();
+        this.running = wasRunning;
+        this.flash('Applied. The mission starts again with your new code.');
       } else if (robot) {
         // Hot-swap: fresh CPU, same body.
         robot.vm = new BB.VM(e.compiled.program, this.world.makeIO(robot));
@@ -750,7 +761,7 @@
         ['Mud', `Brown patches. While your center is in mud, speed is capped at ${C.MUD_MAX_SPEED} either way; GET MUD reads 1. Bullets, SCAN and RADAR pass over it. Open has none.`],
         ['Budget', `${C.CYCLES_PER_TICK} cycles per robot per tick`],
         ['Movement', `speed ${C.MAX_REVERSE}..${C.MAX_SPEED}, acceleration ${C.ACCELERATION}/tick, body turns ${C.BODY_TURN_RATE}°/tick, turret ${C.TURRET_TURN_RATE}°/tick`],
-        ['Weapons', `bullet speed ${C.BULLET_SPEED}, damage ${C.BULLET_DAMAGE}, cooldown ${C.FIRE_COOLDOWN} ticks`],
+        ['Firing', `bullet speed ${C.BULLET_SPEED}, damage ${C.BULLET_DAMAGE}, cooldown ${C.FIRE_COOLDOWN} ticks`],
         ['Collisions', 'Hitting a wall or obstacle stops you and costs half your speed in health, rounded down: nothing at speed 1, 1 at speed 2 or 3, 2 at speed 4 or 5. Every tick a robot keeps driving into an enemy faster than 1 unit per tick, both take 1 damage, so pushing hurts both sides. Teammates never damage each other.'],
         ['Sensors', `SCAN cone up to ${C.SCAN_MAX_WIDTH}°, blocked by obstacles. Narrow cones reach farther: range ${C.SCAN_RANGE_FACTOR} / √width (${BB.World.scanRange(C.SCAN_MAX_WIDTH)} at ${C.SCAN_MAX_WIDTH}°, ${BB.World.scanRange(16)} at 16°). RADAR range ${C.RADAR_RANGE}.`],
         ['Victory', `Last robot standing wins. After ${C.MAX_TICKS} ticks, the highest health wins, and equal health is a draw. A practice match with only one robot never ends.`],
@@ -1004,7 +1015,24 @@
         <p class="missions-intro">Short challenges that each teach one idea. Fix the starter code, then press <b>▶ Start</b>: it always runs the code in the editor.
           Hover over any instruction in the editor to see what it does, or open the Reference tab to see them all.</p>
         ${units}
-        ${all ? '<p class="missions-done">🏆 All missions complete! Now build your own robot from scratch and battle your friends.</p>' : ''}`;
+        ${all ? '<p class="missions-done">🏆 All missions complete! Now build your own robot from scratch and battle your friends.</p>' : ''}
+        <p class="missions-reset"><button data-reset-progress title="For shared computers: clears the ✓ marks, hints and mission code saved in this browser">Reset mission progress…</button></p>`;
+    }
+
+    /** Shared computers: clear the mission progress and mission code saved in this browser. The roster stays. */
+    resetMissionProgress() {
+      if (!confirm('Reset all mission progress? This clears the ✓ marks, unlocked hints and mission code saved in this browser. Your robots stay.')) return;
+      this.missionState = { done: [], code: {}, fails: {} };
+      this.hintOpen = false;
+      this.showAnswer = null;
+      if (this.mission) {
+        this.missionEntry.source = this.missionEntry.draft = this.mission.starter;
+        this.startMission(this.mission.id); // saves the starter, then reloads it
+      } else {
+        this.persist();
+        this.renderMissions();
+      }
+      this.flash('Mission progress reset.');
     }
 
     renderMissionBar() {
@@ -1160,6 +1188,7 @@
       $('#missions').addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-mission]');
         if (b) this.startMission(b.dataset.mission);
+        else if (ev.target.closest('[data-reset-progress]')) this.resetMissionProgress();
       });
       // Remember whether the hint box is open, so redrawing the bar after an attempt keeps it that way.
       $('#mission-bar').addEventListener('toggle', (ev) => {
