@@ -106,7 +106,7 @@ main:
 
 Appearance is part of the source text. Save .asm exports it, Load .asm reads it, and duplication copies it with the robot program. The browser also saves your source and draft with the roster.
 
-Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. In a mission, applying changed code starts the attempt again instead, because a mission judges the whole attempt. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Revert restores the last applied source in the editor.
+Typing a change edits the draft; press Apply to use it (▶ Start and Step apply it automatically). Applying valid code before a match begins resets the arena. During an unfinished match, a robot already in the arena receives the new appearance and a fresh CPU while keeping its position and health. This is the same program-reload behavior as any other Apply, including resetting registers, memory and the stack. In a mission, applying changed code starts the attempt again instead, because a mission judges the whole attempt. An invalid header prevents Apply and leaves the previously applied code and appearance active. Reset uses the last applied settings; Undo changes restores the last applied source in the editor (Ctrl+Z brings the edits back).
 
 #### Built-in example combinations
 

@@ -628,7 +628,8 @@
     }
 
     checkVictory() {
-      if (!this.competitive) return;
+      // Missions have their own win and lose rules (missions.js), so they decide when it ends.
+      if (!this.competitive || this.mission) return;
       if (this.teamMode) { this.checkTeamVictory(); return; }
       const alive = this.robots.filter((r) => r.alive);
       if (alive.length <= 1) {

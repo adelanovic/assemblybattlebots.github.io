@@ -315,7 +315,7 @@
       if (!e || e.draft === e.source) return true;
       if (this.compile(e.draft).errors.length) {
         this.checkDraft();
-        this.flash('Your code has errors (listed under the editor). Fix them, or press Revert, then try again.');
+        this.flash('Your code has errors (listed under the editor). Fix them, or press Undo changes, then try again.');
         return false;
       }
       this.applyDraft();
@@ -642,11 +642,17 @@
     }
 
     updateDebug() {
-      const box = $('#debug');
+      // Rebuilt only on change, like the trace: otherwise the 10 Hz refresh replaces
+      // a cell before its tooltip (the plain-language help) has time to appear.
+      const show = (html) => {
+        if (html === this.debugHtml) return;
+        this.debugHtml = html;
+        $('#debug').innerHTML = html;
+      };
       const e = this.selected;
       const r = e && this.robotFor(e.id);
       if (!r) {
-        box.innerHTML = '<div class="muted">Select a robot that is in the arena to inspect its CPU.</div>';
+        show('<div class="muted">Select a robot that is in the arena to inspect its CPU.</div>');
         this.editor.setExecLine(0);
         this.editor.setCounts([]);
         this.updateTrace(null);
@@ -663,18 +669,18 @@
         const used = usedByProgram(vm.program);
         const regs = used.regs.map((i) => cell(`R${i}`, vm.regs[i], BB.explain.REGISTER)).join('');
         const sens = used.sensors.map((s) => cell(s, this.world.sense(r, BB.ISA.SENSOR_MAP[s].id), BB.explain.sensor(s))).join('');
-        box.innerHTML = `
+        show(`
           <div class="dbg-line"><b>${esc(r.name)}</b> · ${state}</div>
           ${regs ? `<div class="kv">${regs}</div>` : '<div class="muted">This program doesn\'t use any boxes (registers) yet.</div>'}
-          ${sens ? `<div class="kv sensors">${sens}</div>` : ''}`;
+          ${sens ? `<div class="kv sensors">${sens}</div>` : ''}`);
       } else {
         const sensors = ['X', 'Y', 'HEADING', 'SPEED', 'HEALTH', 'COOLDOWN', 'TURRET', 'FRONT', 'SCAN_DIST', 'SCAN_ANGLE', 'SCAN_RANGE', 'THREAT_DIST', 'THREAT_ANGLE'];
         const regs = [...vm.regs].map((v, i) => cell(`R${i}`, v)).join('');
         const sens = sensors.map((s) => cell(s, this.world.sense(r, BB.ISA.SENSOR_MAP[s].id))).join('');
-        box.innerHTML = `
+        show(`
           <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
           <div class="kv">${regs}</div>
-          <div class="kv sensors">${sens}</div>`;
+          <div class="kv sensors">${sens}</div>`);
       }
       // Only mark lines if the editor shows the code the robot is running.
       // A fault marks the crashing line; otherwise, while paused, the next line.
@@ -1251,11 +1257,11 @@
       $('#btn-revert').onclick = () => {
         const e = this.selected;
         if (!e || e.draft === e.source) return;
-        this.moveBreakpoints(e, e.draft, e.source);
-        e.draft = e.source;
-        this.editor.value = e.draft;
+        // Typed in as an edit, so onChange updates the draft and Ctrl+Z undoes a misclick.
+        this.editor.replaceAll(e.source);
         this.checkDraft();
         this.persist();
+        this.flash('Back to your last applied code. Changed your mind? Press Ctrl+Z.');
       };
       $('#trace').addEventListener('click', (ev) => {
         const li = ev.target.closest('li[data-line]');

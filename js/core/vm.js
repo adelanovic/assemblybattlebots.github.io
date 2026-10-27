@@ -46,6 +46,7 @@
       this.regs = new Int32Array(NUM_REGS);
       this.mem = new Int32Array(MEMORY_SIZE);
       this.stack = [];
+      this.isReturn = [];  // parallel to stack: true where CALL saved a return address
       this.pc = 0;
       this.cmp = 0;
       this.halted = false;
@@ -176,13 +177,19 @@
       else this.mem[this.addr(a)] = toInt(v);
     }
 
-    push(v) {
+    push(v, isReturn = false) {
       if (this.stack.length >= STACK_SIZE) throw new VMFault(`stack overflow (max ${STACK_SIZE} entries). Missing RET or POP?`);
       this.stack.push(toInt(v));
+      this.isReturn.push(isReturn);
     }
 
     pop(what) {
       if (!this.stack.length) throw new VMFault(`${what} with an empty stack.`);
+      // Without this, RET would quietly jump to whatever number PUSH saved.
+      if (what === 'RET' && !this.isReturn[this.isReturn.length - 1]) {
+        throw new VMFault('RET found a value saved by PUSH, not the place to go back to. Every PUSH in a function needs a POP before RET.');
+      }
+      this.isReturn.pop();
       return this.stack.pop();
     }
 
@@ -255,7 +262,7 @@
         case 'JE': case 'JNE': case 'JL': case 'JLE': case 'JG': case 'JGE':
           if (JUMP_IF[ins.op](this.cmp)) this.pc = a[0].v;
           break;
-        case 'CALL': this.push(this.pc); this.pc = a[0].v; break;
+        case 'CALL': this.push(this.pc, true); this.pc = a[0].v; break;
         case 'RET': this.pc = this.pop('RET'); break;
         case 'NOP': break;
         case 'WAIT': return true;

@@ -80,7 +80,7 @@
             <div class="editor-title"><b id="editor-name"></b> <span id="editor-file" class="muted mono"></span></div>
             <select id="insert-select" title="Insert a ready-made code pattern where the cursor is"></select>
             <label class="opt" title="Show how many times each line has run this match; lines that never ran are dimmed"><input id="show-counts" type="checkbox"> Run counts</label>
-            <button id="btn-revert" title="Discard unapplied edits">Revert</button>
+            <button id="btn-revert" title="Go back to the code you last applied. Ctrl+Z brings your edits back.">Undo changes</button>
             <button id="btn-save" title="Download as .asm (Ctrl+S)">💾 Save .asm</button>
             <button id="btn-apply" class="primary" title="Assemble and use this code (Ctrl+Enter)">Apply</button>
           </div>
@@ -138,7 +138,8 @@
         <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save your code as a .asm file</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Comment the selected lines out, or back in</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
-        <tr><td><kbd>Tab</kbd></td><td>Indent (4 spaces)</td></tr>
+        <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd></td><td>Indent / un-indent (works on several selected lines)</td></tr>
+        <tr><td><kbd>Esc</kbd> then <kbd>Tab</kbd></td><td>Leave the editor (move to the next button)</td></tr>
         <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> <kbd>Esc</kbd></td><td>Choose, use or close a code suggestion</td></tr>
         <tr><td><kbd>?</kbd></td><td>Show this list</td></tr>
       </table>

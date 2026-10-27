@@ -124,6 +124,18 @@
       this.render();
     }
 
+    /** Replace all the code as one typed edit, so Ctrl+Z can bring the old code back (setting value can't). */
+    replaceAll(v) {
+      const ta = this.input;
+      ta.focus();
+      ta.setSelectionRange(0, ta.value.length);
+      this.quietInput = true;
+      this.insertText(v);
+      this.quietInput = false;
+      ta.setSelectionRange(0, 0);
+      ta.scrollTop = 0;
+    }
+
     onChange(fn) { this.listeners.push(fn); }
 
     /** `fn(line)` runs when a line number is clicked. */
@@ -324,6 +336,18 @@
       ta.dispatchEvent(new Event('input'));
     }
 
+    /** Swap in whole lines edited by assist (r = { text, from, to }) as one undoable step, keeping them selected. */
+    replaceLines(r) {
+      const ta = this.input, before = ta.value;
+      if (r.text === before) return;
+      const oldEnd = r.to - (r.text.length - before.length);
+      ta.setSelectionRange(r.from, oldEnd);
+      this.quietInput = true;
+      this.insertText(r.text.slice(r.from, r.to));
+      this.quietInput = false;
+      ta.setSelectionRange(r.from, r.to);
+    }
+
     /** Show, refresh or close the autocomplete popup for the word at the caret. */
     updateCompletions() {
       const ta = this.input;
@@ -381,23 +405,23 @@
         if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); this.acceptCompletion(c.index); return; }
         if (e.key === 'Escape') { e.preventDefault(); this.closeCompletions(); return; }
       }
+      // Esc then Tab moves on to the next button, so keyboard users can leave the editor.
+      const leaving = this.escPressed;
+      this.escPressed = e.key === 'Escape';
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         // Comment out (or back in) every line the selection touches.
         e.preventDefault();
         this.closeCompletions();
-        const before = ta.value, r = BB.assist.toggleComments(before, ta.selectionStart, ta.selectionEnd);
-        if (r.text === before) return;
-        const oldEnd = r.to - (r.text.length - before.length);
-        ta.setSelectionRange(r.from, oldEnd);
-        this.quietInput = true;
-        this.insertText(r.text.slice(r.from, r.to));
-        this.quietInput = false;
-        ta.setSelectionRange(r.from, r.to);
+        this.replaceLines(BB.assist.toggleComments(ta.value, ta.selectionStart, ta.selectionEnd));
         return;
       }
       if (e.key === 'Tab') {
+        if (leaving) return;
         e.preventDefault();
-        this.insertText('    ');
+        const multiLine = ta.value.slice(ta.selectionStart, ta.selectionEnd).includes('\n');
+        // Indent or outdent whole lines; a plain Tab inside a line just types 4 spaces.
+        if (multiLine || e.shiftKey) this.replaceLines(BB.assist.indentLines(ta.value, ta.selectionStart, ta.selectionEnd, e.shiftKey));
+        else this.insertText('    ');
       } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
         // Keep the indentation; after a line that is just a label ("loop:"), indent the code under it.
         const s = ta.selectionStart;

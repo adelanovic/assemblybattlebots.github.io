@@ -161,6 +161,24 @@
     return { text: text.slice(0, lineStart) + out + text.slice(lineEnd), from: lineStart, to: lineStart + out.length };
   }
 
+  /**
+   * Tab / Shift+Tab on a selection: indent (or outdent) the lines it touches by
+   * 4 spaces. Blank lines and the name line are left alone, as in toggleComments.
+   * Returns { text, from, to } covering the edited lines.
+   */
+  function indentLines(text, from, to, outdent) {
+    const lineStart = text.lastIndexOf('\n', from - 1) + 1;
+    const endPos = to > from && text.charAt(to - 1) === '\n' ? to - 1 : to;
+    let lineEnd = text.indexOf('\n', endPos);
+    if (lineEnd < 0) lineEnd = text.length;
+    const firstLineNo = text.slice(0, lineStart).split('\n').length - 1;
+    const out = text.slice(lineStart, lineEnd).split('\n').map((l, i) => {
+      if (firstLineNo + i === 0 || l.trim() === '') return l;
+      return outdent ? l.replace(/^(\t| {1,4})/, '') : `    ${l}`;
+    }).join('\n');
+    return { text: text.slice(0, lineStart) + out + text.slice(lineEnd), from: lineStart, to: lineStart + out.length };
+  }
+
   /** Code part of a line: no comment, trimmed. */
   const codeOf = (line) => (line || '').replace(/[;#].*$/, '').trim();
   const LABELS_RE = /^([A-Za-z_]\w*\s*:\s*)+/;
@@ -196,5 +214,5 @@
     return null;
   }
 
-  BB.assist = { completions, toggleComments, namesIn, wordContext, headerEnd, deadAfter };
+  BB.assist = { completions, toggleComments, indentLines, namesIn, wordContext, headerEnd, deadAfter };
 })(globalThis.BB = globalThis.BB || {});

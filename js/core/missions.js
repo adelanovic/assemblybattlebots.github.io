@@ -63,7 +63,8 @@ sweep:
   const UNIT3 = makeUnit3();
 
   // The boss turret: tuned so standing still loses but dodging wins (see tests).
-  const BOSS_REST = 10;
+  // 13 lets every Mission 5 answer with SPEED 3 to 5 win.
+  const BOSS_REST = 13;
   const BOSS_HEALTH = 100;
 
   const MISSIONS = [
@@ -203,7 +204,8 @@ spin:
       start: { x: 250, y: 300, heading: 90 },
       dummies: [{ source: turret(45), x: 620, y: 300, heading: 180 }],
       maxTicks: 600,
-      check: (w, me) => (me.health < 50 ? { ok: false, text: 'Too many hits! Get moving when a bullet is coming.' } : null),
+      check: (w, me) => (me.health < 50 ? { ok: false, text: 'Too many hits! Get moving when a bullet is coming.' }
+        : !w.robots[1].alive ? { ok: true, text: 'You destroyed the turret. That works too!' } : null),
       timeUp: () => ({ ok: true, text: 'You survived!' }),
       starter: `Dodger
 ; Mission 5: a turret is firing at you! Survive 600 ticks.
@@ -404,7 +406,7 @@ pause:
       maxTicks: 1500,
       check: (w, me) => {
         if (!w.robots[1].alive) return { ok: true, text: 'You beat the boss!' };
-        if (me.health < 40) return { ok: false, text: 'Too many hits! Finish the dodge function so you keep moving.' };
+        if (me.health < 40) return { ok: false, text: 'Too many hits! Finish the dodge function so you keep moving, and drive fast (try SPEED 5).' };
         return null;
       },
       timeUp: () => ({ ok: false, text: 'Time\'s up: the turret is still standing. Is "attack" being called?' }),

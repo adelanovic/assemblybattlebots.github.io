@@ -218,10 +218,10 @@ test('WAIT yields the rest of the tick', () => {
   const vm = runVM('T\nINC R0\nWAIT', 50);
   assert.strictEqual(vm.regs[0], 1);
 });
-test('currentLine survives RET to a negative address at the end of a tick', () => {
+test('RET can no longer jump to a made-up address like a PUSHed -1', () => {
   const vm = runVM('T\nPUSH -1\nRET', 2);
-  assert.strictEqual(vm.pc, -1);
-  assert.strictEqual(vm.currentLine, 2);
+  assert.strictEqual(vm.faultLine, 3);
+  assert.match(vm.fault, /RET found a value saved by PUSH/);
 });
 test('a fault records the source line for the editor marker', () => {
   const vm = runVM('T\nMOV R0, 1\n\nDIV R0, R1');
@@ -284,6 +284,12 @@ test('division by zero faults with line number', () => {
 test('stack overflow faults', () => {
   const vm = runVM('T\nf: CALL f');
   assert.match(vm.fault, /stack overflow/);
+});
+test('RET onto a PUSHed value faults at once instead of jumping to it', () => {
+  const vm = runVM('T\nmain: CALL f\nHALT\nf: PUSH R1\nRET');
+  assert.match(vm.fault, /Line 5: RET found a value saved by PUSH/);
+  const ok = runVM('T\nmain: CALL f\nHALT\nf: PUSH R1\nPOP R1\nRET');
+  assert.ok(ok.halted && !ok.fault, 'a matching POP before RET is fine');
 });
 test('out-of-range memory faults', () => {
   const vm = runVM('T\nMOV R0, 300\nMOV [R0], 1');
@@ -668,6 +674,16 @@ test('Ctrl+/ comments lines out and back in, skipping blank lines and the name',
   assert.deepStrictEqual(BB.assemble(out.text).errors, [], 'commented code still assembles');
 });
 
+test('Tab / Shift+Tab indent and outdent the selected lines, skipping blank lines and the name', () => {
+  const t = 'Bot\nmain:\n    SCAN 10\n\n\tFIRE\nWAIT';
+  const out = BB.assist.indentLines(t, 0, t.indexOf('FIRE'), false);
+  assert.strictEqual(out.text, 'Bot\n    main:\n        SCAN 10\n\n    \tFIRE\nWAIT');
+  const back = BB.assist.indentLines(t, t.indexOf('main'), t.length, true);
+  assert.strictEqual(back.text, 'Bot\nmain:\nSCAN 10\n\nFIRE\nWAIT', 'outdent removes up to 4 spaces or one tab');
+  const ind = BB.assist.indentLines(t, t.indexOf('main'), t.indexOf('WAIT'), false);
+  assert.strictEqual(BB.assist.indentLines(ind.text, ind.from, ind.to, true).text, t.replace('\tFIRE', '\tFIRE'), 'indent then outdent restores it');
+});
+
 test('every Insert-menu snippet assembles, alone and inserted twice into one program', () => {
   for (const s of BB.SNIPPETS) {
     assert.deepStrictEqual(BB.assemble(`T\n${BB.snippetFor(s.id, '')}\nWAIT`).errors, [], s.id);
@@ -712,6 +728,16 @@ test('shipped programs assemble without warnings', () => {
   }
   for (const s of BB.SNIPPETS) programs.push([`snippet ${s.id}`, `T\n${BB.snippetFor(s.id, '')}\nWAIT`]);
   for (const [name, src] of programs) assert.deepStrictEqual(BB.assemble(src).warnings, [], name);
+});
+test('every asm example in the README and LANGUAGE.md assembles without errors or warnings', () => {
+  const fs = require('fs'), path = require('path');
+  for (const doc of ['README.md', 'docs/LANGUAGE.md']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', doc), 'utf8').replace(/\r\n/g, '\n');
+    for (const [, src] of text.matchAll(/```asm\n([\s\S]*?)```/g)) {
+      const res = BB.assemble(src);
+      assert.deepStrictEqual([res.errors, res.warnings], [[], []], `${doc}:\n${src}`);
+    }
+  }
 });
 const uiBB = { ...BB };
 // Capture the controller rather than booting the page and animation loop.
@@ -931,6 +957,17 @@ test('a crash ends a mission at once, naming the line', () => {
   assert.match(w.mission.result.text, /crashed on line 3/);
 });
 
+test('a mission still ends with a result when the player destroys every opponent', () => {
+  // Dodge: the student adds an attack. The match must not end as a plain "wins" with no mission result.
+  const def = BB.MISSIONS.find((m) => m.id === 'dodge');
+  const boss = BB.MISSIONS.find((m) => m.id === 'boss');
+  const w = BB.buildMission(def, BB.assemble(boss.solution));
+  for (let t = 0; t <= def.maxTicks && !w.over; t++) w.step();
+  assert.ok(!w.robots[1].alive, 'the turret was destroyed');
+  assert.deepStrictEqual(w.mission.result, { ok: true, text: 'You destroyed the turret. That works too!' });
+  assert.ok(!w.winner, 'the mission, not the match rules, decided the end');
+});
+
 test('every mission has a second hint, and following it literally passes', () => {
   const M = (id) => BB.MISSIONS.find((m) => m.id === id);
   const lines = (s) => s.split('\n');
@@ -1078,6 +1115,10 @@ test('unit 2 missions explain what went wrong, not just that it did', () => {
   assert.match(play('call', (s) => s.replace('MOV  R1, 45', 'MOV  R1, 90')).text, /comes back now, so check the angles/);
   assert.match(play('boss', (s) => s.replace('    TURN 90\n    SPEED 5\n', '')).text, /Too many hits/);
   assert.ok(play('boss', (s) => s.replace('TURN 90', 'TURN -90')).ok, 'turning the other way also dodges');
+  // The hint says to reuse the Mission 5 answer, so any reasonable one must beat the boss.
+  for (const turn of [30, 45, 90, -90, 180]) for (const speed of [3, 4, 5]) {
+    assert.ok(play('boss', (s) => s.replace('TURN 90\n    SPEED 5', `TURN ${turn}\n    SPEED ${speed}`)).ok, `TURN ${turn}, SPEED ${speed}`);
+  }
 });
 
 test('unit 3: sensible answers pass, mistakes get feedback that points the right way', () => {
@@ -1788,7 +1829,7 @@ test('Stacker balances nested calls and register saves across CPU budget boundar
     });
     cpu.regs.set(preserved);
     const push = cpu.push.bind(cpu);
-    cpu.push = (value) => { push(value); peak = Math.max(peak, cpu.stack.length); };
+    cpu.push = (...args) => { push(...args); peak = Math.max(peak, cpu.stack.length); };
     for (let tick = 0; tick < 200; tick++) {
       cpu.run(BB.CONFIG.CYCLES_PER_TICK);
       assert.strictEqual(cpu.fault, null);
@@ -1816,7 +1857,7 @@ test('Stacker runs full practice sessions on every arena without stack growth or
     const world = new BB.World({ entries: [compile(source, 0)], arena, seed });
     let peak = 0;
     const robot = world.robots[0], push = robot.vm.push.bind(robot.vm);
-    robot.vm.push = (value) => { push(value); peak = Math.max(peak, robot.vm.stack.length); };
+    robot.vm.push = (...args) => { push(...args); peak = Math.max(peak, robot.vm.stack.length); };
     for (let tick = 0; tick < BB.CONFIG.MAX_TICKS; tick++) world.step();
     assert.strictEqual(robot.vm.fault, null, `${arena}/${seed}`);
     assert.ok(peak <= 11);

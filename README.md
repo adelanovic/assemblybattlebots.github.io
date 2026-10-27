@@ -52,7 +52,7 @@ node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot cons
 | **Divider** | Drag the line between the arena and the code panel to resize them (arrow keys work too; double-click to reset). Your layout is remembered. |
 | **?** | Keyboard shortcuts: press **?** or click the **?** button. |
 | **💾 Save .asm** (Ctrl+S) | Download the editor contents as a `.asm` file. |
-| **Revert** | Discard edits you have not applied. |
+| **Undo changes** | Go back to the code you last applied (Ctrl+Z brings your edits back). |
 
 The editor checks your code as you type. Errors appear under the editor and in the line gutter, and clicking an error jumps to that line. The messages are written for beginners: a missing comma (`MOV R0 5`), a label without its colon (`main` instead of `main:`), `R0 = 5`, a minus sign pasted from a document, or code that would always crash (`DIV R0, 0`) each get a specific fix. Warnings (in yellow) don't stop the code from running: for example `SPEED 10` (it drives at 5), `JMP 3` (instruction 3, not line 3) or code left on line 1, which is only the robot's name. Robots with syntax errors stay in the roster but are left out of the arena until fixed. The **CPU inspector** under the editor shows the selected robot's registers and sensors live. Click its heading to collapse it and give the editor more room.
 
@@ -135,8 +135,9 @@ main:
 These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and firing stats. Twin turrets still fire one shot. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
 
 ```asm
-Sniper Sam                ; line 1 = robot name
-.def RANGE 300            ; optional constants
+Sniper Sam
+; Line 1 is the robot's name (no comment on it); the code starts on line 2.
+.def STEP 15              ; optional constants
 main:
     SCAN 20               ; look for an enemy in a 20° cone around the turret
     GET  R0, SCAN_DIST
@@ -149,9 +150,10 @@ main:
     JMP  main
 sweep:
     GET  R1, TURRET
-    ADD  R1, 15
+    ADD  R1, STEP
     AIM  R1
     WAIT
+    JMP  main
 ```
 
 The full instruction and sensor reference is on the in-app **Reference** tab and in [docs/LANGUAGE.md](docs/LANGUAGE.md). Both are generated from the same table the assembler uses. In summary:
