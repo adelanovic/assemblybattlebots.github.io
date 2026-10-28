@@ -30,6 +30,8 @@
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
       this.showScans = true;
+      this.focus = false;  // selected robot's bullets stand out, others fainter (set by the app)
+      this.calm = false;   // fewer casings, sparks and smoke, so a match is easier to follow
       this.particles = [];
       this.robotFx = new Map();   // robot id -> { flash, muzzle } frame counters
       this.floor = null;          // offscreen canvas: floor + obstacles
@@ -89,14 +91,14 @@
             break;
           case 'hit':
             if (e.robot !== undefined) { this.fx(e.robot).flash = 6; this.addDent(e); }
-            this.burst(e.x, e.y, 7, ['#fff6d5', '#ffb347', e.color], 1.5, 3.5, 10, 2);
+            this.burst(e.x, e.y, this.calm ? 3 : 7, ['#fff6d5', '#ffb347', e.color], 1.5, 3.5, 10, 2);
             this.particles.push({ kind: 'flash', x: e.x, y: e.y, size: 9, life: 5, max: 5, color: '#fff3c4' });
             break;
           case 'spark':
             this.shotHitTerrain(e.x, e.y);
             break;
           case 'bump':
-            this.burst(e.x, e.y, 4, ['#ffcc80', '#ffffff'], 1, 2, 7, 1.5);
+            this.burst(e.x, e.y, this.calm ? 2 : 4, ['#ffcc80', '#ffffff'], 1, 2, 7, 1.5);
             break;
           case 'explode':
             this.explode(e);
@@ -168,12 +170,12 @@
       const world = this.world;
       const tree = world && world.obstacles.some((o) => BB.geo.pointInRect(x, y, { x: o.x - 1, y: o.y - 1, w: o.w + 2, h: o.h + 2 }));
       if (!tree) {
-        this.burst(x, y, 4, ['#ffd27f', '#c9d0dc'], 1, 2.5, 6, 1.3);
-        for (let i = 0; i < 3; i++) this.dust(x, y, '#8a7a62');
+        this.burst(x, y, this.calm ? 2 : 4, ['#ffd27f', '#c9d0dc'], 1, 2.5, 6, 1.3);
+        for (let i = 0; i < (this.calm ? 1 : 3); i++) this.dust(x, y, '#8a7a62');
         return;
       }
       this.burst(x, y, 2, ['#ffd27f'], 1, 2, 5, 1.2);
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < (this.calm ? 2 : 6); i++) {
         const a = Math.random() * TAU, v = 0.8 + Math.random() * 2;
         this.particles.push({
           kind: 'chip', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, spin: (Math.random() - 0.5) * 0.6, angle: Math.random() * TAU,
@@ -209,11 +211,12 @@
     /** A shot left the barrel: a puff of smoke and a casing kicked out of the turret's side. */
     shotFired(e) {
       const dx = Math.cos(e.angle * DEG), dy = Math.sin(e.angle * DEG);
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < (this.calm ? 1 : 2); i++) {
         this.puff(e.x + dx * 3, e.y + dy * 3,
           dx * (0.4 + Math.random() * 0.4) + (Math.random() - 0.5) * 0.3, dy * (0.4 + Math.random() * 0.4) + (Math.random() - 0.5) * 0.3,
           2 + Math.random() * 2, 26);
       }
+      if (this.calm) return; // no ejected casing
       // Starts at the hull edge and travels 13-23 units, so it comes to rest clear of the robot.
       const side = Math.random() < 0.5 ? -1 : 1, v = 1.6 + Math.random() * 1.2;
       this.casings.push({
@@ -302,7 +305,9 @@
       this.drawCasings(ctx, ticks);
       for (const r of world.robots) if (!r.alive) this.drawWreck(ctx, r);
       if (this.showScans) for (const r of world.robots) if (r.alive) this.drawScan(ctx, r, world.tick);
-      for (const p of world.projectiles) this.drawProjectile(ctx, p, ticks > 0);
+      // Focus only when the selected robot is in this match; otherwise every bullet looks the same.
+      const focusId = this.focus && world.robots.some((r) => r.entryId === selectedEntryId) ? selectedEntryId : null;
+      for (const p of world.projectiles) this.drawFocusedProjectile(ctx, p, ticks > 0, this.bulletFocus(world, p, focusId));
       for (const r of world.robots) if (r.alive) this.drawRobot(ctx, r, r.entryId === selectedEntryId, now);
       this.drawFireLight(ctx, world, now);
       this.emitAmbientSmoke(world);
@@ -928,7 +933,7 @@
         const trail = r.alive && r.appearance && r.appearance.trail;
         if (!trail || trail === 'none' || Math.abs(r.speed) < 1) continue;
         if (this.particles.length >= MAX_PARTICLES * 0.85) return;
-        if (Math.random() > 0.35 + Math.abs(r.speed) * 0.1) continue; // faster: denser trail
+        if (Math.random() > (0.35 + Math.abs(r.speed) * 0.1) * (this.calm ? 0.5 : 1)) continue; // faster: denser trail
         const back = r.speed >= 0 ? -1 : 1;
         const dx = Math.cos(r.heading * DEG), dy = Math.sin(r.heading * DEG);
         const side = (Math.random() - 0.5) * 10;
@@ -1013,6 +1018,26 @@
       }
     }
 
+    /** 'mine' for the focused robot's bullets, 'other' for everyone else's, null when nothing is focused. */
+    bulletFocus(world, p, focusId) {
+      if (focusId == null) return null;
+      const owner = world.robots[p.owner];
+      return owner && owner.entryId === focusId ? 'mine' : 'other';
+    }
+
+    /** Focus mode: a ring marks the selected robot's bullets; other bullets are drawn fainter (but still visible). */
+    drawFocusedProjectile(ctx, p, moving, focus) {
+      if (focus === 'mine') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6.5, 0, TAU); ctx.stroke();
+      }
+      ctx.save();
+      if (focus === 'other') ctx.globalAlpha = 0.4;
+      this.drawProjectile(ctx, p, moving);
+      ctx.restore();
+    }
+
     /**
      * A bullet in its owner's `.shot` style (looks only: every style flies and hits the same).
      * The default `shell` is a hot shell with a team-coloured tracer streak, trailing thin smoke.
@@ -1026,7 +1051,8 @@
       if (p.shot === 'star') { this.drawStarShot(ctx, p, dx, dy, moving); return; }
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      const tx = p.x - dx * 24, ty = p.y - dy * 24;
+      const tail = this.calm ? 14 : 24;
+      const tx = p.x - dx * tail, ty = p.y - dy * tail;
       const streak = ctx.createLinearGradient(tx, ty, p.x, p.y);
       streak.addColorStop(0, hexA(p.color, 0));
       streak.addColorStop(1, hexA(p.color, 0.75));
@@ -1050,8 +1076,8 @@
       ctx.fillStyle = '#fffbe8';
       ctx.beginPath(); ctx.ellipse(2.4, 0, 1, 0.65, 0, 0, TAU); ctx.fill();
       ctx.restore();
-      // Thin smoke left behind, only when there is spare particle budget.
-      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.55) {
+      // Thin smoke left behind, only when there is spare particle budget (none when calm).
+      if (moving && !this.calm && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.55) {
         this.particles.push({
           kind: 'trail', x: p.x - dx * 6, y: p.y - dy * 6,
           vx: (Math.random() - 0.5) * 0.15, vy: (Math.random() - 0.5) * 0.15 - 0.03,
@@ -1090,7 +1116,7 @@
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(p.x, p.y, 8 * pulse, 0, TAU); ctx.fill();
       ctx.restore();
-      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.5) {
+      if (moving && !this.calm && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.5) {
         this.particles.push({ kind: 'puff', x: p.x - dx * 5, y: p.y - dy * 5, vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
           size: 1.3, life: 14, max: 14, color: p.color, alpha: 0.6 });
       }
@@ -1117,7 +1143,7 @@
       ctx.fillStyle = '#ff5c5c';
       ctx.beginPath(); ctx.moveTo(2.5, -1.3); ctx.lineTo(5, 0); ctx.lineTo(2.5, 1.3); ctx.closePath(); ctx.fill();
       ctx.restore();
-      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.8) {
+      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < (this.calm ? 0.25 : 0.8)) {
         this.particles.push({ kind: 'trail', x: p.x - dx * 13, y: p.y - dy * 13,
           vx: (Math.random() - 0.5) * 0.2, vy: (Math.random() - 0.5) * 0.2 - 0.03, size: 1.8, life: 40, max: 40 });
       }
@@ -1138,7 +1164,7 @@
       }
       ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
-      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.6) {
+      if (moving && !this.calm && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.6) {
         this.particles.push({ kind: 'spark', x: p.x - dx * 4 + (Math.random() - 0.5) * 3, y: p.y - dy * 4 + (Math.random() - 0.5) * 3,
           vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4, size: 0.9, life: 14, max: 14,
           color: Math.random() < 0.5 ? '#ffffff' : '#fff1a8' });

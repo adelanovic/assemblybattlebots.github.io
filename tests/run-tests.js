@@ -1918,6 +1918,36 @@ test('every decal, badge and trail draws with finite numbers, and trails only us
     return w.projectiles.map((p) => [p.x, p.y, p.vx, p.vy]);
   });
   for (const f of flights) assert.deepStrictEqual(f, flights[0], 'same path whatever it looks like');
+  // Focus mode: the selected robot's bullets are 'mine', others 'other'; nothing focused if it isn't in the match.
+  {
+    const w = new BB.World({ entries: [compile('A\nFIRE\nl: WAIT\nJMP l', 10), compile('B\nFIRE\nl: WAIT\nJMP l', 11)], arena: 'open' });
+    w.step();
+    const [a, b] = w.projectiles;
+    assert.deepStrictEqual([renderer.bulletFocus(w, a, 10), renderer.bulletFocus(w, b, 10)], ['mine', 'other']);
+    assert.strictEqual(renderer.bulletFocus(w, a, null), null);
+    renderer.focus = true;
+    renderer.drawFocusedProjectile(context, a, true, 'mine');
+    renderer.drawFocusedProjectile(context, b, true, 'other');
+    renderer.focus = false;
+  }
+  // Calm effects: the same shot and hit make far fewer particles, and no casing.
+  const busyness = (calm) => {
+    renderer.calm = calm;
+    renderer.particles = [];
+    renderer.casings = [];
+    renderer.addEvents([
+      { type: 'fire', x: 100, y: 100, robot: 0, rx: 90, ry: 100, angle: 0 },
+      { type: 'hit', x: 200, y: 100, color: '#ff5c5c' },
+      { type: 'bump', x: 150, y: 150 },
+    ]);
+    const shell = { id: 1, owner: 0, color: '#ff5c5c', shot: 'shell', x: 50, y: 50, vx: 10, vy: 0 };
+    for (let i = 0; i < 40; i++) renderer.drawProjectile(context, shell, true);
+    return { particles: renderer.particles.length, casings: renderer.casings.length };
+  };
+  const loud = busyness(false), calm = busyness(true);
+  renderer.calm = false;
+  assert.strictEqual(calm.casings, 0, 'no ejected casing');
+  assert.ok(loud.casings === 1 && calm.particles * 3 < loud.particles, `calm ${calm.particles} vs ${loud.particles} particles`);
   // A busy screen (explosions) leaves no room for trails.
   const world = new BB.World({ entries: [compile('A\n.trail smoke\nWAIT', 0)], arena: 'open' });
   world.robots[0].speed = 5;

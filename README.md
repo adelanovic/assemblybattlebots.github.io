@@ -40,7 +40,9 @@ node tools/balance.js 20 --out docs/balance-results.json  # compare arenas, bot 
 | **Arena** | **Classic** is the fixed default layout, with four mud patches. **Random** generates a mirrored layout of obstacles and mud from the seed, so 🎲 gives a new map and the same seed always gives the same map. **Open** has no obstacles or mud, which is useful for testing aim and dodging. |
 | **Speed** | 0.1× to 60× (6 to 3600 ticks per second). |
 | **Scans** | Show or hide each robot's scan cone. |
-| **⚙ Settings** | Shown in Simple view: reveals Mode, Arena, Seed and Scans, which are tucked away to keep the toolbar simple for beginners. Untick Simple view to always see them. |
+| **Highlight mine** | The selected robot's bullets get a white ring and everyone else's are drawn fainter, so you can follow your own shots. On by default. |
+| **Calm effects** | Fewer sparks, casings and smoke so a match is easier to follow. On by default in Simple view or when the computer asks for reduced motion; ticking or unticking it by hand sticks. |
+| **⚙ Settings** | Shown in Simple view: reveals Mode, Arena, Seed, Scans, Highlight mine and Calm effects, which are tucked away to keep the toolbar simple for beginners. Untick Simple view to always see them. |
 | **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
 | **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |
 | **+ New robot / 📂 Load .asm files… / + Add example** | Add robots. Loading accepts several files at once, and you can also drag and drop `.asm` files onto the page. **Each file becomes one robot.** |

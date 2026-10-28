@@ -142,6 +142,7 @@
       this.renderedLogKey = null;
       this.showCounts = false;  // editor shows how often each line ran
       this.simple = true;       // Simple view: plain-language help, smaller inspector
+      this.calmChoice = null;   // Calm effects ticked or unticked by hand; null follows Simple view (applyCalm)
       this.mission = null;      // the mission being played (from BB.MISSIONS), or null
       this.missionEntry = null; // its code, shaped like a roster entry but not in the roster
       this.missionState = { done: [], code: {}, fails: {} };
@@ -1192,6 +1193,8 @@
           arena: $('#arena-type').value,
           mode: this.mode,
           simple: this.simple,
+          focus: this.renderer.focus,
+          calm: this.calmChoice, // null: not chosen by hand, so it follows Simple view
           entries: this.entries.map((e) => ({ filename: e.filename, source: e.source, draft: e.draft, team: e.team, breakpoints: [...e.breakpoints] })),
         }));
         // Both versions: the last applied code (what the arena runs) and the editor text.
@@ -1206,6 +1209,16 @@
       }
     }
 
+    /**
+     * Calm effects: the hand-picked setting if there is one, otherwise on in Simple view
+     * or when the computer asks for less motion.
+     */
+    applyCalm() {
+      const lessMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.renderer.calm = this.calmChoice != null ? this.calmChoice : this.simple || lessMotion;
+      $('#calm-effects').checked = this.renderer.calm;
+    }
+
     restore() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (_) { saved = null; }
@@ -1218,6 +1231,10 @@
         }
       } catch (_) { /* keep the empty mission state */ }
       if (saved && typeof saved.simple === 'boolean') this.simple = saved.simple;
+      this.renderer.focus = !(saved && saved.focus === false);
+      $('#focus-shots').checked = this.renderer.focus;
+      this.calmChoice = saved && typeof saved.calm === 'boolean' ? saved.calm : null;
+      this.applyCalm();
       $('#simple-view').checked = this.simple;
       document.body.classList.toggle('simple', this.simple);
       if (saved && Array.isArray(saved.entries) && saved.entries.length) {
@@ -1265,10 +1282,14 @@
       showSpeed();
 
       $('#show-scans').onchange = (ev) => { this.renderer.showScans = ev.target.checked; };
+      $('#focus-shots').onchange = (ev) => { this.renderer.focus = ev.target.checked; this.persist(); };
+      // Once ticked or unticked by hand, Calm effects stays that way; until then it follows Simple view.
+      $('#calm-effects').onchange = (ev) => { this.calmChoice = ev.target.checked; this.applyCalm(); this.persist(); };
       $('#show-counts').onchange = (ev) => { this.showCounts = ev.target.checked; this.updateDebug(); };
       $('#simple-view').onchange = (ev) => {
         this.simple = ev.target.checked;
         document.body.classList.toggle('simple', this.simple);
+        this.applyCalm();
         this.persist(); this.updateDebug(); this.buildReference();
       };
       // Simple view tucks the match settings away; this shows or hides them.
