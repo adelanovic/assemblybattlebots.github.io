@@ -208,10 +208,13 @@
       const key = header && header[1].slice(1).toLowerCase();
       const appearanceSpec = key && Object.prototype.hasOwnProperty.call(BB.ISA.APPEARANCE, key) && BB.ISA.APPEARANCE[key];
       if (appearanceSpec) {
-        const value = (header[2] || '').trim().toLowerCase();
+        let value = (header[2] || '').trim().toLowerCase();
+        // .badge also takes a number, kept without leading zeros ("07" is 7).
+        if (appearanceSpec.numbers && /^\d{1,3}$/.test(value)) value = String(Number(value));
+        const orNumber = appearanceSpec.numbers ? `, or a number from 1 to ${appearanceSpec.numbers}` : '';
         if (!inHeader) err(lineNo, `.${key} must appear in the appearance header below the name, before labels, constants or instructions.`);
         else if (appearanceSeen.has(key)) err(lineNo, `.${key} is already specified.`);
-        else if (!appearanceSpec.choices.includes(value)) err(lineNo, `.${key} expects one preset: ${appearanceSpec.choices.join(', ')}.`);
+        else if (!BB.ISA.appearanceAllows(appearanceSpec, value)) err(lineNo, `.${key} expects one preset: ${appearanceSpec.choices.join(', ')}${orNumber}.`);
         else appearance[key] = value;
         appearanceSeen.add(key);
         continue;

@@ -154,7 +154,7 @@
       this.team = entry.team === 0 || entry.team === 1 ? entry.team : null; // null = free-for-all
       this.name = entry.name;
       this.appearance = Object.fromEntries(Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) =>
-        [key, spec.choices.includes(entry.appearance && entry.appearance[key]) ? entry.appearance[key] : spec.default]));
+        [key, BB.ISA.appearanceAllows(spec, entry.appearance && entry.appearance[key]) ? entry.appearance[key] : spec.default]));
       this.color = color;
       this.x = 0; this.y = 0;
       this.heading = 0; this.targetHeading = 0;

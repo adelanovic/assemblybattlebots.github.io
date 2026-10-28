@@ -850,7 +850,7 @@
       add('sensors', 'Sensors: <code>GET dst, NAME</code>', 'Sensors', '<table class="ref">' +
         SENSORS.map((s) => `<tr id="ref-sensor-${s.name}"><td><code>${s.name}</code></td><td>${described(BB.explain.sensor(s.name), s.desc)}</td></tr>`).join('') + '</table>');
       add('appearance', 'Appearance header (cosmetic)', 'Appearance', '<table class="ref">' +
-        Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) => `<tr><td><code>.${key} preset</code></td><td>${spec.choices.join(', ')}. Default: ${spec.default}.</td></tr>`).join('') +
+        Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) => `<tr><td><code>.${key} preset</code></td><td>${spec.choices.join(', ')}${spec.numbers ? `, or a number 1 to ${spec.numbers}` : ''}. Default: ${spec.default}.</td></tr>`).join('') +
         '</table><p>Put these optional directives below the name, before labels, constants or instructions. Each may appear once. They change appearance only: collision size, movement, bullet origin and damage stay the same. Twin turrets still fire one shot.</p>');
       add('rules', 'Arena rules', 'Rules', '<table class="ref">' + [
         ['Arena', `${C.ARENA_W} × ${C.ARENA_H}, robot radius ${C.ROBOT_RADIUS}. Layout: Classic, Open, or Random (mirrored obstacles and mud generated from the seed). Don't hard-code obstacle positions; use FRONT and SCAN.`],
@@ -1024,9 +1024,9 @@
       }
       if (role === 'directive' || role === 'preset') {
         const spec = BB.ISA.APPEARANCE[ctx.key];
-        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style' }[ctx.key] || 'look';
+        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style', decal: 'paint job', badge: 'badge (shown by its name too)', trail: 'trail when it drives' }[ctx.key] || 'look';
         return head(`.${ctx.key} preset`, 'appearance') +
-          `<div>Picks your robot's ${what}. Choices: ${spec.choices.map((c) => `<code>${c}</code>`).join(', ')} (default ${spec.default}). Looks only: it doesn't change how the robot plays.</div>` +
+          `<div>Picks your robot's ${what}. Choices: ${spec.choices.map((c) => `<code>${c}</code>`).join(', ')}${spec.numbers ? `, or a number from 1 to ${spec.numbers}` : ''} (default ${spec.default}). Looks only: it doesn't change how the robot plays.</div>` +
           more('sec:appearance');
       }
       if (role === 'constant') {

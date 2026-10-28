@@ -256,6 +256,7 @@
       const ticks = this.lastTick === undefined ? 0 : Math.min(150, Math.max(0, world.tick - this.lastTick));
       this.lastTick = world.tick;
       this.updateMud(world);
+      if (ticks > 0) this.emitTrails(world, now);
       this.drawTracks(ctx, world.tick);
       if (world.mission && world.mission.zone) this.drawZone(ctx, world.mission.zone, now, world.mission.def.zoneLabel);
       this.drawFires(ctx, now);
@@ -390,6 +391,7 @@
       ctx.fillStyle = grad;
       this.hullPath(ctx, r);
       ctx.fill();
+      this.drawDecal(ctx, r);
       this.drawWear(ctx, r, f);
       ctx.strokeStyle = '#0b0d12';
       ctx.lineWidth = 1.5;
@@ -402,6 +404,16 @@
       const lightX = shape === 'tank' ? 9 : shape === 'wedge' ? 6 : 8;
       const lightY = shape === 'tank' ? [-7, 4] : shape === 'wedge' ? [-2.5, 1] : [-5, 2];
       for (const y of lightY) ctx.fillRect(lightX, y, 2, shape === 'wedge' ? 1.5 : 3);
+
+      // Badge on the back of the hull, kept upright like a sticker (big on the winner's podium).
+      const badge = r.appearance && r.appearance.badge;
+      if (badge && badge !== 'none') {
+        ctx.save();
+        ctx.translate(shape === 'circle' ? -7.5 : -8.5, 0);
+        ctx.rotate(-r.heading * DEG);
+        this.drawBadge(ctx, badge, 3.6, r.color);
+        ctx.restore();
+      }
 
       // battle damage
       if (hp < 0.5) {
@@ -447,6 +459,110 @@
       ctx.beginPath(); ctx.arc(0, 0, 4.2, 0.6 + (r.id % 3), 1.5 + (r.id % 3)); ctx.stroke();
 
       ctx.restore();
+    }
+
+    /** The `.decal` paint job, clipped to the hull. Drawn in hull coordinates (x = forward). */
+    drawDecal(ctx, r) {
+      const decal = r.appearance && r.appearance.decal;
+      if (!decal || decal === 'none') return;
+      const light = shadeA(r.color, 0.65, 0.85), dark = shadeA(r.color, -0.6, 0.7);
+      ctx.save();
+      this.hullPath(ctx, r);
+      ctx.clip();
+      if (decal === 'stripes') {
+        // Two racing stripes, nose to tail.
+        ctx.fillStyle = light;
+        ctx.fillRect(-15, -4, 30, 2.4);
+        ctx.fillRect(-15, 1.6, 30, 2.4);
+      } else if (decal === 'flames') {
+        // Hot-rod flames licking back from the nose.
+        const g = ctx.createLinearGradient(13, 0, -6, 0);
+        g.addColorStop(0, '#fff1a8');
+        g.addColorStop(0.45, '#ffb238');
+        g.addColorStop(1, 'rgba(232,72,24,0.9)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        for (const [y, len] of [[-7, 15], [-2.5, 19], [2.5, 19], [7, 15]]) {
+          ctx.moveTo(14, y - 2.2);
+          ctx.quadraticCurveTo(14 - len * 0.55, y - 3.2, 14 - len, y + (y < 0 ? -1.5 : 1.5));
+          ctx.quadraticCurveTo(14 - len * 0.5, y + 2.4, 14, y + 2.2);
+          ctx.closePath();
+        }
+        ctx.fill();
+      } else if (decal === 'lightning') {
+        // A zig-zag bolt across the hull.
+        ctx.fillStyle = '#ffe066';
+        ctx.strokeStyle = 'rgba(11,13,18,0.6)';
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        [[11, -10], [0, -1.5], [4.5, -1.5], [-7, 10], [-2, 1.5], [-6, 1.5], [3, -10]]
+          .forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+      } else if (decal === 'spots') {
+        // Spots in the same place every match: seeded from the robot's name.
+        const rnd = BB.geo.makeRng(nameSeed(r.name) ^ 0x5B075);
+        ctx.fillStyle = dark;
+        for (let i = 0; i < 7; i++) {
+          ctx.beginPath(); ctx.arc(-11 + rnd() * 22, -9 + rnd() * 18, 1.3 + rnd() * 1.8, 0, TAU); ctx.fill();
+        }
+      } else if (decal === 'checker') {
+        // A racing checkerboard over the back half.
+        ctx.fillStyle = dark;
+        for (let x = -16; x < 0; x += 4) for (let y = -12; y < 12; y += 4) {
+          if (((x + y) / 4) % 2 === 0) ctx.fillRect(x, y, 4, 4);
+        }
+      }
+      ctx.restore();
+    }
+
+    /**
+     * A `.badge` (a symbol, or a number from 1 to 99) on a dark disc of radius `s`,
+     * centred at the origin. Shapes are drawn rather than emoji, which some
+     * school laptops show as empty boxes.
+     */
+    drawBadge(ctx, badge, s, color) {
+      ctx.fillStyle = '#141820';
+      ctx.strokeStyle = shadeA(color, 0.3, 0.95);
+      ctx.lineWidth = Math.max(0.5, s * 0.16);
+      ctx.beginPath(); ctx.arc(0, 0, s, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = shade(color, 0.45);
+      const k = s * 0.72; // symbol size inside the disc
+      const poly = (pts) => {
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * k, y * k) : ctx.moveTo(x * k, y * k)));
+        ctx.closePath(); ctx.fill();
+      };
+      if (/^\d+$/.test(badge)) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 ${(badge.length > 1 ? 1.15 : 1.4) * s}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badge, 0, s * 0.08);
+        ctx.textBaseline = 'alphabetic';
+      } else if (badge === 'star') {
+        poly(Array.from({ length: 10 }, (_, i) => {
+          const a = -Math.PI / 2 + i * Math.PI / 5, d = i % 2 ? 0.45 : 1;
+          return [Math.cos(a) * d, Math.sin(a) * d];
+        }));
+      } else if (badge === 'bolt') {
+        poly([[0.3, -1], [-0.55, 0.12], [-0.05, 0.12], [-0.3, 1], [0.55, -0.15], [0.05, -0.15]]);
+      } else if (badge === 'heart') {
+        ctx.beginPath();
+        ctx.moveTo(0, 0.85 * k);
+        ctx.bezierCurveTo(-1.15 * k, 0, -0.9 * k, -1 * k, 0, -0.38 * k);
+        ctx.bezierCurveTo(0.9 * k, -1 * k, 1.15 * k, 0, 0, 0.85 * k);
+        ctx.fill();
+      } else if (badge === 'crown') {
+        poly([[-0.9, 0.6], [-0.9, -0.55], [-0.45, 0], [0, -0.8], [0.45, 0], [0.9, -0.55], [0.9, 0.6]]);
+      } else if (badge === 'paw') {
+        ctx.beginPath(); ctx.ellipse(0, 0.35 * k, 0.45 * k, 0.38 * k, 0, 0, TAU); ctx.fill();
+        for (const [x, y] of [[-0.62, -0.12], [-0.22, -0.55], [0.22, -0.55], [0.62, -0.12]]) {
+          ctx.beginPath(); ctx.arc(x * k, y * k, 0.21 * k, 0, TAU); ctx.fill();
+        }
+      } else if (badge === 'shield') {
+        poly([[0, -0.95], [0.8, -0.62], [0.7, 0.3], [0, 0.95], [-0.7, 0.3], [-0.8, -0.62]]);
+      }
     }
 
     hullPath(ctx, r) {
@@ -627,12 +743,24 @@
       else if (r.vm.halted) label += ' (halted)';
       ctx.font = '600 11px system-ui, sans-serif';
       ctx.textAlign = 'center';
+      // The badge rides in front of the name, where it's big enough to read during a match.
+      const badge = r.appearance && r.appearance.badge;
+      const hasBadge = badge && badge !== 'none';
+      const tx = hasBadge ? r.x + 7 : r.x;
+      if (hasBadge) {
+        ctx.save();
+        ctx.translate(tx - ctx.measureText(label).width / 2 - 8, ty - 4);
+        this.drawBadge(ctx, badge, 6, r.color);
+        ctx.restore();
+        ctx.font = '600 11px system-ui, sans-serif'; // drawBadge may have changed it for a number
+        ctx.textAlign = 'center';
+      }
       ctx.lineJoin = 'round';
       ctx.lineWidth = 3;
       ctx.strokeStyle = 'rgba(10,12,18,0.85)';
-      ctx.strokeText(label, r.x, ty);
+      ctx.strokeText(label, tx, ty);
       ctx.fillStyle = r.vm.fault ? '#ffd27f' : '#eef1f6';
-      ctx.fillText(label, r.x, ty);
+      ctx.fillText(label, tx, ty);
     }
 
     drawWreck(ctx, r, label = true) {
@@ -748,6 +876,35 @@
             life: 16 + Math.random() * 8, max: 24, size: 1 + Math.random() * 1.3,
             color: ['#5a4430', '#3e2e1f', '#6e5638'][Math.floor(Math.random() * 3)],
           });
+        }
+      }
+    }
+
+    /**
+     * `.trail` particles behind robots that are moving. Purely for show, and they
+     * only use spare particle budget, so explosions and hits always come first.
+     */
+    emitTrails(world, now) {
+      for (const r of world.robots) {
+        const trail = r.alive && r.appearance && r.appearance.trail;
+        if (!trail || trail === 'none' || Math.abs(r.speed) < 1) continue;
+        if (this.particles.length >= MAX_PARTICLES * 0.85) return;
+        if (Math.random() > 0.35 + Math.abs(r.speed) * 0.1) continue; // faster: denser trail
+        const back = r.speed >= 0 ? -1 : 1;
+        const dx = Math.cos(r.heading * DEG), dy = Math.sin(r.heading * DEG);
+        const side = (Math.random() - 0.5) * 10;
+        const x = r.x + back * dx * 15 - dy * side, y = r.y + back * dy * 15 + dx * side;
+        const drift = (v) => ({ vx: back * dx * v + (Math.random() - 0.5) * 0.3, vy: back * dy * v + (Math.random() - 0.5) * 0.3 });
+        if (trail === 'smoke') {
+          this.particles.push({ kind: 'puff', x, y, ...drift(0.2), size: 2, life: 30, max: 30, color: '#a9b0ba', alpha: 0.35 });
+        } else if (trail === 'sparks') {
+          this.particles.push({ kind: 'spark', x, y, ...drift(1.2), size: 1.1, life: 12, max: 12,
+            color: ['#fff3c4', '#ffd27a', '#ffb347'][Math.floor(Math.random() * 3)] });
+        } else if (trail === 'bubbles') {
+          this.particles.push({ kind: 'bubble', x, y, ...drift(0.15), size: 1.4 + Math.random() * 1.8, life: 40, max: 40, color: shade(r.color, 0.55) });
+        } else if (trail === 'rainbow') {
+          const hue = Math.round((now / 6 + r.id * 47) % 360);
+          this.particles.push({ kind: 'puff', x, y, ...drift(0.1), size: 2.4, life: 26, max: 26, color: `hsl(${hue},90%,65%)`, alpha: 0.6 });
         }
       }
     }
@@ -901,6 +1058,19 @@
             ctx.globalAlpha = 1 - t;
             ctx.fillStyle = p.color;
             ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1 - t * 0.6), 0, TAU); ctx.fill();
+            break;
+          case 'puff': // .trail smoke and rainbow
+            p.x += p.vx; p.y += p.vy; p.vx *= 0.95; p.vy *= 0.95;
+            ctx.globalAlpha = p.alpha * (1 - t);
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size + t * 3, 0, TAU); ctx.fill();
+            break;
+          case 'bubble': // .trail bubbles: rings that float up a little
+            p.x += p.vx + Math.sin(p.life * 0.3) * 0.12; p.y += p.vy - 0.05;
+            ctx.globalAlpha = 0.7 * (1 - t);
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 0.8;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.stroke();
             break;
           case 'smoke':
             p.x += p.vx; p.y += p.vy;
@@ -1277,6 +1447,11 @@
   function shade(hex, amt) {
     const c = rgb(hex).map((v) => Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt)));
     return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+
+  /** shade(), with transparency `a`. */
+  function shadeA(hex, amt, a) {
+    return shade(hex, amt).replace('rgb(', 'rgba(').replace(')', `,${a})`);
   }
 
   BB.Renderer = Renderer;

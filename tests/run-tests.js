@@ -1749,13 +1749,14 @@ test('CLI rejects malformed and missing integer options before reading robot fil
 });
 
 test('appearance presets are optional, case-insensitive metadata with unchanged instruction indices', () => {
-  assert.deepStrictEqual(BB.assemble('A\nWAIT').appearance, { shape: 'tank', drive: 'tracks', turret: 'standard' });
+  const plain = { decal: 'none', badge: 'none', trail: 'none' }; // the paint-job options left at their defaults
+  assert.deepStrictEqual(BB.assemble('A\nWAIT').appearance, { shape: 'tank', drive: 'tracks', turret: 'standard', ...plain });
   const code = 'main: INC R0\nWAIT\nJMP main';
   const baseline = BB.assemble(`A\n${code}`).program.map(({ op, args, cost }) => ({ op, args, cost }));
   for (const shape of BB.ISA.APPEARANCE.shape.choices) for (const drive of BB.ISA.APPEARANCE.drive.choices) for (const turret of BB.ISA.APPEARANCE.turret.choices) {
     const result = BB.assemble(`A\n.SHAPE ${shape.toUpperCase()} ; hull\n\n# comment\n.drive ${drive}\n.turret ${turret}\n${code}`);
     assert.deepStrictEqual(result.errors, []);
-    assert.deepStrictEqual(result.appearance, { shape, drive, turret });
+    assert.deepStrictEqual(result.appearance, { shape, drive, turret, ...plain });
     assert.deepStrictEqual(result.program.map(({ op, args, cost }) => ({ op, args, cost })), baseline);
     assert.strictEqual(result.program[0].line, 7);
   }
@@ -1800,9 +1801,9 @@ test('appearance hot-swaps and survives duplication without changing the robot b
   const app = uiHarness();
   app.world.step();
   const robot = app.robotFor(0), body = [robot.x, robot.y, robot.health];
-  app.selected.draft = 'A\n.shape wedge\n.drive hover\n.turret twin\nWAIT';
+  app.selected.draft = 'A\n.shape wedge\n.drive hover\n.turret twin\n.decal flames\n.badge 7\n.trail sparks\nWAIT';
   app.applyDraft();
-  assert.deepStrictEqual({ ...robot.appearance }, { shape: 'wedge', drive: 'hover', turret: 'twin' });
+  assert.deepStrictEqual({ ...robot.appearance }, { shape: 'wedge', drive: 'hover', turret: 'twin', decal: 'flames', badge: '7', trail: 'sparks' });
   assert.deepStrictEqual([robot.x, robot.y, robot.health], body);
   app.nextId = 2;
   app.resetMatch = () => {};
@@ -1837,6 +1838,45 @@ test('all appearance combinations render normal, damaged, flashing and wreck sta
     renderer.drawWreck(context, robot);
   }
   assert.ok(calls > 1000);
+});
+
+test('every decal, badge and trail draws with finite numbers, and trails only use spare particle budget', () => {
+  const renderingBB = { ...BB };
+  for (const file of ['terrain.js', 'renderer.js']) {
+    scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui', file), 'utf8'), { BB: renderingBB, performance: { now: () => 0 } });
+  }
+  const renderer = Object.create(renderingBB.Renderer.prototype);
+  renderer.robotFx = new Map();
+  renderer.particles = [];
+  const context = new Proxy({}, { get(target, key) {
+    if (String(key).startsWith('create')) return () => ({ addColorStop() {} });
+    if (key === 'measureText') return (s) => ({ width: String(s).length * 6 });
+    return (...args) => { for (const value of args) if (typeof value === 'number') assert.ok(Number.isFinite(value), `${String(key)}(${args})`); };
+  } });
+  const { decal, badge, trail } = BB.ISA.APPEARANCE;
+  for (const shape of BB.ISA.APPEARANCE.shape.choices) for (const d of decal.choices) for (const b of [...badge.choices, '7', '42']) {
+    const world = new BB.World({ entries: [compile(`A\n.shape ${shape}\n.decal ${d}\n.badge ${b}\nWAIT`, 0)] });
+    renderer.drawRobot(context, world.robots[0], false, 1000);
+    renderer.drawLabel(context, world.robots[0], 1000);
+  }
+  // A badge number survives from the assembler into a new match (not only a mid-match Apply).
+  assert.strictEqual(new BB.World({ entries: [compile('A\n.badge 07\nWAIT', 0)] }).robots[0].appearance.badge, '7');
+  for (const bad of ['0', '100', '-3', '1e2']) assert.match(BB.assemble(`A\n.badge ${bad}\nWAIT`).errors[0].message, /number from 1 to 99/, bad);
+  for (const t of trail.choices) {
+    const world = new BB.World({ entries: [compile(`A\n.trail ${t}\nWAIT`, 0)], arena: 'open' });
+    world.robots[0].speed = 5;
+    renderer.particles = [];
+    for (let i = 0; i < 60; i++) renderer.emitTrails(world, i * 16);
+    assert.ok(t === 'none' ? renderer.particles.length === 0 : renderer.particles.length > 20, `${t}: ${renderer.particles.length} particles`);
+    for (let i = 0; i < 50; i++) renderer.drawParticles(context);
+    assert.strictEqual(renderer.particles.length, 0, `${t}: particles fade out`);
+  }
+  // A busy screen (explosions) leaves no room for trails.
+  const world = new BB.World({ entries: [compile('A\n.trail smoke\nWAIT', 0)], arena: 'open' });
+  world.robots[0].speed = 5;
+  renderer.particles = Array.from({ length: 300 }, () => ({ kind: 'smoke', x: 0, y: 0, vx: 0, vy: 0, size: 1, life: 99, max: 99 }));
+  renderer.emitTrails(world, 0);
+  assert.strictEqual(renderer.particles.length, 300);
 });
 
 test('renderer effects use event-time state, land clear of the hull and freeze while paused', () => {
