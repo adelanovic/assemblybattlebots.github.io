@@ -1710,7 +1710,8 @@ test('wall damage from being shoved by an enemy is credited to the pusher', () =
   assert.ok(w.log.some((l) => l.kind === 'death' && /by Bot1, shoved into a wall/.test(l.text)));
 });
 
-function playbackHarness(speedIndex = 3) {
+const speedAt = (x) => uiBB.App.SPEEDS.indexOf(x); // slider position of a playback speed
+function playbackHarness(speedIndex = speedAt(1)) {
   const app = uiHarness();
   app.world = new BB.World({ entries: [compile('Solo\nWAIT', 0)], arena: 'open' });
   Object.assign(app, { running: true, acc: 0, lastFrameTime: null, lastPanelUpdate: 0, speedIndex,
@@ -1719,7 +1720,7 @@ function playbackHarness(speedIndex = 3) {
 }
 
 test('playback advances equally at 30, 60, 120 and 144 Hz for fractional and fast speeds', () => {
-  for (const [speedIndex, ticks] of [[0, 6], [3, 60], [8, 3600]]) {
+  for (const [speedIndex, ticks] of [[speedAt(0.1), 6], [speedAt(0.75), 45], [speedAt(1), 60], [speedAt(60), 3600]]) {
     for (const hz of [30, 60, 120, 144]) {
       const app = playbackHarness(speedIndex);
       app.frame(0);
@@ -1741,7 +1742,7 @@ test('playback pause/resume ignores suspended time and bounds stall catch-up', (
   app.frame(60010);
   app.frame(60010 + 1000 / 60);
   assert.strictEqual(app.world.tick, 2);
-  const fast = playbackHarness(8);
+  const fast = playbackHarness(speedAt(60));
   fast.frame(0);
   fast.frame(60000);
   assert.strictEqual(fast.world.tick, 200);

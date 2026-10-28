@@ -15,8 +15,8 @@
 
   const C = BB.CONFIG;
   const STORAGE_KEY = 'battlebots.roster.v1';
-  const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 4, 8, 20, 60]; // multipliers of 60 ticks/second
-  const DEFAULT_SPEED = 3;
+  const SPEEDS = [0.1, 0.25, 0.5, 0.75, 1, 2, 4, 8, 20, 60]; // multipliers of 60 ticks/second
+  const DEFAULT_SPEED = SPEEDS.indexOf(1);
   const MAX_STEPS_PER_FRAME = 200;
   const MODES = {
     ffa: { label: 'Free-for-all', size: 0 },
@@ -112,6 +112,8 @@
   }
 
   class App {
+    static SPEEDS = SPEEDS; // for the tests
+
     /**
      * One robot from the saved roster, checked field by field, since a save can be
      * damaged or from an older version. null when there's no code to restore.
