@@ -2,6 +2,9 @@ Stacker
 .shape hexagon
 .drive wheels
 .turret twin
+.decal checker
+.badge 64       ; the stack holds 64 entries
+.trail smoke
 ; STRATEGY: cautious patrol with a sweeping turret.
 ; STACK LESSON: CALL/RET share the stack with saved register values.
 ; Every helper restores its saved registers in reverse order before RET.

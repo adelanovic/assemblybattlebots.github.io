@@ -2,6 +2,9 @@ Orbiter
 .shape tank
 .drive hover
 .turret standard
+.decal stripes
+.badge crown
+.trail bubbles
 ; STRATEGY: circle-strafer.
 ; Locks onto an enemy and orbits it at a preferred distance while firing.
 ; Moving sideways makes it hard to hit; reverses direction near walls.

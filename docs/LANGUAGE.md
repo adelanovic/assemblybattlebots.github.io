@@ -127,13 +127,13 @@ Typing a change edits the draft; press Apply to use it (▶ Start and Step apply
 
 #### Built-in example combinations
 
-| Robot | Shape | Drive | Turret |
-|---|---|---|---|
-| Sentinel | `hexagon` | `tracks` | `standard` |
-| Hunter | `wedge` | `wheels` | `twin` |
-| Dodger | `circle` | `wheels` | `short` |
-| Orbiter | `tank` | `hover` | `standard` |
-| Stacker | `hexagon` | `wheels` | `twin` |
+| Robot | Shape | Drive | Turret | Decal | Badge | Trail |
+|---|---|---|---|---|---|---|
+| Sentinel | `hexagon` | `tracks` | `standard` | `spots` | `shield` | `none` |
+| Hunter | `wedge` | `wheels` | `twin` | `flames` | `paw` | `sparks` |
+| Dodger | `circle` | `wheels` | `short` | `lightning` | `bolt` | `rainbow` |
+| Orbiter | `tank` | `hover` | `standard` | `stripes` | `crown` | `bubbles` |
+| Stacker | `hexagon` | `wheels` | `twin` | `checker` | `64` | `smoke` |
 
 #### Stack tutorial bot
 
