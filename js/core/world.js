@@ -20,6 +20,9 @@
   const G = BB.geo;
 
   const COLORS = ['#ff5c5c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#ff9f43', '#4dd0e1', '#f06292'];
+  // What `.color` calls each of COLORS (see APPEARANCE.color in isa.js).
+  const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'pink'];
+  const colorName = (hex) => COLOR_NAMES[COLORS.indexOf(hex)] || 'a team color';
   // Team matches: warm colours for team A, cool for team B.
   const TEAM_NAMES = ['A', 'B'];
   const TEAM_COLORS = [
@@ -228,6 +231,7 @@
       this.competitive = this.teamMode
         ? this.robots.some((r) => r.team === 0) && this.robots.some((r) => r.team === 1)
         : this.robots.length >= 2;
+      const colorNotes = this.assignColors();
       this.spawnRobots();
       const where = `${ARENAS[this.arena].label} arena, seed ${seed}`;
       if (!this.robots.length) this.addLog('No robots in the arena.');
@@ -236,6 +240,45 @@
         const size = (t) => this.robots.filter((r) => r.team === t).length;
         this.addLog(`Team match ${size(0)}v${size(1)} started (${where}).`);
       } else this.addLog(`Match started with ${this.robots.length} robots (${where}).`);
+      for (const note of colorNotes) this.addLog(note);
+    }
+
+    /**
+     * Paint robots that chose a `.color`. First come, first served in roster order;
+     * `auto` robots keep their slot colour unless it was chosen, then take the next
+     * free one. Team matches keep warm-vs-cool team colours. Returns log lines.
+     */
+    assignColors() {
+      const chosen = (r) => (r.appearance.color !== 'auto' ? COLORS[COLOR_NAMES.indexOf(r.appearance.color)] : null);
+      if (this.teamMode) {
+        return this.robots.some(chosen) ? ['Team matches use team colors (warm for A, cool for B), so .color is ignored.'] : [];
+      }
+      const owner = new Map(); // colour -> robot
+      for (const r of this.robots) {
+        const want = chosen(r);
+        if (want && !owner.has(want)) { r.color = want; owner.set(want, r); }
+      }
+      const notes = [];
+      this.robots.forEach((r, i) => {
+        if (owner.get(r.color) === r) return; // got the colour it chose
+        // Its slot colour if free, else the next free one round the list (with 9+ robots, colours repeat).
+        const free = COLORS.map((_, k) => COLORS[(i + k) % COLORS.length]).find((c) => !owner.has(c));
+        r.color = free || COLORS[i % COLORS.length];
+        if (free) owner.set(free, r);
+        const want = chosen(r);
+        if (want) notes.push(`${r.name} chose ${r.appearance.color}, but ${owner.get(want).name} already has it, so ${r.name} is ${colorName(r.color)}.`);
+      });
+      return notes;
+    }
+
+    /** After a mid-match Apply: switch to a newly chosen `.color` if no other robot has it. */
+    recolor(r) {
+      if (r.team !== null || r.appearance.color === 'auto') return;
+      const want = COLORS[COLOR_NAMES.indexOf(r.appearance.color)];
+      if (want === r.color) return;
+      const holder = this.robots.find((o) => o !== r && o.color === want);
+      if (holder) this.addLog(`${r.name} chose ${r.appearance.color}, but ${holder.name} already has it.`);
+      else r.color = want;
     }
 
     /** True if `b` is an opponent of `a` (teammates never are). */
@@ -674,6 +717,7 @@
   World.makeMud = makeMud;
   World.scanRange = scanRange;
   World.COLORS = COLORS;
+  World.COLOR_NAMES = COLOR_NAMES;
   World.TEAM_NAMES = TEAM_NAMES;
   World.TEAM_COLORS = TEAM_COLORS;
   BB.World = World;

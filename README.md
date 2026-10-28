@@ -131,11 +131,12 @@ main:
 | `.shape` | `tank`, `circle`, `hexagon`, `wedge` | `tank` |
 | `.drive` | `tracks`, `wheels`, `hover` | `tracks` |
 | `.turret` | `standard`, `short`, `twin` | `standard` |
+| `.color` | `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink` | `auto` (by roster position) |
 | `.decal` | `stripes`, `flames`, `lightning`, `spots`, `checker` | `none` |
 | `.badge` | `star`, `bolt`, `heart`, `crown`, `paw`, `shield`, or a number from 1 to 99 | `none` |
 | `.trail` | `smoke`, `sparks`, `bubbles`, `rainbow` | `none` |
 
-These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and firing stats. Twin turrets still fire one shot. The badge also appears next to the robot's name, where it's readable during a match. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
+These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and firing stats. Twin turrets still fire one shot. The badge also appears next to the robot's name, where it's readable during a match. If two robots choose the same `.color`, the first in the roster keeps it and the other gets the next free color (the match log says so); team matches keep team colors. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
 
 ```asm
 Sniper Sam

@@ -405,6 +405,28 @@ function placed(robots) {
 }
 const sensor = (w, r, name) => w.sense(r, BB.ISA.SENSOR_MAP[name].id);
 
+test('.color: first come, first served; auto robots step aside; teams keep team colors', () => {
+  const { COLORS, COLOR_NAMES } = BB.World;
+  assert.deepStrictEqual(BB.ISA.APPEARANCE.color.choices, ['auto', ...COLOR_NAMES], 'every choice has a color, in order');
+  const entry = (src, id, team = null) => ({ ...compile(src, id), team });
+  const nameOf = (r) => COLOR_NAMES[COLORS.indexOf(r.color)];
+  const w = new BB.World({ entries: [entry('A\nWAIT', 0), entry('B\n.color red\nWAIT', 1), entry('C\n.color red\nWAIT', 2), entry('D\nWAIT', 3)], arena: 'open' });
+  assert.deepStrictEqual(w.robots.map(nameOf), ['blue', 'red', 'yellow', 'green'], 'B claims red; A (auto) and C move to the next free color');
+  assert.ok(w.log.some((l) => l.text === 'C chose red, but B already has it, so C is yellow.'), 'the loser is told why');
+  const plain = new BB.World({ entries: [0, 1, 2].map((i) => entry(`R${i}\nWAIT`, i)), arena: 'open' });
+  assert.deepStrictEqual(plain.robots.map(nameOf), ['red', 'blue', 'yellow'], 'no choices: the same slot colors as always');
+  const teams = new BB.World({ entries: [entry('A\n.color pink\nWAIT', 0, 0), entry('B\nWAIT', 1, 1)], arena: 'open' });
+  assert.deepStrictEqual(teams.robots.map((r) => r.color), [BB.World.TEAM_COLORS[0][0], BB.World.TEAM_COLORS[1][0]]);
+  assert.ok(teams.log.some((l) => /\.color is ignored/.test(l.text)));
+  // Mid-match Apply: take a newly chosen color only if it is free.
+  const r0 = w.robots[0];
+  r0.appearance = { ...r0.appearance, color: 'purple' };
+  w.recolor(r0);
+  assert.strictEqual(nameOf(r0), 'purple');
+  r0.appearance = { ...r0.appearance, color: 'red' };
+  w.recolor(r0);
+  assert.strictEqual(nameOf(r0), 'purple', 'red is B\'s');
+});
 test('driving into a wall costs floor(|speed| / 2) health and stops the robot', () => {
   const { ARENA_W: W, ROBOT_RADIUS: R, MAX_HEALTH } = BB.CONFIG;
   for (const [speed, lost] of [[5, 2], [3, 1], [1, 0]]) {
@@ -1749,7 +1771,7 @@ test('CLI rejects malformed and missing integer options before reading robot fil
 });
 
 test('appearance presets are optional, case-insensitive metadata with unchanged instruction indices', () => {
-  const plain = { decal: 'none', badge: 'none', trail: 'none' }; // the paint-job options left at their defaults
+  const plain = { color: 'auto', decal: 'none', badge: 'none', trail: 'none' }; // the paint-job options left at their defaults
   assert.deepStrictEqual(BB.assemble('A\nWAIT').appearance, { shape: 'tank', drive: 'tracks', turret: 'standard', ...plain });
   const code = 'main: INC R0\nWAIT\nJMP main';
   const baseline = BB.assemble(`A\n${code}`).program.map(({ op, args, cost }) => ({ op, args, cost }));
@@ -1803,7 +1825,7 @@ test('appearance hot-swaps and survives duplication without changing the robot b
   const robot = app.robotFor(0), body = [robot.x, robot.y, robot.health];
   app.selected.draft = 'A\n.shape wedge\n.drive hover\n.turret twin\n.decal flames\n.badge 7\n.trail sparks\nWAIT';
   app.applyDraft();
-  assert.deepStrictEqual({ ...robot.appearance }, { shape: 'wedge', drive: 'hover', turret: 'twin', decal: 'flames', badge: '7', trail: 'sparks' });
+  assert.deepStrictEqual({ ...robot.appearance }, { shape: 'wedge', drive: 'hover', turret: 'twin', color: 'auto', decal: 'flames', badge: '7', trail: 'sparks' });
   assert.deepStrictEqual([robot.x, robot.y, robot.health], body);
   app.nextId = 2;
   app.resetMatch = () => {};

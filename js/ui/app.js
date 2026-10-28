@@ -563,6 +563,7 @@
         robot.vm.program = e.compiled.program;
         this.world.renameRobot(robot, e.compiled.name);
         robot.appearance = { ...e.compiled.appearance };
+        this.world.recolor(robot);
         e.runningSource = e.source;
         this.flash('Applied. Only comments or spacing changed, so your robot kept going.');
       } else if (this.mission) {
@@ -577,6 +578,7 @@
         robot.vm = new BB.VM(e.compiled.program, this.world.makeIO(robot));
         this.world.renameRobot(robot, e.compiled.name);
         robot.appearance = { ...e.compiled.appearance };
+        this.world.recolor(robot);
         robot.faultReported = false;
         e.runningSource = e.source;
         this.world.addLog(`${robot.name} reloaded its program.`);
@@ -1024,7 +1026,7 @@
       }
       if (role === 'directive' || role === 'preset') {
         const spec = BB.ISA.APPEARANCE[ctx.key];
-        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style', decal: 'paint job', badge: 'badge (shown by its name too)', trail: 'trail when it drives' }[ctx.key] || 'look';
+        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style', color: 'paint color (first come, first served if two robots pick the same)', decal: 'paint job', badge: 'badge (shown by its name too)', trail: 'trail when it drives' }[ctx.key] || 'look';
         return head(`.${ctx.key} preset`, 'appearance') +
           `<div>Picks your robot's ${what}. Choices: ${spec.choices.map((c) => `<code>${c}</code>`).join(', ')}${spec.numbers ? `, or a number from 1 to ${spec.numbers}` : ''} (default ${spec.default}). Looks only: it doesn't change how the robot plays.</div>` +
           more('sec:appearance');

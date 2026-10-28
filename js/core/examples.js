@@ -516,6 +516,7 @@ angle_error:
 .shape tank       ; tank, circle, hexagon, wedge
 .drive tracks     ; tracks, wheels, hover
 .turret standard  ; standard, short, twin
+.color auto       ; red, blue, yellow, green, purple, orange, cyan, pink
 .decal none       ; stripes, flames, lightning, spots, checker
 .badge none       ; star, bolt, heart, crown, paw, shield, or 1 to 99
 .trail none       ; smoke, sparks, bubbles, rainbow
