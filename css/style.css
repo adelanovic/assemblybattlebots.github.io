@@ -249,7 +249,8 @@ button.card-name:focus-visible { outline: 2px solid var(--accent); outline-offse
 .kv span { display: flex; justify-content: space-between; }
 .kv i { font-style: normal; color: var(--muted); margin-right: 6px; }
 .trace { font-size: 12px; }
-.trace-head { color: var(--muted); margin: 6px 0 4px; }
+.trace-head { color: var(--muted); margin: 6px 0 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.trace-copy { padding: 2px 8px; font-size: 12px; }
 .trace-list { list-style: none; margin: 0; padding: 4px 0; max-height: 180px; overflow: auto; font-family: var(--mono); background: #0d1015; border: 1px solid var(--border); border-radius: 6px; }
 .trace-list li { display: grid; grid-template-columns: 32px 1fr auto; gap: 10px; padding: 1px 8px; cursor: pointer; }
 .trace-list li:hover { background: rgba(255, 255, 255, .05); }

@@ -833,14 +833,21 @@
           return `<li data-line="${t.line}"${bad ? ' class="bad"' : ''}><span class="ln">${t.line}</span>` +
             `<code>${esc(t.asm)}</code><span class="note">${esc(notes[i])}</span></li>`;
         });
-        if (vm.lastStop === 'break') rows.push(`<li class="end bp" data-line="${vm.resumeLine}"><span class="ln">●</span><span>stopped before line ${vm.resumeLine} (breakpoint)</span></li>`);
-        else if (vm.lastStop === 'budget') {
+        // The same list as plain text, for the Copy button: one line per instruction.
+        const text = vm.trace.map((t, i) => `line ${t.line}: ${t.asm}${notes[i] ? `  ->  ${notes[i]}` : ''}`);
+        if (vm.lastStop === 'break') {
+          rows.push(`<li class="end bp" data-line="${vm.resumeLine}"><span class="ln">●</span><span>stopped before line ${vm.resumeLine} (breakpoint)</span></li>`);
+          text.push(`stopped before line ${vm.resumeLine} (breakpoint)`);
+        } else if (vm.lastStop === 'budget') {
           const out = this.simple ? `Out of coins: carries on at line ${vm.currentLine} next tick` : `out of cycles: continues at line ${vm.currentLine} next tick`;
           rows.push(`<li class="end"><span class="ln">…</span><span>${out}</span></li>`);
+          text.push(out);
         }
         const n = vm.trace.length;
         const head = this.simple ? 'What your robot did last tick' : `Last tick: ${n} instruction${n === 1 ? '' : 's'}`;
-        html = `<div class="trace-head">${head}</div>` + (rows.length ? `<ol class="trace-list${this.simple ? ' simple' : ''}">${rows.join('')}</ol>` : '');
+        this.traceText = [`${r.name}, tick ${this.world.tick}: ${head}`, ...text].join('\n');
+        html = `<div class="trace-head"><span>${head}</span><button class="trace-copy" title="Copy this list as text, to paste into a message or document">📋 Copy</button></div>` +
+          (rows.length ? `<ol class="trace-list${this.simple ? ' simple' : ''}">${rows.join('')}</ol>` : '');
       }
       // Rebuilt only on change, so rows stay clickable between 10 Hz panel refreshes.
       if (html === this.traceHtml) return;
@@ -944,6 +951,29 @@
         b.setAttribute('aria-selected', String(b.dataset.tab === name));
       }
       for (const p of document.querySelectorAll('.tab-panel')) p.hidden = p.id !== `tab-${name}`;
+    }
+
+    /** Copy the last-tick list as plain text (Copy button in its heading). */
+    copyTrace() {
+      const text = this.traceText;
+      if (!text) return;
+      const done = () => this.flash('Copied the last tick as text. Paste it anywhere with Ctrl+V.');
+      // A page opened from a plain http:// address can't use the clipboard API, so fall back
+      // to copying from a hidden text box.
+      const fallback = () => {
+        const box = document.createElement('textarea');
+        box.value = text;
+        box.setAttribute('readonly', '');
+        box.style.position = 'fixed';
+        box.style.opacity = '0';
+        document.body.appendChild(box);
+        box.select();
+        const ok = document.execCommand && document.execCommand('copy');
+        box.remove();
+        if (ok) done(); else this.flash('Copying is blocked in this browser. Select the list and press Ctrl+C instead.');
+      };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
+      else fallback();
     }
 
     /** A short message at the bottom of the page, for `ms` milliseconds. */
@@ -1456,6 +1486,7 @@
         this.flash('Back to your last applied code. Changed your mind? Press Ctrl+Z.');
       };
       $('#trace').addEventListener('click', (ev) => {
+        if (ev.target.closest('.trace-copy')) { this.copyTrace(); return; }
         const li = ev.target.closest('li[data-line]');
         if (li) this.editor.goToLine(Number(li.dataset.line));
       });
