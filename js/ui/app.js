@@ -1192,6 +1192,7 @@
     // ------------------------------------------------------------ persistence
 
     persist() {
+      this.unsavedEdits = false;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
           seed: $('#seed').value,
@@ -1393,6 +1394,7 @@
         if (!e) return;
         this.moveBreakpoints(e, e.draft, value);
         e.draft = value;
+        this.unsavedEdits = true; // saved by the timer below, or on pagehide if the tab closes first
         clearTimeout(timer);
         timer = setTimeout(() => { this.checkDraft(); this.persist(); }, 250);
       });
@@ -1462,12 +1464,13 @@
 
       // Another tab saving the same roster: the two would keep overwriting each other's work.
       window.addEventListener('storage', (ev) => {
-        if (ev.key !== STORAGE_KEY || this.otherTabWarned) return;
+        if ((ev.key !== STORAGE_KEY && ev.key !== MISSION_KEY) || this.otherTabWarned) return;
         this.otherTabWarned = true;
         this.flash('Battle Bots is open in another tab too. Both tabs save over each other, so close one of them to keep your work safe.', 10000);
       });
       // Save the very latest edits (the editor saves 250 ms after typing stops) when the page closes.
-      window.addEventListener('pagehide', () => this.persist());
+      // Only if this tab has typing not saved yet: an idle second tab must not overwrite newer work on close.
+      window.addEventListener('pagehide', () => { if (this.unsavedEdits) this.persist(); });
 
       // Drag & drop .asm files anywhere on the page.
       document.addEventListener('dragover', (ev) => { ev.preventDefault(); document.body.classList.add('dropping'); });

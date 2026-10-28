@@ -152,7 +152,14 @@ fs.writeFileSync(path.join(root, 'docs', 'LANGUAGE.md'), out.join('\n'));
 const crypto = require('crypto');
 const indexPath = path.join(root, 'index.html');
 const html = fs.readFileSync(indexPath, 'utf8').replace(/((?:src|href)=")((?:js|css)\/[\w/.-]+\.(?:js|css))(?:\?v=\w+)?"/g, (_, attr, file) => {
-  const hash = crypto.createHash('sha1').update(fs.readFileSync(path.join(root, file))).digest('hex').slice(0, 8);
+  const full = path.join(root, file);
+  if (!fs.existsSync(full)) {
+    console.error(`index.html links to ${file}, which doesn't exist. Fix the link or add the file, then build again.`);
+    process.exit(1);
+  }
+  // Hashed with LF line endings, as git stores them, so a Windows editor saving CRLF can't change the tag.
+  const content = fs.readFileSync(full, 'utf8').replace(/\r\n/g, '\n');
+  const hash = crypto.createHash('sha1').update(content).digest('hex').slice(0, 8);
   return `${attr}${file}?v=${hash}"`;
 });
 fs.writeFileSync(indexPath, html);

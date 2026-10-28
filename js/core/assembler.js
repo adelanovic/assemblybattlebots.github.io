@@ -141,11 +141,20 @@
   function assemble(source) {
     const errors = [];
     const warnings = [];
-    // Invisible characters make correct-looking code fail ("MOV​R0" is one word), so drop them and say so.
-    const lines = String(source).replace(/\r\n?/g, '\n').split('\n').map((line, i) => {
-      if (!INVISIBLE_RE.test(line)) return line;
+    // Invisible characters make correct-looking code fail ("MOV​R0" is one word). A zero-width space
+    // usually stands where a space should be, so it becomes one; joiners are dropped. The name line keeps
+    // them (they glue emoji like 👨‍👩‍👧 together), and a file-start marker (BOM, from Notepad) goes quietly.
+    const lines = String(source).replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n').map((line, i) => {
+      if (i === 0 || !INVISIBLE_RE.test(line)) return line;
       warnings.push({ line: i + 1, message: 'This line has an invisible character, copied from a document or web page. It was skipped when checking your code, so you can leave it there.' });
-      return line.replace(INVISIBLE_ALL_RE, '');
+      // Space or nothing? Whichever leaves a real instruction first: "MOV​R0, 5" needs the space, "MO​V R0, 5" doesn't.
+      const removed = line.replace(INVISIBLE_ALL_RE, '');
+      const spaced = line.replace(/[​⁠﻿]/g, ' ').replace(INVISIBLE_ALL_RE, '');
+      const startsWell = (l) => {
+        const word = stripComment(l).trim().replace(/^([A-Za-z_]\w*\s*:\s*)+/, '').split(/\s/)[0].toUpperCase();
+        return !!INSTRUCTION_MAP[word] || word.startsWith('.');
+      };
+      return startsWell(spaced) && !startsWell(removed) ? spaced : removed;
     });
     const appearance = Object.fromEntries(Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) => [key, spec.default]));
     const appearanceSeen = new Set();
@@ -256,7 +265,11 @@
           // "loop: .shape tank": a header line after a label is too late, not unknown.
           err(lineNo, `.${late} must appear in the appearance header below the name, before labels, constants or instructions.`);
         } else {
-          err(lineNo, `Unknown directive "${parts[0]}". Supported: .def NAME value; header presets .shape, .drive, .turret.`);
+          // ".colour red", ".sahpe tank": suggest the setting they meant, from the full list.
+          const settings = Object.keys(BB.ISA.APPEARANCE);
+          const near = [...settings, 'def'].map((k) => [k, levenshtein(late, k)]).sort((x, y) => x[1] - y[1])[0];
+          const hint = near[1] <= 2 && late.length >= 3 ? ` Did you mean .${near[0]}?` : '';
+          err(lineNo, `Unknown setting "${parts[0]}".${hint} Robots understand .def NAME value, and these looks: ${settings.map((k) => `.${k}`).join(', ')}.`);
         }
         continue;
       }
@@ -305,7 +318,13 @@
         off = v;
       }
       if (m[2]) {
-        if (resolveReg(m[3]) !== -1) { err(lineNo, `In [${inner}], the register comes first: write [${m[3]}${m[2]}${m[1]}].`); return null; }
+        if (resolveReg(m[3]) !== -1) {
+          // [R1+R2] can't work either way round; [5+R1] can be swapped; [5-R1] can't (it isn't [R1-5]).
+          if (first !== -1) err(lineNo, `[${inner}] uses two registers, but a memory slot can only use one, like [${m[1]}+4].`);
+          else if (m[2] === '+') err(lineNo, `In [${inner}], the register comes first: write [${m[3]}+${m[1]}].`);
+          else err(lineNo, `[${inner}] can't subtract a register. Work out the slot number in a register first, then use [Rx].`);
+          return null;
+        }
         const v = resolveValue(m[3], lineNo);
         if (v === undefined) { err(lineNo, `Offset "${m[3]}" must be a number or constant.`); return null; }
         if (v === null) return null;
@@ -405,7 +424,7 @@
     /** "Unknown instruction", with the hint that fits what was probably meant. */
     const unknownInstruction = (st) => {
       if (colonless(st)) return `"${st.word}" is used as a label, so it needs a colon at the end: write "${st.word}:".`;
-      if (/^(\/\/|\/\*|--)/.test(st.word)) return `"${st.word}" isn't a comment here. Comments start with ; or #, like "; ${st.text.replace(/^(\/\/|\/\*|--)\s*/, '')}".`;
+      if (/^(\/\/|\/\*|--)/.test(st.word)) return `"${st.word}" doesn't start a comment here. Comments start with ; or #, like "; ${st.text.replace(/^(\/\/|\/\*|--)\s*/, '')}".`;
       const base = `Unknown instruction "${quote(st.op)}".`;
       const assign = /^([+\-*/]?)=\s*(.*)$/.exec(st.argText.trim()); // "R0 = 5", "x += 1"
       if (assign) {
@@ -461,6 +480,11 @@
       const spec = INSTRUCTION_MAP[st.op];
       if (!spec) {
         err(st.line, unknownInstruction(st));
+        continue;
+      }
+      // "JMP main // back", "WAIT // done": a comment from another language, after any instruction.
+      if (st.argText.includes('//')) {
+        err(st.line, `"//" doesn't start a comment here. Comments start with ; or #, like "${st.text.replace(/\s*\/\/\s*/, ' ; ')}".`);
         continue;
       }
       // "MOV R0, #5" or "SPEED #5": the # starts a comment, so the 5 is cut off. Only when that # is

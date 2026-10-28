@@ -47,6 +47,7 @@
       this.mem = new Int32Array(MEMORY_SIZE);
       this.stack = [];
       this.isReturn = [];  // parallel to stack: true where CALL saved a return address
+      this.returnTakenAt = 0; // line of a POP that took CALL's return address, for RET's error message
       this.pc = 0;
       this.cmp = 0;
       this.halted = false;
@@ -62,7 +63,7 @@
     /** Source line of the instruction at `pc`, wrapping like run() does. */
     lineAt(pc) {
       if (!this.program.length) return 0;
-      // RET can leave any popped value in pc until the next cycle.
+      // pc can run past the end; run() wraps it to 0 before the next instruction.
       return this.program[pc >= this.program.length || pc < 0 ? 0 : pc].line;
     }
 
@@ -184,10 +185,14 @@
     }
 
     pop(what) {
-      if (!this.stack.length) throw new VMFault(`${what} with an empty stack.`);
+      // A POP that took CALL's return address is the real mistake when RET then goes wrong.
+      const taken = what === 'RET' && this.returnTakenAt
+        ? `The POP on line ${this.returnTakenAt} took the place to go back to, which CALL saved. Every POP needs a PUSH before it.` : '';
+      if (!this.stack.length) throw new VMFault(taken ? `RET has nowhere to go back to. ${taken}` : `${what} with an empty stack.`);
       // Without this, RET would quietly jump to whatever number PUSH saved.
       if (what === 'RET' && !this.isReturn[this.isReturn.length - 1]) {
-        throw new VMFault('RET found a value saved by PUSH, not the place to go back to. Every PUSH in a function needs a POP before RET.');
+        throw new VMFault(taken ? `RET found a value saved by PUSH, not the place to go back to. ${taken}`
+          : 'RET found a value saved by PUSH, not the place to go back to. Every PUSH in a function needs a POP before RET.');
       }
       this.isReturn.pop();
       return this.stack.pop();
@@ -200,7 +205,12 @@
       switch (ins.op) {
         case 'MOV': this.write(a[0], this.read(a[1])); break;
         case 'PUSH': this.push(this.read(a[0])); break;
-        case 'POP': this.write(a[0], this.pop('POP')); break;
+        case 'POP': {
+          const tookReturn = this.isReturn[this.isReturn.length - 1];
+          this.write(a[0], this.pop('POP'));
+          if (tookReturn) this.returnTakenAt = ins.line; // the RET that follows will crash: say why
+          break;
+        }
 
         case 'ADD': this.write(a[0], this.read(a[0]) + this.read(a[1])); break;
         case 'SUB': this.write(a[0], this.read(a[0]) - this.read(a[1])); break;
@@ -263,7 +273,7 @@
           if (JUMP_IF[ins.op](this.cmp)) this.pc = a[0].v;
           break;
         case 'CALL': this.push(this.pc, true); this.pc = a[0].v; break;
-        case 'RET': this.pc = this.pop('RET'); break;
+        case 'RET': this.pc = this.pop('RET'); this.returnTakenAt = 0; break;
         case 'NOP': break;
         case 'WAIT': return true;
         case 'HALT': this.halted = true; return true;

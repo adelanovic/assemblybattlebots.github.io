@@ -321,6 +321,7 @@
       this.root.style.setProperty('--lh', `${Math.round(px * 19 / 13)}px`);
       this.cw = null; // character width is measured again at the new size
       this.render();
+      this.renderMarks(); // the "next line" band and run counts are placed by line height
     }
 
     /** Scroll just enough to bring `n` into view, e.g. after a jump. */

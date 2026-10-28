@@ -147,7 +147,7 @@
         this.particles.push({ kind: 'flash', x, y, size: 34, life: 12, max: 12, color: '#ffe2a8' });
         this.particles.push({ kind: 'ring', x, y, size: 70, life: 22, max: 22, color: '#ffffff' });
         this.burst(x, y, 22, ['#ffb347', '#ff6a3d', '#fff1c1', e.color], 1.5, 5.5, 28, 2.6);
-        for (let i = 0; i < 8; i++) this.smoke(x, y, 1.6);
+        for (let i = 0; i < (this.calm ? 3 : 8); i++) this.smoke(x, y, 1.6); // calm: the burst stays, less lingering smoke
       }
     }
 
@@ -879,8 +879,9 @@
       ctx.restore();
       if (this.particles.length >= MAX_PARTICLES) return;
       for (const f of fires) {
-        if (Math.random() < 0.05) this.smoke(f.x, f.y - f.r * 0.4, 0.3);
-        if (Math.random() < 0.06) {
+        const k = this.calm ? 0.4 : 1; // calm: fewer embers and less smoke from burning trees
+        if (Math.random() < 0.05 * k) this.smoke(f.x, f.y - f.r * 0.4, 0.3);
+        if (Math.random() < 0.06 * k) {
           this.particles.push({
             kind: 'ember', x: f.x + (Math.random() - 0.5) * f.r, y: f.y - f.r * 0.3,
             vx: (Math.random() - 0.5) * 0.3, vy: -0.4 - Math.random() * 0.4,
@@ -957,27 +958,34 @@
     drawTracks(ctx, tick) {
       if (!this.tracks.length) return;
       this.tracks = this.tracks.filter((t) => tick - t.tick < TRACK_LIFE && tick >= t.tick);
+      // Batched for cheap laptops: segments with the same drive and a similar age share one path per
+      // stroke style (6 fade steps), about 30 strokes a frame instead of up to 4 per segment.
+      const STEPS = 6, groups = new Map();
+      for (const t of this.tracks) {
+        const step = Math.min(STEPS - 1, Math.floor((1 - (tick - t.tick) / TRACK_LIFE) * STEPS));
+        const key = `${t.drive}:${step}`;
+        if (!groups.has(key)) groups.set(key, { drive: t.drive, a: (step + 0.5) / STEPS, list: [] });
+        groups.get(key).list.push(t);
+      }
+      const stroke = (list, off, width, color) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        for (const t of list) {
+          const nx = -Math.sin(t.heading * DEG) * off, ny = Math.cos(t.heading * DEG) * off;
+          ctx.moveTo(t.x1 + nx, t.y1 + ny);
+          ctx.lineTo(t.x2 + nx, t.y2 + ny);
+        }
+        ctx.stroke();
+      };
       ctx.save();
       ctx.lineCap = 'round';
-      for (const t of this.tracks) {
-        const a = 1 - (tick - t.tick) / TRACK_LIFE;
-        const nx = -Math.sin(t.heading * DEG), ny = Math.cos(t.heading * DEG);
-        const line = (off, width, color) => {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = width;
-          ctx.beginPath();
-          ctx.moveTo(t.x1 + nx * off, t.y1 + ny * off);
-          ctx.lineTo(t.x2 + nx * off, t.y2 + ny * off);
-          ctx.stroke();
-        };
-        if (t.drive === 'hover') {
-          line(0, 22, 'rgba(30,22,14,' + (0.22 * a).toFixed(3) + ')');
-          continue;
-        }
-        const off = t.drive === 'wheels' ? 12 : 11, width = t.drive === 'wheels' ? 3.5 : 5;
+      for (const { drive, a, list } of groups.values()) {
+        if (drive === 'hover') { stroke(list, 0, 22, `rgba(30,22,14,${(0.22 * a).toFixed(3)})`); continue; }
+        const off = drive === 'wheels' ? 12 : 11, width = drive === 'wheels' ? 3.5 : 5;
         for (const side of [-1, 1]) {
-          line(side * off, width, 'rgba(22,15,9,' + (0.5 * a).toFixed(3) + ')');
-          line(side * off - 1.5, 1, 'rgba(130,105,70,' + (0.18 * a).toFixed(3) + ')'); // lit ridge
+          stroke(list, side * off, width, `rgba(22,15,9,${(0.5 * a).toFixed(3)})`);
+          stroke(list, side * off - 1.5, 1, `rgba(130,105,70,${(0.18 * a).toFixed(3)})`); // lit ridge
         }
       }
       ctx.restore();
@@ -1013,8 +1021,9 @@
 
     emitAmbientSmoke(world) {
       for (const r of world.robots) {
-        if (r.alive && r.health / C.MAX_HEALTH < 0.25 && Math.random() < 0.35) this.smoke(r.x, r.y);
-        else if (!r.alive && Math.random() < 0.08) this.smoke(r.x, r.y, 0.25);
+        const k = this.calm ? 0.4 : 1; // calm: thinner smoke from damaged robots and wrecks
+        if (r.alive && r.health / C.MAX_HEALTH < 0.25 && Math.random() < 0.35 * k) this.smoke(r.x, r.y);
+        else if (!r.alive && Math.random() < 0.08 * k) this.smoke(r.x, r.y, 0.25);
       }
     }
 

@@ -702,7 +702,7 @@ dodge_done:
           // Driving in circles covers the distance without exploring: count the areas visited too.
           return d < 600 ? { ok: false, text: `You only drove ${d} units. Stuck against something? Check FRONT and TURN before you reach it.` }
             : d < 1200 ? { ok: false, text: `No crashes, but you only drove ${d} units. Drive a little faster: the goal is 1200.` }
-            : areas < EXPLORE_AREAS ? { ok: false, text: `You drove ${d} units but only visited ${areas} of the 12 areas: going round in circles? Drive straight, and TURN only when FRONT says something is close.` }
+            : areas < EXPLORE_AREAS ? { ok: false, text: `You drove ${d} units but only visited ${areas} of the 12 areas: going round in circles, or back and forth? Drive straight, and when FRONT says something is close, turn to a new direction: TURN 90 explores more than TURN 180.` }
             : { ok: true, text: `${d} units and ${areas} areas explored without crashing!` };
         },
         starter: `Explorer

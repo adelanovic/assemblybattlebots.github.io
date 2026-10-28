@@ -85,7 +85,7 @@
     { op: 'JG', args: ['target'], group: 'Flow', summary: 'Jump if a > b.', example: 'JG far' },
     { op: 'JGE', args: ['target'], group: 'Flow', summary: 'Jump if a >= b.', example: 'JGE far' },
     { op: 'CALL', args: ['target'], group: 'Flow', summary: 'Push the return address and jump to a function (subroutine).', example: 'CALL dodge' },
-    { op: 'RET', args: [], group: 'Flow', summary: 'Return from a function (subroutine) by popping the return instruction index. An empty stack faults.', example: 'RET' },
+    { op: 'RET', args: [], group: 'Flow', summary: 'Return from a function (subroutine) by popping the return instruction index that CALL saved. It faults if the stack is empty, or if the top entry was saved by PUSH instead (a PUSH without its POP).', example: 'RET' },
     { op: 'NOP', args: [], group: 'Flow', summary: 'Do nothing (costs one cycle).', example: 'NOP' },
     { op: 'WAIT', args: [], group: 'Flow', summary: 'End this robot\'s turn for the current tick. Unused cycles are lost.', example: 'WAIT' },
     { op: 'HALT', args: [], group: 'Flow', summary: 'Stop the CPU until reset or program reload. The body continues following its last speed, heading and turret commands.', example: 'HALT' },

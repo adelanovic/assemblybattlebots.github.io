@@ -61,6 +61,28 @@ test('common beginner slips get a message that says what to type', () => {
   assert.match(msg('T\nMOV R0, [-4]'), /Memory slots go from \[0\] to \[255\], so \[-4\]/);
   assert.match(msg('T\nMOV R0, [4+R1]'), /the register comes first: write \[R1\+4\]/);
 });
+test('second-review messages: // anywhere, misspelled settings, two-register memory, RET after a stolen return', () => {
+  const msg = (src) => BB.assemble(src).errors.map((e) => e.message).join(' ');
+  assert.match(msg('T\nmain: NOP\nJMP main // back'), /"\/\/" doesn't start a comment here.*like "JMP main ; back"/);
+  assert.match(msg('T\nWAIT // done'), /like "WAIT ; done"/);
+  assert.deepStrictEqual(BB.assemble('T\nMOV R0, 5 ; a // b\nHALT').errors, [], '// inside a real comment is fine');
+  assert.match(msg('T\n.colour red\nWAIT'), /Unknown setting "\.colour"\. Did you mean \.color\?.*\.shot/);
+  assert.match(msg('T\nMOV R0, [R1+R2]'), /can only use one/);
+  assert.match(msg('T\nMOV R0, [5-R1]'), /can't subtract a register/);
+  assert.match(msg('T\nMOV R0, [5+R1]'), /write \[R1\+5\]/);
+  const crash = (src) => { const vm = new BB.VM(BB.assemble(src).program, { sense: () => 0 }); vm.run(100); return vm.fault; };
+  assert.match(crash('T\nPUSH 5\nCALL f\nHALT\nf: POP R1\nRET'), /The POP on line 5 took the place to go back to/);
+  assert.match(crash('T\nCALL f\nHALT\nf: POP R1\nRET'), /RET has nowhere to go back to\. The POP on line 4/);
+  assert.match(crash('T\nCALL f\nHALT\nf: PUSH R1\nRET'), /Every PUSH in a function needs a POP before RET/, 'the PUSH mistake keeps its own message');
+});
+test('invisible characters: a zero-width space can stand for a space, emoji names stay whole, a BOM is silent', () => {
+  for (const line of ['MOV​R0, 5', 'MO​V R0, 5', 'loop:​WAIT']) {
+    assert.deepStrictEqual(BB.assemble(`T\n${line}\nHALT`).errors, [], JSON.stringify(line));
+  }
+  const family = '\u{1F468}‍\u{1F469}‍\u{1F467} Fam';
+  assert.strictEqual(BB.assemble(`${family}\nHALT`).name, family);
+  assert.deepStrictEqual(BB.assemble('﻿Bot\nHALT').warnings, []);
+});
 test('invisible characters from pasted documents are skipped, with a warning', () => {
   const res = BB.assemble('T\nMOV R0,​ 5\nHALT');
   assert.deepStrictEqual(res.errors, []);
@@ -1955,6 +1977,19 @@ test('every decal, badge and trail draws with finite numbers, and trails only us
     for (let i = 0; i < 40; i++) renderer.drawProjectile(context, shell, true);
     return { particles: renderer.particles.length, casings: renderer.casings.length };
   };
+  // Mud tracks are batched: hundreds of segments still draw in a few dozen strokes.
+  {
+    let strokes = 0;
+    const counting = new Proxy({}, { get(target, key) {
+      if (key === 'stroke') return () => { strokes++; };
+      return () => {};
+    } });
+    renderer.tracks = Array.from({ length: 900 }, (_, i) => ({ x1: i % 800, y1: 300, x2: i % 800 + 3, y2: 300, heading: 0,
+      drive: ['tracks', 'wheels', 'hover'][i % 3], tick: 1000 - (i % 400) }));
+    renderer.drawTracks(counting, 1100);
+    assert.ok(renderer.tracks.length > 500 && strokes <= 6 * (4 + 4 + 1), `${strokes} strokes for ${renderer.tracks.length} segments`);
+    renderer.tracks = [];
+  }
   const loud = busyness(false), calm = busyness(true);
   renderer.calm = false;
   assert.strictEqual(calm.casings, 0, 'no ejected casing');

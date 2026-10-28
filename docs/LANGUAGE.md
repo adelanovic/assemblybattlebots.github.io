@@ -255,7 +255,7 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 | `JG target` | 1 | Jump if a > b. | `JG far` |
 | `JGE target` | 1 | Jump if a >= b. | `JGE far` |
 | `CALL target` | 1 | Push the return address and jump to a function (subroutine). | `CALL dodge` |
-| `RET` | 1 | Return from a function (subroutine) by popping the return instruction index. An empty stack faults. | `RET` |
+| `RET` | 1 | Return from a function (subroutine) by popping the return instruction index that CALL saved. It faults if the stack is empty, or if the top entry was saved by PUSH instead (a PUSH without its POP). | `RET` |
 | `NOP` | 1 | Do nothing (costs one cycle). | `NOP` |
 | `WAIT` | 1 | End this robot's turn for the current tick. Unused cycles are lost. | `WAIT` |
 | `HALT` | 1 | Stop the CPU until reset or program reload. The body continues following its last speed, heading and turret commands. | `HALT` |
