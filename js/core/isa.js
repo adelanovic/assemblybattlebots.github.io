@@ -143,7 +143,7 @@
     drive: { default: 'tracks', choices: ['tracks', 'wheels', 'hover'] },
     turret: { default: 'standard', choices: ['standard', 'short', 'twin'] },
     // auto = the game picks (by roster slot). The names match World.COLORS, in order.
-    color: { default: 'auto', choices: ['auto', 'red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'pink'] },
+    color: { default: 'auto', choices: ['auto', 'red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'pink', 'white', 'gray', 'lime', 'indigo', 'brown'] },
     decal: { default: 'none', choices: ['none', 'stripes', 'flames', 'lightning', 'spots', 'checker'] },
     // `numbers`: a number from 1 to this is accepted too (team numbers, jersey style).
     badge: { default: 'none', choices: ['none', 'star', 'bolt', 'heart', 'crown', 'paw', 'shield'], numbers: 99 },

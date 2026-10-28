@@ -2,6 +2,7 @@ Hunter
 .shape wedge
 .drive wheels
 .turret twin
+.color red
 .decal flames
 .badge paw
 .trail sparks

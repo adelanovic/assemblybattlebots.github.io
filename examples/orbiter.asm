@@ -2,6 +2,7 @@ Orbiter
 .shape tank
 .drive hover
 .turret standard
+.color purple
 .decal stripes
 .badge crown
 .trail bubbles

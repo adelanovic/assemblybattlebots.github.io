@@ -19,9 +19,13 @@
   const C = BB.CONFIG;
   const G = BB.geo;
 
-  const COLORS = ['#ff5c5c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#ff9f43', '#4dd0e1', '#f06292'];
+  // Robot colours. The first 8 are the `auto` slot colours; later ones extend them for big rosters.
+  // All stay readable on the dark arena (no black or navy) and distinct from each other.
+  const COLORS = ['#ff5c5c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#ff9f43', '#4dd0e1', '#f06292',
+    '#eceff1', '#90a4ae', '#aee03a', '#7986cb', '#bc8a5f'];
   // What `.color` calls each of COLORS (see APPEARANCE.color in isa.js).
-  const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'pink'];
+  const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange', 'cyan', 'pink',
+    'white', 'gray', 'lime', 'indigo', 'brown'];
   const colorName = (hex) => COLOR_NAMES[COLORS.indexOf(hex)] || 'a team color';
   // Team matches: warm colours for team A, cool for team B.
   const TEAM_NAMES = ['A', 'B'];

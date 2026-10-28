@@ -2,6 +2,7 @@ Stacker
 .shape hexagon
 .drive wheels
 .turret twin
+.color blue
 .decal checker
 .badge 64       ; the stack holds 64 entries
 .trail smoke

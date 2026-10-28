@@ -131,7 +131,7 @@ main:
 | `.shape` | `tank`, `circle`, `hexagon`, `wedge` | `tank` |
 | `.drive` | `tracks`, `wheels`, `hover` | `tracks` |
 | `.turret` | `standard`, `short`, `twin` | `standard` |
-| `.color` | `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink` | `auto` (by roster position) |
+| `.color` | `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink`, `white`, `gray`, `lime`, `indigo`, `brown` | `auto` (by roster position) |
 | `.decal` | `stripes`, `flames`, `lightning`, `spots`, `checker` | `none` |
 | `.badge` | `star`, `bolt`, `heart`, `crown`, `paw`, `shield`, or a number from 1 to 99 | `none` |
 | `.trail` | `smoke`, `sparks`, `bubbles`, `rainbow` | `none` |

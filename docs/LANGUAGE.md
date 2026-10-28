@@ -25,7 +25,7 @@ Choose up to seven cosmetic presets immediately below the name. Comments and bla
 | `.shape preset` | `tank`, `circle`, `hexagon`, `wedge` | `tank` |
 | `.drive preset` | `tracks`, `wheels`, `hover` | `tracks` |
 | `.turret preset` | `standard`, `short`, `twin` | `standard` |
-| `.color preset` | `auto`, `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink` | `auto` |
+| `.color preset` | `auto`, `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink`, `white`, `gray`, `lime`, `indigo`, `brown` | `auto` |
 | `.decal preset` | `none`, `stripes`, `flames`, `lightning`, `spots`, `checker` | `none` |
 | `.badge preset` | `none`, `star`, `bolt`, `heart`, `crown`, `paw`, `shield`, or a number from 1 to 99 | `none` |
 | `.trail preset` | `none`, `smoke`, `sparks`, `bubbles`, `rainbow` | `none` |
@@ -83,7 +83,7 @@ These add personality without changing anything about how the robot plays.
 
 | Directive | Presets | Appearance |
 |---|---|---|
-| `.color` | `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink` | The paint color of the robot. With `auto` (the default) the game picks by roster position. If two robots choose the same color, the first in the roster keeps it and the other gets the next free color; the match log says so. Robots on `auto` step aside for robots that chose. Team matches ignore it and keep team colors (warm for A, cool for B). |
+| `.color` | `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink`, `white`, `gray`, `lime`, `indigo`, `brown` | The paint color of the robot. With `auto` (the default) the game picks by roster position. If two robots choose the same color, the first in the roster keeps it and the other gets the next free color; the match log says so. Robots on `auto` step aside for robots that chose. Team matches ignore it and keep team colors (warm for A, cool for B). |
 | `.decal` | `stripes`, `flames`, `lightning`, `spots`, `checker` | A paint job on the hull, under the scratches and dents. `spots` sit in the same place every match (they follow the robot's name). |
 | `.badge` | `star`, `bolt`, `heart`, `crown`, `paw`, `shield`, or a number from 1 to 99 | A small round badge on the back of the hull, and next to the name above the robot, where it is easy to read during a match. Numbers suit teams: `.badge 7`. `07` means 7. |
 | `.trail` | `smoke`, `sparks`, `bubbles`, `rainbow` | Left behind the robot while it drives at speed 1 or more. Trails only use spare effect budget, so a busy fight may thin them out. |
@@ -129,13 +129,13 @@ Typing a change edits the draft; press Apply to use it (▶ Start and Step apply
 
 #### Built-in example combinations
 
-| Robot | Shape | Drive | Turret | Decal | Badge | Trail |
-|---|---|---|---|---|---|---|
-| Sentinel | `hexagon` | `tracks` | `standard` | `spots` | `shield` | `none` |
-| Hunter | `wedge` | `wheels` | `twin` | `flames` | `paw` | `sparks` |
-| Dodger | `circle` | `wheels` | `short` | `lightning` | `bolt` | `rainbow` |
-| Orbiter | `tank` | `hover` | `standard` | `stripes` | `crown` | `bubbles` |
-| Stacker | `hexagon` | `wheels` | `twin` | `checker` | `64` | `smoke` |
+| Robot | Shape | Drive | Turret | Color | Decal | Badge | Trail |
+|---|---|---|---|---|---|---|---|
+| Sentinel | `hexagon` | `tracks` | `standard` | `green` | `spots` | `shield` | `none` |
+| Hunter | `wedge` | `wheels` | `twin` | `red` | `flames` | `paw` | `sparks` |
+| Dodger | `circle` | `wheels` | `short` | `yellow` | `lightning` | `bolt` | `rainbow` |
+| Orbiter | `tank` | `hover` | `standard` | `purple` | `stripes` | `crown` | `bubbles` |
+| Stacker | `hexagon` | `wheels` | `twin` | `blue` | `checker` | `64` | `smoke` |
 
 #### Stack tutorial bot
 

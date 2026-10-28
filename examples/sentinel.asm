@@ -2,6 +2,7 @@ Sentinel
 .shape hexagon
 .drive tracks
 .turret standard
+.color green
 .decal spots
 .badge shield
 ; STRATEGY: turret sniper.

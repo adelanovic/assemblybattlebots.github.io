@@ -9,6 +9,7 @@
 .shape hexagon
 .drive tracks
 .turret standard
+.color green
 .decal spots
 .badge shield
 ; STRATEGY: turret sniper.
@@ -132,6 +133,7 @@ dodge_end:
 .shape wedge
 .drive wheels
 .turret twin
+.color red
 .decal flames
 .badge paw
 .trail sparks
@@ -189,6 +191,7 @@ search:
 .shape circle
 .drive wheels
 .turret short
+.color yellow
 .decal lightning
 .badge bolt
 .trail rainbow
@@ -278,6 +281,7 @@ dodge_go:
 .shape tank
 .drive hover
 .turret standard
+.color purple
 .decal stripes
 .badge crown
 .trail bubbles
@@ -367,6 +371,7 @@ walls_done:
 .shape hexagon
 .drive wheels
 .turret twin
+.color blue
 .decal checker
 .badge 64       ; the stack holds 64 entries
 .trail smoke
@@ -516,7 +521,8 @@ angle_error:
 .shape tank       ; tank, circle, hexagon, wedge
 .drive tracks     ; tracks, wheels, hover
 .turret standard  ; standard, short, twin
-.color auto       ; red, blue, yellow, green, purple, orange, cyan, pink
+.color auto       ; red, blue, yellow, green, purple, orange, cyan, pink,
+                  ; white, gray, lime, indigo, brown
 .decal none       ; stripes, flames, lightning, spots, checker
 .badge none       ; star, bolt, heart, crown, paw, shield, or 1 to 99
 .trail none       ; smoke, sparks, bubbles, rainbow

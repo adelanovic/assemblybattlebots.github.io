@@ -2,6 +2,7 @@ Dodger
 .shape circle
 .drive wheels
 .turret short
+.color yellow
 .decal lightning
 .badge bolt
 .trail rainbow
