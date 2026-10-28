@@ -47,7 +47,7 @@
    */
   const INSTRUCTIONS = [
     // ---- Data movement ----
-    { op: 'MOV', args: ['dst', 'src'], group: 'Data', summary: 'dst = src', example: 'MOV R0, [R1+2]' },
+    { op: 'MOV', args: ['dst', 'src'], group: 'Data', summary: 'dst = src', example: 'MOV R0, 5' },
     { op: 'PUSH', args: ['src'], group: 'Data', summary: 'Push value onto the stack shared with CALL/RET (max 64 entries). Overflow faults.', example: 'PUSH R3' },
     { op: 'POP', args: ['dst'], group: 'Data', summary: 'Pop the top of the stack into dst. An empty stack faults.', example: 'POP R3' },
 

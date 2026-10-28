@@ -297,11 +297,11 @@
       // Ticks simulated since the last frame: 0 while paused, so tick-based effects freeze.
       const ticks = this.lastTick === undefined ? 0 : Math.min(150, Math.max(0, world.tick - this.lastTick));
       this.lastTick = world.tick;
-      this.updateMud(world);
+      this.updateMud(world, ticks);
       if (ticks > 0) this.emitTrails(world, now);
       this.drawTracks(ctx, world.tick);
       if (world.mission && world.mission.zone) this.drawZone(ctx, world.mission.zone, now, world.mission.def.zoneLabel);
-      this.drawFires(ctx, now);
+      this.drawFires(ctx, now, ticks > 0);
       this.drawCasings(ctx, ticks);
       for (const r of world.robots) if (!r.alive) this.drawWreck(ctx, r);
       if (this.showScans) for (const r of world.robots) if (r.alive) this.drawScan(ctx, r, world.tick);
@@ -310,7 +310,7 @@
       for (const p of world.projectiles) this.drawFocusedProjectile(ctx, p, ticks > 0, this.bulletFocus(world, p, focusId));
       for (const r of world.robots) if (r.alive) this.drawRobot(ctx, r, r.entryId === selectedEntryId, now);
       this.drawFireLight(ctx, world, now);
-      this.emitAmbientSmoke(world);
+      if (ticks > 0) this.emitAmbientSmoke(world); // no new smoke while paused
       this.drawParticles(ctx);
       for (const r of world.robots) if (r.alive) this.drawLabel(ctx, r, now);
       if (world.mission) for (const l of world.mission.labels) this.drawNote(ctx, l.x, l.y, l.text);
@@ -783,18 +783,18 @@
       if (hp > 0) { roundRect(ctx, bx, by, w * hp, 4, 1.5); ctx.fill(); }
 
       let label = r.team === null ? r.name : `${BB.World.TEAM_NAMES[r.team]} · ${r.name}`;
-      if (r.vm.fault) label += Math.floor(now / 400) % 2 ? '  ⚠' : '   ';
+      if (r.vm.fault) label += ' (crashed)'; // words, not a symbol some laptops can't show
       else if (r.vm.halted) label += ' (halted)';
       ctx.font = '600 11px system-ui, sans-serif';
       ctx.textAlign = 'center';
       // The badge rides in front of the name, where it's big enough to read during a match.
       const badge = r.appearance && r.appearance.badge;
       const hasBadge = badge && badge !== 'none';
-      const tx = hasBadge ? r.x + 7 : r.x;
+      const tx = hasBadge ? r.x + 8 : r.x;
       if (hasBadge) {
         ctx.save();
-        ctx.translate(tx - ctx.measureText(label).width / 2 - 8, ty - 4);
-        this.drawBadge(ctx, badge, 6, r.color);
+        ctx.translate(tx - ctx.measureText(label).width / 2 - 9, ty - 4);
+        this.drawBadge(ctx, badge, 7, r.color);
         ctx.restore();
         ctx.font = '600 11px system-ui, sans-serif'; // drawBadge may have changed it for a number
         ctx.textAlign = 'center';
@@ -837,12 +837,17 @@
       if (!label) return;
       ctx.font = '11px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#6b7385';
+      // Greyer than a live robot's name, but outlined so it still reads on dark scorch marks.
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(10,12,18,0.85)';
+      ctx.strokeText(r.name, r.x, r.y - C.ROBOT_RADIUS - 8);
+      ctx.fillStyle = '#9aa3b5';
       ctx.fillText(r.name, r.x, r.y - C.ROBOT_RADIUS - 8);
     }
 
     /** Flickering flames on burning trees, with rising sparks and smoke. */
-    drawFires(ctx, now) {
+    drawFires(ctx, now, running = true) {
       const fires = (this.fires || []).concat(this.ignited);
       if (!fires.length) return;
       const t = now / 1000;
@@ -877,7 +882,7 @@
         }
       }
       ctx.restore();
-      if (this.particles.length >= MAX_PARTICLES) return;
+      if (!running || this.particles.length >= MAX_PARTICLES) return; // flames flicker, but no new embers while paused
       for (const f of fires) {
         const k = this.calm ? 0.4 : 1; // calm: fewer embers and less smoke from burning trees
         if (Math.random() < 0.05 * k) this.smoke(f.x, f.y - f.r * 0.4, 0.3);
@@ -892,13 +897,13 @@
     }
 
     /** Lay mud tracks and throw droplets for robots driving through mud. */
-    updateMud(world) {
+    updateMud(world, ticks = 1) {
       for (const r of world.robots) {
         const f = this.fx(r.id);
         // Capped so a respawn or teleport never counts as a huge move.
         const moved = f.px === undefined ? 0 : Math.min(6, Math.hypot(r.x - f.px, r.y - f.py));
         f.px = r.x; f.py = r.y;
-        f.mud = (f.mud || 0) * 0.9985;
+        f.mud = (f.mud || 0) * 0.9985 ** ticks; // fades with game time, so not while paused
         if (!r.alive || !world.inMud(r)) { f.trackX = undefined; continue; }
         f.mud = Math.min(1, f.mud + moved * 0.015);
         if (f.trackX === undefined) { f.trackX = r.x; f.trackY = r.y; }

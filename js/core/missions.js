@@ -819,7 +819,11 @@ search:
           me.vm.mem[1] = t.y;
         },
         check: (w, me) => {
-          if (!w.robots[1].alive) return { ok: true, text: 'Right on target, navigator!' };
+          if (!w.robots[1].alive) {
+            // Driving into it (ram damage) works in a real fight, but this mission is about aiming.
+            return me.stats.hits ? { ok: true, text: 'Right on target, navigator!' }
+              : { ok: false, text: 'You rammed it! That works in a real fight, but this mission is about aiming: hit it with a shot. Use AIM R4, then FIRE.' };
+          }
           if (me.stats.shots - me.stats.hits >= 8) return { ok: false, text: 'Eight misses. Is R4 set by ATAN2 before you AIM?' };
           return null;
         },

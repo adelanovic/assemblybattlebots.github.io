@@ -8,8 +8,9 @@ const BB = require('./load-core')();
 const args = process.argv.slice(2);
 const outAt = args.indexOf('--out');
 const outFile = outAt >= 0 ? args.splice(outAt, 2)[1] : null;
-if (outAt >= 0 && !outFile) {
-  console.error('--out needs a file path');
+// "--out 20" (a seed count where the path should be) would write a file called 20.
+if (outAt >= 0 && (!outFile || outFile.startsWith('-') || /^\d+$/.test(outFile))) {
+  console.error('--out needs a file path, e.g. --out docs/balance-results.json');
   process.exit(2);
 }
 const seeds = Number(args[0] || 20);

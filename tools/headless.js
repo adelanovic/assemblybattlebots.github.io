@@ -20,22 +20,32 @@ function positiveInteger(option, value, max = Number.MAX_SAFE_INTEGER) {
   }
   return Number(value);
 }
+const USAGE = 'usage: node tools/headless.js [--seed N] [--rounds N] [--arena classic|random|open] [--teams N] [-v] robot.asm ...';
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--seed') seed = positiveInteger('--seed', args[++i], 0xFFFFFFFF);
   else if (args[i] === '--rounds') rounds = positiveInteger('--rounds', args[++i]);
   else if (args[i] === '--arena') arena = args[++i];
   else if (args[i] === '--teams') teamSize = positiveInteger('--teams', args[++i]);
   else if (args[i] === '-v') verbose = true;
+  else if (args[i] === '--help' || args[i] === '-h') { console.log(USAGE); process.exit(0); }
+  else if (args[i].startsWith('-')) { console.error(`unknown option ${args[i]}
+${USAGE}`); process.exit(2); }
   else files.push(args[i]);
 }
 if (!files.length) {
-  console.error('usage: node tools/headless.js [--seed N] [--rounds N] [--arena classic|random|open] [--teams N] [-v] robot.asm ...');
+  console.error(USAGE);
   process.exit(2);
 }
 
 const entries = [];
 if (seed + rounds - 1 > 0xFFFFFFFF) {
   console.error('seed range must stay within 1..4294967295');
+  process.exit(2);
+}
+// Options are checked first, then the robot files.
+const missing = files.filter((f) => !fs.existsSync(f));
+if (missing.length) {
+  console.error(`can't find ${missing.join(', ')}`);
   process.exit(2);
 }
 let bad = false;

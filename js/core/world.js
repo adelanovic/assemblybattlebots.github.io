@@ -213,7 +213,6 @@
       this.endReason = null;   // why the match ended, e.g. 'last robot standing'
       this.nextProjectileId = 1;
 
-      const used = new Map();
       const teamCount = [0, 0];
       entries.forEach((entry, i) => {
         const t = entry.team;
@@ -224,11 +223,10 @@
         // Each robot draws RAND from its own stream, so one program's random
         // calls never change the values another program sees.
         r.rng = G.makeRng((seed ^ Math.imul(i + 1, 0x85EBCA6B)) >>> 0);
-        const n = (used.get(entry.name) || 0) + 1;
-        used.set(entry.name, n);
-        if (n > 1) r.name = `${entry.name} (${n})`;
+        r.yieldsColor = !!entry.yieldsColor; // an unedited example: students' .color picks come first
         r.vm = new BB.VM(entry.program, this.makeIO(r));
         this.robots.push(r);
+        this.renameRobot(r, entry.name); // "Bot (2)" for a repeat, and never a name another robot already has
       });
       this.teamMode = this.robots.some((r) => r.team !== null);
       this.winnerTeam = null;  // team matches: 0 / 1, or null for a draw
@@ -255,10 +253,12 @@
     assignColors() {
       const chosen = (r) => (r.appearance.color !== 'auto' ? COLORS[COLOR_NAMES.indexOf(r.appearance.color)] : null);
       if (this.teamMode) {
-        return this.robots.some(chosen) ? ['Team matches use team colors (warm for A, cool for B), so .color is ignored.'] : [];
+        const asked = this.robots.some((r) => chosen(r) && !r.yieldsColor);
+        return asked ? ['Team matches use team colors (warm for A, cool for B), so .color is ignored.'] : [];
       }
       const owner = new Map(); // colour -> robot
-      for (const r of this.robots) {
+      // Students' robots claim first, then unedited examples, each in roster order.
+      for (const r of [...this.robots.filter((o) => !o.yieldsColor), ...this.robots.filter((o) => o.yieldsColor)]) {
         const want = chosen(r);
         if (want && !owner.has(want)) { r.color = want; owner.set(want, r); }
       }
@@ -275,14 +275,24 @@
       return notes;
     }
 
-    /** After a mid-match Apply: switch to a newly chosen `.color` if no other robot has it. */
+    /**
+     * After a mid-match Apply: switch to a newly chosen `.color`. A robot that only had it by
+     * default (it didn't choose it) moves to a free colour; one that chose it keeps it.
+     */
     recolor(r) {
       if (r.team !== null || r.appearance.color === 'auto') return;
       const want = COLORS[COLOR_NAMES.indexOf(r.appearance.color)];
       if (want === r.color) return;
       const holder = this.robots.find((o) => o !== r && o.color === want);
-      if (holder) this.addLog(`${r.name} chose ${r.appearance.color}, but ${holder.name} already has it.`);
-      else r.color = want;
+      if (holder && holder.appearance.color === r.appearance.color) {
+        this.addLog(`${r.name} chose ${r.appearance.color}, but ${holder.name} chose it first.`);
+        return;
+      }
+      r.color = want;
+      if (holder) {
+        const free = COLORS.find((c) => !this.robots.some((o) => o.color === c));
+        if (free) { holder.color = free; this.addLog(`${r.name} is now ${r.appearance.color}, so ${holder.name} changed to ${colorName(free)}.`); }
+      }
     }
 
     /** True if `b` is an opponent of `a` (teammates never are). */

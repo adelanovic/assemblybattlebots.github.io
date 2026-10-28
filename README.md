@@ -35,7 +35,7 @@ node tools/balance.js 20 --out docs/balance-results.json  # compare arenas, bot 
 |---|---|
 | **▶ Start / ❚❚ Pause** (Space) | Run or pause the match. |
 | **⏭ Step** (`.`) | Advance exactly one tick. While paused, the CPU inspector and the yellow line marker in the editor show the next line the selected robot will execute. |
-| **↺ Reset** (`R`) | Respawn every robot with its *applied* code. The seed decides spawn points and `RAND`, so a seed always replays the same match. |
+| **↺ Reset** (`R`) | Respawn every robot with its *applied* code. The seed decides spawn points and `RAND`, so a seed always replays the same match. The `R` key asks first if the match has been running for more than 10 seconds. |
 | **Mode** | **Free-for-all**, **Teams 2v2** or **Teams 3v3**. In a team mode each robot card gets **A / B / Bench** buttons, and **⧉** duplicates a robot so you can field several copies. A team match only starts when both teams have exactly the right number of working robots. |
 | **Arena** | **Classic** is the fixed default layout, with four mud patches. **Random** generates a mirrored layout of obstacles and mud from the seed, so 🎲 gives a new map and the same seed always gives the same map. **Open** has no obstacles or mud, which is useful for testing aim and dodging. |
 | **Speed** | 0.1× to 60× (6 to 3600 ticks per second). |
@@ -112,7 +112,7 @@ Apply rejects drafts with syntax errors and keeps the robot's previously applied
 
 The roster, seed and arena choice are saved in your browser's `localStorage`. Keyboard shortcuts (Space, `.`, `R`) are ignored while you're typing in the editor or a form field.
 
-The arena shows each robot as a tank. The hull points where it's driving, and the turret turns separately. Damaged robots show scorch marks, and below 25% health they trail smoke. A blinking ⚠ marks a robot whose CPU crashed, and a dimmed robot has halted its program.
+The arena shows each robot as a tank. The hull points where it's driving, and the turret turns separately. Damaged robots show scorch marks, and below 25% health they trail smoke. "(crashed)" after a robot's name marks a CPU crash, and a dimmed robot has halted its program.
 
 ## Robot files
 

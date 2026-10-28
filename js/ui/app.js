@@ -308,6 +308,8 @@
           id: e.id, name: e.compiled.name, program: e.compiled.program,
           appearance: e.compiled.appearance,
           team: this.teamSize ? TEAMS.indexOf(e.team) : undefined,
+          // Unedited example robots let students' .color choices go first.
+          yieldsColor: BB.EXAMPLES.some((ex) => ex.source === e.source),
         })),
         seed,
         arena: $('#arena-type').value,
@@ -910,7 +912,10 @@
     }
 
     showTab(name) {
-      for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('active', b.dataset.tab === name);
+      for (const b of document.querySelectorAll('.tabs button')) {
+        b.classList.toggle('active', b.dataset.tab === name);
+        b.setAttribute('aria-selected', String(b.dataset.tab === name));
+      }
       for (const p of document.querySelectorAll('.tab-panel')) p.hidden = p.id !== `tab-${name}`;
     }
 
@@ -941,6 +946,7 @@
     showShortcuts(open) {
       $('#shortcuts').hidden = !open;
       if (open) $('#shortcuts-close').focus();
+      else $('#btn-help').focus(); // back where the keyboard user was
     }
 
     /**
@@ -1436,14 +1442,25 @@
       document.addEventListener('keydown', (ev) => {
         // A focused button handles Space/Enter natively, so the shortcuts would fire twice.
         const inField = /^(TEXTAREA|INPUT|SELECT|BUTTON|SUMMARY)$/.test(document.activeElement && document.activeElement.tagName);
+        // In an open dialog, Tab goes round its own buttons instead of wandering to the page behind it.
+        const trapTab = (dialog) => {
+          const items = [...dialog.querySelectorAll('button, [href], input, select, textarea')].filter((el) => !el.disabled);
+          if (ev.key !== 'Tab' || !items.length) return;
+          const first = items[0], last = items[items.length - 1];
+          const inside = dialog.contains(document.activeElement);
+          if (ev.shiftKey && (document.activeElement === first || !inside)) { ev.preventDefault(); last.focus(); }
+          else if (!ev.shiftKey && (document.activeElement === last || !inside)) { ev.preventDefault(); first.focus(); }
+        };
         // While the welcome card is open, Esc closes it ("look around first") and nothing else reacts.
         if (!$('#welcome').hidden) {
           if (ev.key === 'Escape') { ev.preventDefault(); this.lookAround(); }
+          trapTab($('#welcome'));
           return;
         }
         // While the shortcuts list is open, Esc or ? closes it and nothing else reacts.
         if (!$('#shortcuts').hidden) {
           if (ev.key === 'Escape' || isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(false); }
+          trapTab($('#shortcuts'));
           return;
         }
         if (!inField && isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(true); }
@@ -1453,7 +1470,11 @@
         else if (inField || ev.ctrlKey || ev.metaKey || ev.altKey) { /* not a shortcut */ }
         else if (ev.key === ' ') { ev.preventDefault(); this.toggleRun(); }
         else if (ev.key === '.') { this.stepOnce(); }
-        else if (ev.key.toLowerCase() === 'r') { this.resetMatch(); }
+        else if (ev.key.toLowerCase() === 'r') {
+          // A stray "r" shouldn't wipe a long match; the Reset button never asks.
+          const long = this.world && !this.world.over && this.world.tick > 600;
+          if (!long || confirm('Reset the match? It will start again from the beginning.')) this.resetMatch();
+        }
       });
 
       // Mouse clicks shouldn't leave buttons focused, so Space keeps meaning start/pause.

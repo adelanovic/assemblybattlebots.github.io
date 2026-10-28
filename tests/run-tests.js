@@ -453,6 +453,56 @@ test('.color: first come, first served; auto robots step aside; teams keep team 
   w.recolor(r0);
   assert.strictEqual(nameOf(r0), 'purple', 'red is B\'s');
 });
+test('third review: color priority, unique names, stealth, and colors past 13', () => {
+  const { COLORS, COLOR_NAMES } = BB.World;
+  const nameOf = (r) => COLOR_NAMES[COLORS.indexOf(r.color)];
+  const entry = (src, id, extra = {}) => ({ ...compile(src, id), ...extra });
+  // An unedited example gives way: a student's red wins even though Hunter comes first in the roster.
+  const hunter = BB.EXAMPLES.find((e) => e.file === 'hunter.asm').source;
+  const w = new BB.World({ entries: [entry(hunter, 0, { yieldsColor: true }), entry('Sparky\n.color red\nWAIT', 1)], arena: 'open' });
+  assert.deepStrictEqual(w.robots.map(nameOf), ['blue', 'red'], 'Hunter takes the next free color');
+  assert.ok(w.log.some((l) => /Hunter chose red, but Sparky already has it/.test(l.text)));
+  // Mid-match: a chosen color is taken from a robot that only had it by default.
+  const two = new BB.World({ entries: [entry('A\n.color red\nWAIT', 0), entry('B\n.color red\nWAIT', 1)], arena: 'open' });
+  const [a, b] = two.robots;
+  assert.deepStrictEqual([nameOf(a), nameOf(b)], ['red', 'blue']);
+  a.appearance = { ...a.appearance, color: 'blue' };
+  two.recolor(a);
+  assert.strictEqual(nameOf(a), 'blue');
+  assert.notStrictEqual(b.color, a.color, 'B moved to a free color');
+  // Names never repeat, even when the roster already has a "(2)".
+  const names = new BB.World({ entries: ['Bot', 'Bot', 'Bot (2)'].map((n, i) => entry(`${n}\nWAIT`, i)), arena: 'open' });
+  assert.strictEqual(new Set(names.robots.map((r) => r.name)).size, 3);
+  // Colors wrap only after all 13 are used.
+  const crowd = new BB.World({ entries: Array.from({ length: 14 }, (_, i) => entry(`R${i}\nWAIT`, i)), arena: 'open' });
+  assert.strictEqual(new Set(crowd.robots.slice(0, 13).map((r) => r.color)).size, 13);
+  assert.strictEqual(crowd.robots[13].color, crowd.robots[0].color);
+  // Stealth: SCAN can't see it, but it still counts as an enemy and bullets still hit it.
+  const st = placed([{ src: 'A\nl: WAIT\nJMP l', x: 200, y: 300 }, { x: 400, y: 300, health: 30 }]);
+  st.robots[1].stealth = true;
+  st.doScan(st.robots[0], 10);
+  assert.strictEqual(sensor(st, st.robots[0], 'SCAN_DIST'), -1, 'hidden from SCAN');
+  assert.strictEqual(sensor(st, st.robots[0], 'ENEMIES'), 1, 'still an enemy');
+  st.projectiles.push({ id: 1, owner: 0, color: '#fff', shot: 'shell', x: 380, y: 300, px: 370, py: 300, vx: 10, vy: 0 });
+  st.step();
+  assert.ok(st.robots[1].health < 30, 'a bullet still hits it');
+});
+test('third review: whole-number decimals, badge typos, and Coords needs a real shot', () => {
+  const msg = (src) => BB.assemble(src).errors.map((e) => e.message).join(' ');
+  assert.match(msg('T\nSPEED 2.0'), /write it without the dot: 2/);
+  assert.match(msg('T\nSPEED 5.'), /write it without the dot: 5/);
+  assert.match(msg('T\n.badge #7\nWAIT'), /Leave out the #.*write "\.badge 7"/);
+  assert.doesNotMatch(msg('T\n.badge 500\n.badge 5\nWAIT'), /already specified/, 'fixing a bad value on the next line is fine');
+  const coords = BB.MISSIONS.find((m) => m.id === 'coords');
+  const ram = coords.solution.replace('    AIM  R4\n    FIRE\n', '    HEAD R4\n    SPEED 5\n');
+  let rammed = null;
+  for (let seed = 1; seed <= 40 && !rammed; seed++) {
+    const w = BB.buildMission(coords, BB.assemble(ram), seed);
+    for (let t = 0; t <= coords.maxTicks && !w.over; t++) w.step();
+    if (!w.robots[1].alive) rammed = w.mission.result;
+  }
+  assert.ok(rammed && !rammed.ok && /rammed it/.test(rammed.text), 'destroying it by ramming does not pass');
+});
 test('driving into a wall costs floor(|speed| / 2) health and stops the robot', () => {
   const { ARENA_W: W, ROBOT_RADIUS: R, MAX_HEALTH } = BB.CONFIG;
   for (const [speed, lost] of [[5, 2], [3, 1], [1, 0]]) {
@@ -887,7 +937,10 @@ test('every asm example in the README and LANGUAGE.md assembles without errors o
 });
 const uiBB = { ...BB };
 // Capture the controller rather than booting the page and animation loop.
-scriptVm.runInNewContext(fs.readFileSync(path.join(__dirname, '../js/ui/app.js'), 'utf8').replace('BB.app = new App();', 'BB.App = App;'), {
+const appSource = fs.readFileSync(path.join(__dirname, '../js/ui/app.js'), 'utf8');
+// If app.js stops ending with this line, say so here instead of failing confusingly in every UI test.
+assert.ok(appSource.includes('BB.app = new App();'), 'tests: app.js no longer contains "BB.app = new App();", update the loader below');
+scriptVm.runInNewContext(appSource.replace('BB.app = new App();', 'BB.App = App;'), {
   BB: uiBB,
   window: { addEventListener(event, callback) { if (event === 'DOMContentLoaded') callback(); } },
   requestAnimationFrame() {},
@@ -1118,7 +1171,7 @@ test('every real VM crash gets a plain explanation, with its line', () => {
 });
 
 test('a crash ends a mission at once, naming the line', () => {
-  const def = BB.MISSIONS[0];
+  const def = BB.MISSIONS.find((m) => m.id === 'drive');
   const w = BB.buildMission(def, BB.assemble('Oops\nMOV R0, 5\nDIV R0, R1'));
   w.step();
   assert.ok(w.over);
@@ -1229,7 +1282,7 @@ test('an unfinished mission edit comes back as a draft and never empties the are
 
 test('failed mission attempts are counted, unlocking more help', () => {
   const app = uiHarness();
-  const def = BB.MISSIONS[0];
+  const def = BB.MISSIONS.find((m) => m.id === 'drive');
   app.mission = def;
   app.missionState = { done: [], code: {}, fails: {} };
   app.renderMissionBar = app.renderMissions = () => {};
@@ -1363,7 +1416,7 @@ test('Dodge accepts any turn-and-drive answer but not half of one', () => {
 
 test('a mission result is reported once and a pass is remembered', () => {
   const app = uiHarness();
-  const def = BB.MISSIONS[0];
+  const def = BB.MISSIONS.find((m) => m.id === 'drive');
   app.mission = def;
   app.missionState = { done: [], code: {} };
   app.renderMissionBar = app.renderMissions = () => {};
@@ -1408,7 +1461,7 @@ test('Step after the end says how to play again', () => {
   app.world.over = true;
   app.stepOnce();
   assert.match(app.message, /The match is over\. Press ▶ Rematch/);
-  app.mission = BB.MISSIONS[0];
+  app.mission = BB.MISSIONS.find((m) => m.id === 'drive');
   app.stepOnce();
   assert.match(app.message, /This attempt is over\. Press ▶ Try again/);
 });
@@ -1782,6 +1835,23 @@ test('playback pause/resume ignores suspended time and bounds stall catch-up', (
   assert.strictEqual(fast.world.tick, 260, 'stall backlog should be discarded');
 });
 
+test('CLI: --help, unknown options, missing files and a bad --out get clear messages', () => {
+  const { spawnSync } = require('child_process');
+  const run = (...args) => spawnSync(process.execPath, args, { cwd: path.join(__dirname, '..'), encoding: 'utf8', timeout: 5000 });
+  const help = run('tools/headless.js', '--help');
+  assert.strictEqual(help.status, 0);
+  assert.match(help.stdout, /usage: node tools\/headless\.js/);
+  const unknown = run('tools/headless.js', '--seeds', '5', 'a.asm');
+  assert.strictEqual(unknown.status, 2);
+  assert.match(unknown.stderr, /unknown option --seeds/);
+  const missing = run('tools/headless.js', 'no-such-robot.asm');
+  assert.strictEqual(missing.status, 2);
+  assert.match(missing.stderr, /can't find no-such-robot\.asm/);
+  assert.doesNotMatch(missing.stderr, /ENOENT/);
+  const badOut = run('tools/balance.js', '--out', '20');
+  assert.strictEqual(badOut.status, 2);
+  assert.match(badOut.stderr, /--out needs a file path/);
+});
 test('CLI rejects malformed and missing integer options before reading robot files', () => {
   const { spawnSync } = require('child_process');
   for (const option of ['--rounds', '--seed', '--teams']) {

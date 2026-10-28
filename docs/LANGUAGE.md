@@ -208,7 +208,7 @@ For memory operands, `Rx` means one of `R0`..`R7`. Offsets are numeric literals 
 
 | Instruction | Cycles | Description | Example |
 |---|---|---|---|
-| `MOV dst, src` | 1 | dst = src | `MOV R0, [R1+2]` |
+| `MOV dst, src` | 1 | dst = src | `MOV R0, 5` |
 | `PUSH src` | 1 | Push value onto the stack shared with CALL/RET (max 64 entries). Overflow faults. | `PUSH R3` |
 | `POP dst` | 1 | Pop the top of the stack into dst. An empty stack faults. | `POP R3` |
 

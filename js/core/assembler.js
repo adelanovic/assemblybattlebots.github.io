@@ -32,7 +32,7 @@
   // Wide punctuation from other keyboard layouts, and the plain key to type instead.
   const WIDE_PUNCT = { '\uFF1B': ';', '\uFF3B': '[', '\uFF3D': ']', '\uFF03': '#', '\uFF1A': ':' };
   const WIDE_PUNCT_RE = /[\uFF1B\uFF3B\uFF3D\uFF03\uFF1A]/;
-  const DECIMAL_RE = /^[+-]?\d*\.\d+$/;
+  const DECIMAL_RE = /^[+-]?(\d*\.\d+|\d+\.)$/; // 2.5, .5 and 5.
   const MAX_NAME = 24;
   const ORDINAL = ['first', 'second', 'third'];
 
@@ -124,6 +124,7 @@
   /** For "2.5": robots only use whole numbers, so suggest the two nearest. */
   function decimalMessage(raw) {
     const v = Number(raw);
+    if (Number.isInteger(v)) return `Robots only use whole numbers, and "${raw}" is one, so write it without the dot: ${v}.`;
     return `Robots only use whole numbers, so "${raw}" won't work. Try ${Math.floor(v)} or ${Math.ceil(v)} instead.`;
   }
 
@@ -223,8 +224,12 @@
         const orNumber = appearanceSpec.numbers ? `, or a number from 1 to ${appearanceSpec.numbers}` : '';
         if (!inHeader) err(lineNo, `.${key} must appear in the appearance header below the name, before labels, constants or instructions.`);
         else if (appearanceSeen.has(key)) err(lineNo, `.${key} is already specified.`);
-        else if (!BB.ISA.appearanceAllows(appearanceSpec, value)) err(lineNo, `.${key} expects one preset: ${appearanceSpec.choices.join(', ')}${orNumber}.`);
-        else appearance[key] = value;
+        else if (!BB.ISA.appearanceAllows(appearanceSpec, value)) {
+          // ".badge #7": the # started a comment, so the value went missing.
+          const hashHint = !value && /#\s*\w/.test(raw) ? ` Leave out the #: it starts a comment, so write ".${key} ${raw.split('#')[1].trim().split(/\s/)[0]}".` : '';
+          err(lineNo, `.${key} expects one preset: ${appearanceSpec.choices.join(', ')}${orNumber}.${hashHint}`);
+          continue; // not "seen": a corrected line below shouldn't say "already specified"
+        } else appearance[key] = value;
         appearanceSeen.add(key);
         continue;
       }
@@ -248,10 +253,10 @@
         if (dir === '.DEF' || dir === '.CONST' || dir === '.EQU') {
           if (text.includes(',')) { err(lineNo, `${parts[0]} doesn't use commas. Write "${text.replace(/\s*,\s*/g, ' ')}".`); continue; }
           if (DASH_RE.test(text)) { err(lineNo, dashMessage(text)); continue; }
-          if (parts.length !== 3) { err(lineNo, `${dir} expects a name and a value, e.g. ".def RANGE 200".`); continue; }
+          if (parts.length !== 3) { err(lineNo, `${parts[0]} expects a name and a value, e.g. ".def RANGE 200".`); continue; }
           const id = parts[1].toUpperCase();
           const v = parseNumber(parts[2].toUpperCase());
-          if (v === null) { err(lineNo, DECIMAL_RE.test(parts[2]) ? decimalMessage(parts[2]) : `${dir} value "${parts[2]}" is not a number.`); continue; }
+          if (v === null) { err(lineNo, DECIMAL_RE.test(parts[2]) ? decimalMessage(parts[2]) : `${parts[0]} value "${parts[2]}" is not a number.`); continue; }
           if (v > 2147483647 || v < -2147483648) {
             err(lineNo, `Number ${parts[2]} does not fit in 32 bits.`);
             continue;
