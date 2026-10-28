@@ -340,7 +340,7 @@
       const R = C.ROBOT_RADIUS;
       const f = this.fx(r.id);
       const hp = r.health / C.MAX_HEALTH;
-      const dim = r.vm.halted && !r.vm.fault;
+      const dim = (r.vm.halted && !r.vm.fault) || r.stealth; // stealth: hidden from SCAN
 
       if (selected) {
         ctx.save();

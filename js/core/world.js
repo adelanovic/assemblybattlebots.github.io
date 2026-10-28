@@ -406,7 +406,7 @@
       r.scanRange = range;
       let best = null, bestD = Infinity;
       for (const o of this.robots) {
-        if (!o.alive || !this.isEnemy(r, o)) continue;
+        if (!o.alive || o.stealth || !this.isEnemy(r, o)) continue; // stealth: a mission target SCAN can't see
         const d = Math.hypot(o.x - r.x, o.y - r.y);
         if (d > range) continue;
         const ang = G.angleTo(r.x, r.y, o.x, o.y);

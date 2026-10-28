@@ -983,13 +983,13 @@ test('every mission has a second hint, and following it literally passes', () =>
     aim: (s) => s.replace('AIM 0', 'AIM 315'),
     scan: (s) => replaceLine(s, (l) => l.includes('<- add the firing line'), ['    FIRE']),
     dodge: (s) => insertAfter(s, (l) => l.includes('DANGER!'), ['    TURN 90', '    SPEED 5']),
-    park: (s) => s.replace('CMP  R0, 0 ', 'CMP  R0, 500'),
+    park: (s) => replaceLine(s.replace('CMP  R0, 0 ', 'CMP  R0, 500'), (l) => l.includes('<- far enough?'), ['    JGE park']),
     sweep: (s) => replaceLine(s, (l) => l.includes('<- add 30 to R1'), ['    ADD R1, 30']),
     laps: (s) => replaceLine(s, (l) => l.includes('<- add a line that adds 1'), ['    INC R5']),
     call: (s) => replaceLine(s, (l) => l.includes('<- something is missing'), ['    RET']),
     boss: (s) => replaceLine(s, (l) => l.includes('<- add your two dodge lines'), ['    TURN 90', '    SPEED 5']),
     explore: (s) => insertAfter(insertAfter(s, (l) => code(l) === 'GET  R0, FRONT', ['    CMP R0, 80', '    JG clear', '    TURN 90']), (l) => l.includes('<- if R0 is less than 80'), ['clear:']),
-    follow: (s) => replaceLine(s, (l) => code(l) === 'SPEED 0', ['    CMP R1, 100', '    JG far', '    SPEED 0', '    JMP done', 'far:', '    SPEED 4', 'done:']),
+    follow: (s) => replaceLine(replaceLine(s, (l) => l.includes('<- IF: jump'), ['    JG far']), (l) => l.includes('<- skip the "far" part'), ['    JMP done']),
     coords: (s) => replaceLine(s, (l) => l.includes('<- turn dy and dx'), ['    ATAN2 R4, R3, R2']),
     lead: (s) => s.replace('.def LEAD 0 ', '.def LEAD 10'),
     graduate: (s) => replaceLine(replaceLine(s, (l) => l.includes('<- copy the lines from Mission 11'),
@@ -1134,14 +1134,24 @@ test('unit 3: sensible answers pass, mistakes get feedback that points the right
   }
   assert.match(play('explore', M('explore').starter).text, /Stuck against something\? Check FRONT/);
   assert.match(play('explore', ex.replace('SPEED 3', 'SPEED 2').replace('CMP  R0, 80', 'CMP  R0, 60')).text, /Drive a little faster/);
+  // Driving in circles covers the distance without using FRONT.
+  for (const [speed, turn] of [[5, 90], [3, 3]]) {
+    assert.match(play('explore', `E\nloop:\n    SPEED ${speed}\n    TURN ${turn}\n    WAIT\n    JMP loop`).text, /going round in circles/, `circle ${speed}/${turn}`);
+  }
 
   const fo = M('follow').solution;
   for (const d of [60, 100, 140]) assert.ok(play('follow', fo.replace('CMP  R1, 100', `CMP  R1, ${d}`)).ok, `follow at ${d}`);
-  assert.match(play('follow', M('follow').starter).text, /stayed close 0% of the time/);
+  assert.match(play('follow', M('follow').starter).text, /Is "JMP done" there/, 'no jumps: both speeds run');
+  assert.match(play('follow', fo.replace('    JMP  done\n', '')).text, /Is "JMP done" there/);
+  for (const sp of [2, 4]) assert.ok(!play('follow', fo.replace(/    CMP  R1, 100[\s\S]*?done:\n/, `    SPEED ${sp}\n`)).ok, `no IF / ELSE, always SPEED ${sp}`);
+  const parkNear = 'F\nmain:\n    GET  R0, X\n    CMP  R0, 480\n    JGE  p\n    SPEED 4\n    WAIT\n    JMP  main\np:\n    SPEED 0\n    WAIT\n    JMP  p';
+  assert.match(play('follow', parkNear).text, /stayed close \d+% of the time\. The goal is 85%/, 'parking in one spot');
 
+  const scanner = BB.MISSIONS.find((m) => m.id === 'scan').solution;
   for (let seed = 1; seed <= 10; seed++) {
     assert.ok(play('coords', M('coords').solution, seed).ok, `coords seed ${seed}`);
     assert.ok(!play('coords', M('coords').starter, seed).ok, `coords starter seed ${seed}`);
+    assert.ok(!play('coords', scanner, seed).ok, `coords: SCAN can't see the stealth target, seed ${seed}`);
   }
   assert.match(play('coords', M('coords').solution.replace('ATAN2 R4, R3, R2', 'ATAN2 R4, R2, R3')).text, /Eight misses/);
 

@@ -147,7 +147,7 @@ main:
     {
       id: 'scan',
       title: 'Find it with SCAN',
-      teaches: 'SCAN, CMP and jumps',
+      teaches: 'SCAN, and reading CMP and jumps',
       goal: 'This robot already spins its turret and finds the target with SCAN, but it never fires. Make it fire and destroy the target.',
       hint: 'Read the code from top to bottom. After it finds the target and aims at it, one instruction is missing: the one that fires. Turn on the CPU inspector and press Step to watch it look around.',
       start: { x: 180, y: 450, heading: 0 },
@@ -240,9 +240,9 @@ safe:
     {
       id: 'park',
       title: 'Park it',
-      teaches: 'registers, GET and CMP',
+      teaches: 'registers, GET, CMP and your first jump',
       goal: 'Drive right and stop inside the green zone, which goes from x = 480 to x = 600.',
-      hint: 'R0 is a box that holds your X position (how far right you are). The robot parks as soon as R0 is at least the number in the CMP line. Which number makes it stop inside the zone? The robot needs a few ticks to brake, so don\'t pick the very end of the zone.',
+      hint: 'R0 is a box that holds your X position (how far right you are). The robot parks as soon as R0 is at least the number in the CMP line. Which number makes it stop inside the zone? The robot needs a few ticks to brake, so don\'t pick the very end of the zone. Then add the jump: JGE park means "if R0 was greater than or equal, go to the park label".',
       start: { x: 120, y: 300, heading: 0 },
       zone: { x: 480, y: 220, w: 120, h: 160 },
       zoneLabel: 'x 480 to 600',
@@ -255,15 +255,17 @@ safe:
         if (inZone(me, w.mission.zone)) return { ok: true, text: 'Parked perfectly!' };
         return { ok: false, text: `You parked at x = ${Math.round(me.x)}. The zone goes from x = 480 to x = 600.` };
       },
-      timeUp: (w, me) => ({ ok: false, text: `Still moving at x = ${Math.round(me.x)}. Make the robot park inside the zone.` }),
+      timeUp: (w, me) => ({ ok: false, text: `Still moving at x = ${Math.round(me.x)}. Under the CMP line, add "JGE park" so the robot parks when R0 is big enough.` }),
       starter: `Parker
 ; Mission 6: stop inside the green zone (x = 480 to x = 600).
 ; A register is a box that holds one number. GET puts a sensor
 ; reading into a box: here, R0 holds how far right you are.
+; CMP compares two numbers, and a jump uses the answer:
+; JGE label means "if it was greater than or equal, go to label".
 main:
     GET  R0, X        ; R0 = my x position
     CMP  R0, 0        ; <- compare R0 with where you want to stop
-    JGE  park         ; far enough? go and park
+                      ; <- far enough? jump to park (use JGE)
     SPEED 3
     WAIT
     JMP  main
@@ -491,13 +493,13 @@ dodge_done:
     aim: 'Halfway between 270 and 360 is 315. Change "AIM 0" to "AIM 315".',
     scan: 'On the empty line right after "AIM R2", type FIRE.',
     dodge: 'Under the DANGER! comment, add two lines: "TURN 90" and then "SPEED 5".',
-    park: 'Change "CMP R0, 0" to "CMP R0, 500". The robot brakes a little after x = 500, still inside the zone.',
+    park: 'Change "CMP R0, 0" to "CMP R0, 500". On the empty line under it, type "JGE park". The robot brakes a little after x = 500, still inside the zone.',
     sweep: 'On the empty line right after FIRE, type "ADD R1, 30".',
     laps: 'On the empty line right after "TURN 6", type "INC R5".',
     call: 'On the very last line of fire_at, after its WAIT, type RET.',
     boss: 'Under "; <- add your two dodge lines", type "TURN 90" and then "SPEED 5", the same as Mission 5.',
     explore: 'After "GET R0, FRONT" add "CMP R0, 80", then "JG clear", then "TURN 90". Put the label "clear:" on its own line just before WAIT.',
-    follow: 'Replace "SPEED 0" with these lines: "CMP R1, 100", "JG far", "SPEED 0", "JMP done", "far:", "SPEED 4", "done:". Keep WAIT and JMP main after them.',
+    follow: 'On the empty line after "CMP R1, 100", type "JG far". On the empty line after "SPEED 0", type "JMP done".',
     coords: 'On the empty line just before "AIM R4", type exactly: ATAN2 R4, R3, R2',
     lead: 'Change ".def LEAD 0" to ".def LEAD 10". If it still misses, the message tells you which way to change it.',
     graduate: 'In move, above its RET, add: "SPEED 3", "GET R0, FRONT", "CMP R0, 80", "JG move_done", "TURN 90", "move_done:". For attack, copy the whole attack function from Mission 10 over the two-line stub.',
@@ -548,6 +550,7 @@ dodge_done:
       r.x = p.x; r.y = p.y;
       r.heading = r.targetHeading = r.turret = r.targetTurret = p.heading || 0;
       if (p.health) r.health = p.health;
+      if (p.stealth) r.stealth = true; // hidden from SCAN (see World.doScan)
     };
     place(world.robots[0], def.start);
     (def.dummies || []).forEach((d, i) => place(world.robots[i + 1], d));
@@ -565,6 +568,10 @@ dodge_done:
   /** Unit 3: sensors, math and science. Declared last; hoisted for MISSIONS above. */
   function makeUnit3() {
     const R = BB.CONFIG.ROBOT_RADIUS;
+    // Explore: the arena is split into 12 areas, 4 across and 3 down, each 200 x 200.
+    // Every FRONT-based explorer tried visits 5 or more; circling visits 1 or 2.
+    const EXPLORE_AREAS = 5;
+    const areaOf = (r) => Math.floor(r.x / 200) + 4 * Math.floor(r.y / 200);
     const BLOCKS = [
       { x: 360, y: 260, w: 80, h: 80 },
       { x: 150, y: 120, w: 140, h: 20 },
@@ -573,12 +580,15 @@ dodge_done:
       { x: 170, y: 400, w: 20, h: 120 },
     ];
 
+    // A wide circle (radius about 170) round the middle, so parking in one spot can't keep up.
     const LEADER = `Leader
 .shape wedge
 .drive wheels
 loop:
     SPEED 2
     TURN 2
+    WAIT
+    WAIT
     WAIT
     JMP loop`;
 
@@ -673,27 +683,31 @@ dodge_done:
         id: 'explore',
         title: 'Don\'t crash',
         teaches: 'sensor loops with FRONT',
-        goal: 'Explore for 600 ticks and drive at least 1200 units without crashing (two gentle bumps are allowed).',
+        goal: `Explore for 600 ticks: drive at least 1200 units and visit at least ${EXPLORE_AREAS} of the arena's 12 areas, without crashing (two gentle bumps are allowed).`,
         hint: 'FRONT is a sensor that tells you how far you can drive before you hit something. Every tick, compare it with a safe distance like 80. If it is smaller, TURN 90. Lots of real robots explore this way!',
         start: { x: 90, y: 300, heading: 0 },
         obstacles: [BLOCKS[0]],
         maxTicks: 600,
         check: (w, me) => {
           const s = w.mission.state;
-          if (s.x !== undefined) s.dist += Math.hypot(me.x - s.x, me.y - s.y); else { s.dist = 0; s.bumps = 0; s.hp = me.health; }
+          if (s.x !== undefined) s.dist += Math.hypot(me.x - s.x, me.y - s.y); else { s.dist = 0; s.bumps = 0; s.hp = me.health; s.areas = new Set(); }
           s.x = me.x; s.y = me.y;
+          s.areas.add(areaOf(me));
           if (me.health < s.hp) { s.bumps++; s.hp = me.health; }
           if (s.bumps > 2) return { ok: false, text: 'Three crashes! Check FRONT every tick and turn before you get too close.' };
           return null;
         },
         timeUp: (w) => {
-          const d = Math.round(w.mission.state.dist);
-          return d >= 1200 ? { ok: true, text: `${d} units explored without crashing!` }
-            : d < 600 ? { ok: false, text: `You only drove ${d} units. Stuck against something? Check FRONT and TURN before you reach it.` }
-            : { ok: false, text: `No crashes, but you only drove ${d} units. Drive a little faster: the goal is 1200.` };
+          const d = Math.round(w.mission.state.dist), areas = w.mission.state.areas.size;
+          // Driving in circles covers the distance without exploring: count the areas visited too.
+          return d < 600 ? { ok: false, text: `You only drove ${d} units. Stuck against something? Check FRONT and TURN before you reach it.` }
+            : d < 1200 ? { ok: false, text: `No crashes, but you only drove ${d} units. Drive a little faster: the goal is 1200.` }
+            : areas < EXPLORE_AREAS ? { ok: false, text: `You drove ${d} units but only visited ${areas} of the 12 areas: going round in circles? Drive straight, and TURN only when FRONT says something is close.` }
+            : { ok: true, text: `${d} units and ${areas} areas explored without crashing!` };
         },
         starter: `Explorer
-; Mission 11: explore for 600 ticks and drive 1200 units without crashing.
+; Mission 11: explore for 600 ticks and drive 1200 units without crashing,
+; visiting at least 5 of the arena's 12 areas (no going round in circles!).
 ; FRONT is a sensor: how far you can drive before you hit something.
 main:
     SPEED 3
@@ -709,9 +723,9 @@ main:
         title: 'Follow the leader',
         teaches: 'IF / ELSE: choosing between two actions',
         goal: 'Stay within 150 units of the Leader for most of the mission, without bumping into it.',
-        hint: 'An IF / ELSE picks one of two actions. Compare the distance (R1) with 100. If it is bigger, jump to a label that sets SPEED 4. Otherwise carry on to SPEED 0, then JMP past the other branch so only one of them runs.',
+        hint: 'An IF / ELSE picks one of two actions. After "CMP R1, 100", jump to "far" if R1 is bigger (JG far). If it doesn\'t jump, the robot carries on to SPEED 0. Then it must JMP past the "far" part to "done", or both actions would run.',
         start: { x: 200, y: 300, heading: 0 },
-        dummies: [{ source: LEADER, x: 450, y: 300, heading: 270 }],
+        dummies: [{ source: LEADER, x: 400, y: 472, heading: 180 }],
         maxTicks: 600,
         check: (w, me) => {
           const s = w.mission.state, leader = w.robots[1];
@@ -719,7 +733,7 @@ main:
             s.counted = (s.counted || 0) + 1;
             if (Math.hypot(leader.x - me.x, leader.y - me.y) <= 150) s.close = (s.close || 0) + 1;
           }
-          if (me.health < 85 || leader.health < 85) return { ok: false, text: 'Too many bumps! Slow right down when you are close to the Leader.' };
+          if (me.health < 85 || leader.health < 85) return { ok: false, text: 'Too many bumps! Slow right down when you are close to the Leader. Is "JMP done" there, so SPEED 4 is skipped when you are close?' };
           return null;
         },
         timeUp: (w) => {
@@ -739,7 +753,13 @@ main:
     AIM  R2              ; and keep the turret on it
     ; IF R1 is more than 100 (far away), drive: SPEED 4
     ; ELSE (close), wait for it: SPEED 0
-    SPEED 0              ; <- replace this line with your IF / ELSE
+    CMP  R1, 100
+                         ; <- IF: jump to "far" when R1 is bigger (JG)
+    SPEED 0              ; ELSE: close, so wait for the Leader
+                         ; <- skip the "far" part: jump to "done"
+far:
+    SPEED 4              ; far away: drive to catch up
+done:
     WAIT
     JMP  main
 search:
@@ -778,10 +798,10 @@ search:
         id: 'coords',
         title: 'Mission control',
         teaches: 'coordinates, memory and ATAN2',
-        goal: 'Mission control has sent the target\'s position. Work out the angle to it and destroy it. It is somewhere new every attempt!',
+        goal: 'Mission control has sent the target\'s position. The target has a stealth shield, so SCAN can\'t see it: work out the angle to it and destroy it. It is somewhere new every attempt!',
         hint: 'Your position is (X, Y) and the target\'s is in memory: [0] is its x and [1] is its y. Subtract to get dx and dy, how far right and how far down the target is. ATAN2 R4, R3, R2 turns dy (R3) and dx (R2) into an angle in R4.',
         start: { x: 150, y: 300, heading: 0 },
-        dummies: [{ source: dummy('Target'), x: 600, y: 150, heading: 180, health: 30 }],
+        dummies: [{ source: dummy('Target'), x: 600, y: 150, heading: 180, health: 30, stealth: true }], // so SCAN can't replace ATAN2
         maxTicks: 600,
         setup: (w, rng) => {
           // Anywhere on the right, but never straight ahead, where AIM 0 would hit by luck.
@@ -808,7 +828,8 @@ search:
         starter: `Navigator
 ; Mission 13: mission control sent the target's position:
 ;   memory [0] holds its x, memory [1] holds its y.
-; Work out the angle from you to the target, then fire.
+; It has a stealth shield, so SCAN can't see it. Work out the
+; angle from you to the target with maths, then fire.
 main:
     GET  R0, X         ; my x
     GET  R1, Y         ; my y
@@ -816,7 +837,7 @@ main:
     SUB  R2, R0        ; R2 = dx: how far right the target is
     MOV  R3, [1]       ; R3 = target y
     SUB  R3, R1        ; R3 = dy: how far down the target is
-                       ; <- turn dy and dx into an angle: ATAN2 R4, R3, R2
+                       ; <- turn dy and dx into an angle in R4 (look up ATAN2 in Reference)
     AIM  R4            ; point the turret at the angle in R4
     FIRE
     WAIT

@@ -75,12 +75,12 @@ The **🎯 Missions** tab has fifteen short challenges in three units. Each one 
 1. **Full speed ahead** (`SPEED`): drive into the goal zone.
 2. **Which way is up?** (`HEAD` and angles): face up and reach the goal.
 3. **Hit the target** (`AIM`, `FIRE`): work out the angle to a target.
-4. **Find it with SCAN** (`SCAN`, `CMP`, jumps): add the missing shot to a scanning robot.
+4. **Find it with SCAN** (`SCAN`, reading `CMP` and jumps): add the missing shot to a scanning robot.
 5. **Dodge!** (`RADAR`): survive a turret for 600 ticks with at least 50 health.
 
 **Unit 2: Registers, loops and functions** (each mission builds on the one before)
 
-6. **Park it** (registers, `GET`, `CMP`): stop inside a zone by comparing your X position in a register.
+6. **Park it** (registers, `GET`, `CMP`, first jump): stop inside a zone by comparing your X position in a register, writing the `JGE` yourself.
 7. **Three in a row** (changing a register in a loop): add 30 to the aim angle after each shot. More than 6 shots for the 3 targets fails, so aiming matters.
 8. **Three laps** (counting with `INC`): count ticks in a register and stop after exactly 3 laps.
 9. **Come back!** (`CALL` and `RET`): one "fire_at" function for two targets, missing its `RET`.
@@ -88,9 +88,9 @@ The **🎯 Missions** tab has fifteen short challenges in three units. Each one 
 
 **Unit 3: Sensors, math and science** (real-world STEM ideas)
 
-11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles.
-12. **Follow the leader** (IF / ELSE): drive when far, wait when close. The same feedback idea as cruise control.
-13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt, so the math has to be right, not memorized.
+11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles. The robot must visit 5 of the arena's 12 areas, so driving in circles doesn't count.
+12. **Follow the leader** (IF / ELSE): drive when far, wait when close. The same feedback idea as cruise control. The IF / ELSE shape is given; students add its two jumps. The Leader circles the arena, so parking in one spot fails.
+13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt and has a stealth shield SCAN can't see, so the math has to be right, not memorized.
 14. **Lead the target** (experimenting): hit a moving target by aiming ahead. The mission reports whether misses passed in front or behind, so students adjust `LEAD` like a real experiment (8 to 14 all work).
 15. **Graduation match** (putting it all together): build a robot from earlier functions and beat Rival. Optional extra: add the dodge and test whether it helps (it doesn't always!).
 
