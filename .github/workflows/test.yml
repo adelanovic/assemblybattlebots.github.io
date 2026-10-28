@@ -2,14 +2,18 @@ name: Tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [18, 20, 22]
+        node: [20, 22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,4 +21,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm test
       # Generated files must match their sources (examples/*.asm, docs/LANGUAGE.md).
-      - run: npm run build && git diff --exit-code
+      # status --porcelain also catches newly generated files that were never committed.
+      - run: |
+          npm run build
+          git status --porcelain
+          test -z "$(git status --porcelain)"

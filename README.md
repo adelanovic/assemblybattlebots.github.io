@@ -26,7 +26,7 @@ node tools/headless.js --seed 7 my_bot.asm examples/hunter.asm
 node tools/headless.js --rounds 50 --arena random my_bot.asm examples/*.asm   # test across 50 random maps
 node tools/headless.js --teams 2 a.asm b.asm c.asm d.asm   # 2v2: first two files are team A, the rest team B
 npm run build         # regenerate examples/*.asm and docs/LANGUAGE.md from the JS sources
-node tools/balance.js 20 > docs/balance-results.json  # compare arenas, bot constants and rules
+node tools/balance.js 20 --out docs/balance-results.json  # compare arenas, bot constants, rules and 1v1 duels
 ```
 
 ## Using the sandbox

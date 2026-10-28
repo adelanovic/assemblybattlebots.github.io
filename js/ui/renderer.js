@@ -48,7 +48,8 @@
      * arena stays sharp at any size; drawing still uses arena units.
      */
     resize(cssWidth = C.ARENA_W) {
-      const dpr = window.devicePixelRatio || 1;
+      // Capped: sharper than 1.5x isn't visible at arena sizes, and costs a lot on cheap laptops.
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       const cssHeight = cssWidth * C.ARENA_H / C.ARENA_W;
       this.canvas.style.width = `${cssWidth}px`;
       this.canvas.style.height = `${cssHeight}px`;

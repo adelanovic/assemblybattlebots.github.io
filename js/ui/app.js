@@ -75,6 +75,27 @@
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+  /**
+   * A dropdown that does something when an option is chosen ("+ Add example…").
+   * Chrome fires `change` for every arrow key on a closed dropdown, so keyboard
+   * users would add a robot per keypress: arrows only browse, Enter does it.
+   */
+  function actionSelect(sel, run) {
+    let browsing = false;
+    sel.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        if (sel.value) { ev.preventDefault(); browsing = false; run(); }
+      } else if (ev.key === ' ' || ev.key === 'F4' || ev.altKey) {
+        browsing = false; // opens the list: choosing from it counts
+      } else if (ev.key !== 'Tab') {
+        browsing = true;
+      }
+    });
+    sel.addEventListener('pointerdown', () => { browsing = false; });
+    sel.addEventListener('change', () => { if (!browsing) run(); });
+    sel.addEventListener('blur', () => { if (browsing) { browsing = false; sel.value = ''; } });
+  }
+
   class App {
     constructor() {
       this.entries = [];
@@ -87,6 +108,7 @@
       this.selectedId = null;
       this.mode = 'ffa';
       this.lastPanelUpdate = 0;
+      this.lastDrawTime = 0;     // paused frames are drawn less often (see frameBody)
       this.renderedLogKey = null;
       this.showCounts = false;  // editor shows how often each line ran
       this.simple = true;       // Simple view: plain-language help, smaller inspector
@@ -403,6 +425,21 @@
     }
 
     frame(now = performance.now()) {
+      // Ask for the next frame first, so one error can't freeze the arena for good.
+      requestAnimationFrame((timestamp) => this.frame(timestamp));
+      try {
+        this.frameBody(now);
+      } catch (err) {
+        this.running = false;
+        if (!this.frameErrorShown) {
+          this.frameErrorShown = true;
+          console.error(err);
+          this.flash('Something went wrong in the game, so the match was paused. Press Reset to start again.', 8000);
+        }
+      }
+    }
+
+    frameBody(now) {
       const elapsed = this.lastFrameTime === null ? 0 : Math.max(0, Math.min(now - this.lastFrameTime, 100));
       this.lastFrameTime = now;
       if (this.running && this.world && !this.world.over) {
@@ -418,12 +455,14 @@
         if (this.world.over) this.running = false;
         this.checkMissionResult();
       }
-      if (this.world) {
+      // While paused, little moves (explosions fading, the selection ring), so 15 frames
+      // a second is plenty and saves battery on school laptops.
+      if (this.world && (this.running || now - this.lastDrawTime >= 66)) {
+        this.lastDrawTime = now;
         this.renderer.addEvents(this.world.drainEvents());
         this.renderer.draw(this.world, this.selectedId, { paused: !this.running });
       }
       if (performance.now() - this.lastPanelUpdate > 100) this.updatePanels(false);
-      requestAnimationFrame((timestamp) => this.frame(timestamp));
     }
 
     /** Keep the canvas as large as its container allows, at 4:3. */
@@ -432,8 +471,10 @@
       const fit = () => {
         const w = wrap.clientWidth, h = wrap.clientHeight;
         const cssW = Math.max(200, Math.floor(Math.min(w, h * C.ARENA_W / C.ARENA_H)));
-        if (cssW !== this.arenaCssWidth) {
+        // Moving the window to a screen with a different pixel density fires resize too.
+        if (cssW !== this.arenaCssWidth || devicePixelRatio !== this.arenaDpr) {
           this.arenaCssWidth = cssW;
+          this.arenaDpr = devicePixelRatio;
           this.renderer.resize(cssW);
         }
       };
@@ -574,7 +615,8 @@
       }
       else if (this.running) status = 'Running';
       else if (w && w.tick === 0) status = w.robots.length ? 'Ready' : 'No robots';
-      $('#status').textContent = status;
+      // Only on change: it's a live region, so screen readers announce each new text.
+      if ($('#status').textContent !== status) $('#status').textContent = status;
       this.updateRosterLive();
       this.updateDebug();
       this.updateLog(force);
@@ -729,9 +771,12 @@
       const key = log.length ? `${log.length}:${log[log.length - 1].tick}:${log[log.length - 1].text}` : '';
       if (!force && key === this.renderedLogKey) return;
       this.renderedLogKey = key;
-      const box = $('#log');
-      box.innerHTML = log.map((l) => `<li class="${l.kind}"><span class="t">${l.tick}</span>${esc(l.text)}</li>`).join('');
-      box.scrollTop = box.scrollHeight;
+      // The panel around the list scrolls. Follow new lines only if the reader is already at
+      // the bottom, so scrolling up to read earlier events isn't interrupted.
+      const panel = $('#tab-log');
+      const atBottom = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 30;
+      $('#log').innerHTML = log.map((l) => `<li class="${l.kind}"><span class="t">${l.tick}</span>${esc(l.text)}</li>`).join('');
+      if (atBottom) panel.scrollTop = panel.scrollHeight;
     }
 
     /**
@@ -1084,7 +1129,13 @@
         // Both versions: the last applied code (what the arena runs) and the editor text.
         if (this.missionEntry) this.missionState.code[this.mission.id] = { source: this.missionEntry.source, draft: this.missionEntry.draft };
         localStorage.setItem(MISSION_KEY, JSON.stringify(this.missionState));
-      } catch (_) { /* storage unavailable: nothing to do */ }
+      } catch (_) {
+        // Private window, storage turned off or full: say so once, so nobody loses work by surprise.
+        if (!this.saveWarned) {
+          this.saveWarned = true;
+          this.flash('Your work isn\'t being saved in this browser (private window, or storage is full). Use 💾 Save .asm to keep a copy.', 8000);
+        }
+      }
     }
 
     restore() {
@@ -1174,7 +1225,7 @@
       const insert = $('#insert-select');
       insert.innerHTML = '<option value="">➕ Insert code…</option>' +
         BB.SNIPPETS.map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join('');
-      insert.onchange = () => {
+      actionSelect(insert, () => {
         const s = BB.SNIPPETS.find((x) => x.id === insert.value);
         insert.value = '';
         if (!s || !this.selected) return;
@@ -1185,7 +1236,7 @@
         const dead = BB.assist.deadAfter(this.editor.value, this.editor.value.slice(0, at.from).split('\n').length - 1);
         if (dead) this.flash(`Heads up: this landed right after "${dead}", so it will never run. Press Ctrl+Z, click where it should go (inside your loop), and insert it again.`, 8000);
         else this.flash(`Inserted "${s.title}". Read its comments, then change it to suit your robot.`);
-      };
+      });
 
       // Shortcuts list: the ? button or key; Close, Esc or a click outside the card closes it.
       $('#btn-help').onclick = () => this.showShortcuts(true);
@@ -1223,14 +1274,14 @@
       const exSel = $('#example-select');
       exSel.innerHTML = '<option value="">+ Add example…</option>' +
         BB.EXAMPLES.map((ex, i) => `<option value="${i}">${esc(BB.assemble(ex.source).name)}: ${esc(ex.blurb)}</option>`).join('');
-      exSel.onchange = () => {
+      actionSelect(exSel, () => {
         const ex = BB.EXAMPLES[Number(exSel.value)];
         exSel.value = '';
         if (!ex) return;
         this.addEntry(ex.file, ex.source);
         this.persist();
         this.resetMatch();
-      };
+      });
 
       $('#roster').addEventListener('click', (ev) => {
         const card = ev.target.closest('.card');

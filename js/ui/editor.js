@@ -50,7 +50,7 @@
           <div class="ce-marks"></div>
           <pre class="ce-hl" aria-hidden="true"></pre>
           <div class="ce-marks ce-cover"></div>
-          <textarea class="ce-input" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
+          <textarea class="ce-input" aria-label="Robot code" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea>
         </div>`;
       this.gutter = root.querySelector('.ce-gutter');
       this.gutterLines = root.querySelector('.ce-gutter-lines');

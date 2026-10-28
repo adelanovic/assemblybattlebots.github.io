@@ -42,7 +42,31 @@ test('unknown instruction suggests a fix, with correct line number', () => {
   assert.match(e[0].message, /Did you mean MOV/);
 });
 test('wrong operand count', () => {
-  assert.match(errorsOf('Bot\nADD R0')[0].message, /takes 2 operands/);
+  assert.match(errorsOf('Bot\nADD R0')[0].message, /ADD needs 2 values, like "ADD R0, 5", but this line gives 1/);
+  assert.match(errorsOf('Bot\nFIRE R0')[0].message, /FIRE doesn't take any values/);
+});
+test('common beginner slips get a message that says what to type', () => {
+  const msg = (src) => BB.assemble(src).errors.map((e) => e.message).join(' ');
+  assert.match(msg('T\nSPEED 2.5'), /whole numbers, so "2\.5" won't work\. Try 2 or 3/);
+  assert.match(msg('T\n.def X 1.5\nNOP'), /whole numbers/);
+  assert.match(msg('T\n// hello\nNOP'), /Comments start with ; or #, like "; hello"/);
+  assert.match(msg('T\nMOV R0, #5'), /Numbers don't need a # in front.*Write "MOV R0, 5"/);
+  assert.match(msg('T\nmain: JMP R0'), /needs a label to jump to.*can't jump to a register/);
+  assert.match(msg('T\nMOV R0, “5”'), /Values don't go in quotes: write 5/);
+  assert.match(msg('T\nMOV R0, 5； hi'), /isn't a plain ";"/);
+  assert.match(msg('T\nMOV R0, [-4]'), /Memory slots go from \[0\] to \[255\], so \[-4\]/);
+  assert.match(msg('T\nMOV R0, [4+R1]'), /the register comes first: write \[R1\+4\]/);
+});
+test('invisible characters from pasted documents are skipped, with a warning', () => {
+  const res = BB.assemble('T\nMOV R0,​ 5\nHALT');
+  assert.deepStrictEqual(res.errors, []);
+  assert.match(res.warnings[0].message, /invisible character/);
+  assert.strictEqual(res.warnings[0].line, 2);
+});
+test('a constant plus a number is a fixed memory address', () => {
+  const vm = runVM('T\n.def BASE 10\nMOV [BASE+4], 7\nMOV R0, [14]\nHALT');
+  assert.strictEqual(vm.regs[0], 7);
+  assert.match(errorsOf('T\n.def BASE 250\nMOV R0, [BASE+10]')[0].message, /\[260\] would crash/);
 });
 test('undefined label', () => {
   assert.match(errorsOf('Bot\nJMP nowhere')[0].message, /Unknown label/);
@@ -360,6 +384,14 @@ test('example free-for-all always terminates with a result', () => {
     assert.ok(w.tick <= BB.CONFIG.MAX_TICKS);
     for (const r of w.robots) assert.strictEqual(r.vm.fault, null, `${r.name} faulted: ${r.vm.fault}`);
   }
+});
+
+test('FRONT is not 0 when touching an obstacle corner while facing away from it', () => {
+  const box = { x: 100, y: 100, w: 50, h: 50 }, R = BB.CONFIG.ROBOT_RADIUS, a = -135 * BB.geo.DEG;
+  // A hair inside the corner's circle, as rounding leaves a robot pushed out of the corner.
+  const ox = 100 + Math.cos(a) * (R - 1e-9), oy = 100 + Math.sin(a) * (R - 1e-9);
+  assert.strictEqual(BB.geo.sweptCircleRect(ox, oy, Math.cos(a), Math.sin(a), R, box), Infinity, 'facing away');
+  assert.strictEqual(BB.geo.sweptCircleRect(ox, oy, -Math.cos(a), -Math.sin(a), R, box), 0, 'facing the corner');
 });
 
 console.log('Arenas');

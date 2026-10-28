@@ -1,12 +1,12 @@
 # Balance report
 
-Measured on 2026-10-09 with the current rules: per-robot `RAND` streams, width-based scan range (`SCAN_RANGE_FACTOR` 2400) and mud (`MUD_MAX_SPEED` 2). All figures come from [balance-results.json](balance-results.json). The report covers the five stock example robots in headless simulations; it does not cover custom robots, browser layout or accessibility.
+Measured on 2026-10-27 with the current rules (including the FRONT corner fix, which moved a few counts by 1 or 2): per-robot `RAND` streams, width-based scan range (`SCAN_RANGE_FACTOR` 2400) and mud (`MUD_MAX_SPEED` 2). All figures come from [balance-results.json](balance-results.json). The report covers the five stock example robots in headless simulations; it does not cover custom robots, browser layout or accessibility.
 
 An earlier review (2026-10-07) found five correctness issues. Four are fixed: FRONT now measures swept-body clearance, playback runs on elapsed time with bounded catch-up, robot contacts are resolved iteratively, and CLI integer options are validated. The fifth, an emptied roster coming back as the examples after a reload, is now intended behavior; see [Open issues](#open-issues).
 
 ## Reproducing the experiments
 
-Run `npm run balance` (or `node tools/balance.js <seeds> > docs/balance-results.json`; seeds 1..1000, default 20). The script changes parameters only inside its own process and restores the defaults between scenarios.
+Run `npm run balance` (or `node tools/balance.js <seeds> --out docs/balance-results.json`; seeds 1..1000, default 20). The script changes parameters only inside its own process and restores the defaults between scenarios.
 
 The study runs:
 
@@ -49,11 +49,11 @@ Health, damage, fire cooldown, bullet speed, turn rates, acceleration, CPU budge
 | Arena | Sentinel | Hunter | Dodger | Orbiter | Stacker | Time limits | Mean ticks | Hit rate |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | Classic (100 games) | 23 | 1 | 26 | 50 | 0 | 2 | 1717 | 32.0% |
-| Random (100 games) | 20 | 1 | 21 | 51 | 7 | 5 | 1786 | 33.6% |
+| Random (100 games) | 19 | 1 | 22 | 51 | 7 | 5 | 1789 | 33.7% |
 | Open (100 games) | 19 | 0 | 42 | 38 | 1 | 4 | 1474 | 21.6% |
-| **All (300 games)** | **62** | **2** | **89** | **139** | **8** | **11** | **1659** | |
+| **All (300 games)** | **61** | **2** | **90** | **139** | **8** | **11** | **1660** | |
 
-Orbiter wins 46.3% of games, Dodger 29.7%, Sentinel 20.7%, Stacker 2.7% and Hunter 0.7%. On Open, which has no obstacles or mud, Dodger overtakes Orbiter (42 to 38). There were no draws, and only 11 of 300 games reached the 6000-tick limit, so match length is not what decides these results.
+Orbiter wins 46.3% of games, Dodger 30.0%, Sentinel 20.3%, Stacker 2.7% and Hunter 0.7%. On Open, which has no obstacles or mud, Dodger overtakes Orbiter (42 to 38). There were no draws, and only 11 of 300 games reached the 6000-tick limit, so match length is not what decides these results.
 
 ### Homogeneous 2v2 teams
 
@@ -67,20 +67,34 @@ Orbiter wins 46.3% of games, Dodger 29.7%, Sentinel 20.7%, Stacker 2.7% and Hunt
 
 Orbiter teams are strongest on every arena: 160/160 on Classic, 142/160 on Random and 132/160 on Open. Team play amplifies Orbiter's free-for-all lead, because two robots circling a target is hard to escape.
 
+### 1v1 duels
+
+Every pair of robots, 40 games per pair on each arena (seeds 1 to 20, each robot starting on each side once). Each cell is how many of those 40 games the row robot won against the column robot, on Classic / Random / Open.
+
+| | Sentinel | Hunter | Dodger | Orbiter | Stacker |
+|---|---|---|---|---|---|
+| **Sentinel** | | 40 / 36 / 40 | 2 / 13 / 3 | 3 / 5 / 1 | 37 / 35 / 39 |
+| **Hunter** | 0 / 2 / 0 | | 1 / 4 / 0 | 0 / 0 / 0 | 11 / 15 / 9 |
+| **Dodger** | 38 / 27 / 37 | 39 / 36 / 40 | | 1 / 1 / 1 | 33 / 26 / 34 |
+| **Orbiter** | 37 / 35 / 36 | 40 / 40 / 40 | 39 / 39 / 34 | | 40 / 38 / 40 |
+| **Stacker** | 3 / 5 / 1 | 28 / 25 / 31 | 7 / 14 / 6 | 0 / 2 / 0 | |
+
+Orbiter beats every other robot one on one, winning at least 34 of 40 games in every pairing on every arena. Even on Open, where Dodger wins more free-for-alls than Orbiter, Orbiter wins the duel 34 to 1. Free-for-all results alone hid this: there, Orbiter's lead is partly offset by other robots fighting each other. The order is close to a strict ladder: Orbiter, then Dodger, then Sentinel, then Stacker, then Hunter.
+
 ### Player-editable robot constants
 
 Only the named robot's one constant changes; the counts compare that robot with its own stock result on the same seeds, maps and roster orders.
 
 | Change | Stock wins / 300 | Variant wins / 300 | Per arena (Classic, Random, Open) | Interpretation |
 |---|---:|---:|---|---|
-| Sentinel `SWEEP_STEP` 9 → 18 | 62 | 86 | 23→30, 20→30, 19→26 | Strongest improvement measured, on every arena. Orbiter falls to 130 wins. |
-| Sentinel `DODGE_RANGE` 200 → 120 | 62 | 59 | 23→26, 20→21, 19→12 | Slightly worse overall and much worse on Open. |
+| Sentinel `SWEEP_STEP` 9 → 18 | 61 | 86 | 23→30, 19→30, 19→26 | Strongest improvement measured, on every arena. Orbiter falls to 130 wins. |
+| Sentinel `DODGE_RANGE` 200 → 120 | 61 | 58 | 23→25, 19→21, 19→12 | Slightly worse overall and much worse on Open. |
 | Hunter `CLOSE` 80 → 140 | 2 | 2 | 1→0, 1→2, 0→0 | No effect. |
 | Hunter `ALIGN` 8 → 4 | 2 | 2 | 1→1, 1→1, 0→0 | No effect. |
-| Dodger `WALL_GAP` 60 → 100 | 89 | 73 | 26→16, 21→20, 42→37 | Worse, especially on Classic: more steering, less fighting. |
-| Dodger `DODGE_RANGE` 220 → 140 | 89 | 86 | 26→29, 21→21, 42→36 | Roughly unchanged. |
+| Dodger `WALL_GAP` 60 → 100 | 90 | 74 | 26→16, 22→21, 42→37 | Worse, especially on Classic: more steering, less fighting. |
+| Dodger `DODGE_RANGE` 220 → 140 | 90 | 88 | 26→31, 22→21, 42→36 | Roughly unchanged. |
 | Orbiter `RANGE` 200 → 120 | 139 | 118 | 50→42, 51→39, 38→37 | A workable nerf on obstacle maps; Dodger gains most (98 wins). |
-| Orbiter `LOCK_WIDTH` 16 → 32 | 139 | 141 | 50→57, 51→48, 38→36 | Unchanged overall; the shorter reach offsets the wider cone. |
+| Orbiter `LOCK_WIDTH` 16 → 32 | 139 | 140 | 50→56, 51→48, 38→36 | Unchanged overall; the shorter reach offsets the wider cone. |
 
 Hunter's problems are not in its constants: neither change moves it off two wins.
 
@@ -90,23 +104,23 @@ Every robot program is unchanged; one `CONFIG` value changes at a time.
 
 | Rule | Sentinel | Hunter | Dodger | Orbiter | Stacker | Draws | Mean ticks |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| **Defaults** | **62** | **2** | **89** | **139** | **8** | **0** | **1659** |
-| Mud speed 2 → 1 | 84 | 2 | 91 | 116 | 7 | 0 | 1535 |
-| Mud speed 2 → 5 (no slowdown) | 41 | 2 | 76 | 174 | 7 | 0 | 1780 |
-| Scan range factor 2400 → 1800 | 76 | 2 | 62 | 155 | 5 | 0 | 2105 |
-| Scan range factor 2400 → 3200 | 59 | 0 | 76 | 156 | 9 | 0 | 1613 |
-| CPU budget 50 → 35 | 56 | 2 | 88 | 148 | 6 | 0 | 2000 |
-| CPU budget 50 → 65 | 52 | 0 | 75 | 163 | 9 | 1 | 1762 |
-| Fire cooldown 15 → 10 | 52 | 1 | 68 | 167 | 11 | 1 | 1291 |
-| Fire cooldown 15 → 20 | 55 | 1 | 79 | 162 | 2 | 1 | 2099 |
-| Bullet speed 10 → 8 | 48 | 1 | 79 | 168 | 4 | 0 | 1834 |
-| Bullet speed 10 → 12 | 46 | 0 | 85 | 163 | 6 | 0 | 1670 |
-| Maximum forward speed 5 → 4 | 46 | 1 | 103 | 144 | 6 | 0 | 1836 |
+| **Defaults** | **61** | **2** | **90** | **139** | **8** | **0** | **1660** |
+| Mud speed 2 → 1 | 85 | 2 | 91 | 115 | 7 | 0 | 1536 |
+| Mud speed 2 → 5 (no slowdown) | 41 | 2 | 76 | 174 | 7 | 0 | 1789 |
+| Scan range factor 2400 → 1800 | 77 | 2 | 62 | 154 | 5 | 0 | 2125 |
+| Scan range factor 2400 → 3200 | 60 | 0 | 74 | 157 | 9 | 0 | 1596 |
+| CPU budget 50 → 35 | 54 | 2 | 88 | 149 | 7 | 0 | 2011 |
+| CPU budget 50 → 65 | 52 | 0 | 75 | 163 | 9 | 1 | 1761 |
+| Fire cooldown 15 → 10 | 52 | 1 | 67 | 168 | 11 | 1 | 1298 |
+| Fire cooldown 15 → 20 | 55 | 1 | 77 | 163 | 3 | 1 | 2122 |
+| Bullet speed 10 → 8 | 47 | 1 | 80 | 168 | 4 | 0 | 1841 |
+| Bullet speed 10 → 12 | 45 | 0 | 86 | 163 | 6 | 0 | 1662 |
+| Maximum forward speed 5 → 4 | 46 | 1 | 103 | 144 | 6 | 0 | 1831 |
 
-- **Mud is the strongest balance lever measured.** Removing the slowdown raises Orbiter from 139 to 174 wins; a cap of 1 lowers it to 116 and lifts Sentinel to 84.
+- **Mud is the strongest balance lever measured.** Removing the slowdown raises Orbiter from 139 to 174 wins; a cap of 1 lowers it to 115 and lifts Sentinel to 85.
 - **The current defaults are close to the most even setting.** Apart from a lower mud cap, every rule change tested gives Orbiter more wins than the defaults do.
-- **Cooldown sets the pace.** A cooldown of 10 shortens matches by 22% and 20 lengthens them by 27%; Orbiter gains roughly 25 wins either way.
-- **A shorter scan range mostly slows matches.** At factor 1800 matches run 27% longer; Sentinel gains, but so does Orbiter.
+- **Cooldown sets the pace.** A cooldown of 10 shortens matches by 22% and 20 lengthens them by 28%; Orbiter gains 24 to 29 wins either way.
+- **A shorter scan range mostly slows matches.** At factor 1800 matches run 28% longer; Sentinel gains, but so does Orbiter.
 - **No rule change rescues Hunter or Stacker.** Their weaknesses are in their programs.
 
 ## Open issues

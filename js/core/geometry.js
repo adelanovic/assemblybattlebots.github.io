@@ -70,8 +70,9 @@
     for (const x of [r.x, r.x + r.w]) for (const y of [r.y, r.y + r.h]) {
       const vx = ox - x, vy = oy - y;
       const c = vx * vx + vy * vy - radius * radius;
-      if (c < 0) return 0;
       const b = vx * dx + vy * dy;
+      // Touching a corner (rounding can put us a hair inside) only blocks driving toward it.
+      if (c < 0) { if (b < 0) return 0; continue; }
       const discriminant = b * b - c;
       if (discriminant < 0) continue;
       const near = -b - Math.sqrt(discriminant);

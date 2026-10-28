@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 // Reproducible balance exploration; never changes the saved game configuration.
-// node tools/balance.js [seed-count] > balance-results.json
+// node tools/balance.js [seed-count] [--out docs/balance-results.json]
+// (--out writes UTF-8; in Windows PowerShell 5.1, "> file" would write UTF-16 and break the JSON.)
 'use strict';
+const fs = require('fs');
 const BB = require('./load-core')();
-const seeds = Number(process.argv[2] || 20);
+const args = process.argv.slice(2);
+const outAt = args.indexOf('--out');
+const outFile = outAt >= 0 ? args.splice(outAt, 2)[1] : null;
+if (outAt >= 0 && !outFile) {
+  console.error('--out needs a file path');
+  process.exit(2);
+}
+const seeds = Number(args[0] || 20);
 if (!Number.isSafeInteger(seeds) || seeds < 1 || seeds > 1000) {
   console.error('seed-count must be an integer from 1 to 1000');
   process.exit(2);
@@ -63,7 +72,7 @@ function ffa(sources, config = {}) {
 }
 
 const result = { seedCount: seeds, methodology: `Seeds 1..N; ${names.length} cyclic roster orders per FFA seed; team compositions swap sides; one parameter changes at a time.`,
-  config: defaults, baseline: ffa(originalSources), robotVariants: {}, ruleVariants: {}, teams2v2: {} };
+  config: defaults, baseline: ffa(originalSources), robotVariants: {}, ruleVariants: {}, teams2v2: {}, duels1v1: {} };
 
 const variants = [
   [0, 'SWEEP_STEP', 18], [0, 'DODGE_RANGE', 120],
@@ -102,5 +111,18 @@ for (const arena of arenas) {
   }
   result.teams2v2[arena] = summary;
 }
+// 1v1: duels1v1[arena][A][B] = how often A beat B (2 games per seed, one in each spawn order).
+for (const arena of arenas) {
+  const table = Object.fromEntries(names.map((a) => [a, Object.fromEntries(names.filter((b) => b !== a).map((b) => [b, 0]))]));
+  for (let a = 0; a < entries.length; a++) for (let b = a + 1; b < entries.length; b++) {
+    for (let seed = 1; seed <= seeds; seed++) for (const order of [[a, b], [b, a]]) {
+      const w = play(order.map((index, id) => ({ ...entries[index], id })), seed, arena);
+      if (w.winner) table[w.winner.name][w.robots.find((r) => r !== w.winner).name]++;
+    }
+  }
+  result.duels1v1[arena] = { gamesPerPair: 2 * seeds, wins: table };
+}
 result.totalMatches = matches;
-console.log(JSON.stringify(result, null, 2));
+const json = JSON.stringify(result, null, 2);
+if (outFile) fs.writeFileSync(outFile, `${json}\n`, 'utf8');
+else console.log(json);

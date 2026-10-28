@@ -8,10 +8,10 @@
     "build": "node tools/build.js",
     "match": "node tools/headless.js examples/sentinel.asm examples/hunter.asm examples/dodger.asm examples/orbiter.asm examples/stacker.asm",
     "tournament": "node tools/headless.js --rounds 50 examples/sentinel.asm examples/hunter.asm examples/dodger.asm examples/orbiter.asm examples/stacker.asm",
-    "balance": "node tools/balance.js 20 > docs/balance-results.json"
+    "balance": "node tools/balance.js 20 --out docs/balance-results.json"
   },
   "engines": {
-    "node": ">=16"
+    "node": ">=20"
   },
   "license": "MIT"
 }

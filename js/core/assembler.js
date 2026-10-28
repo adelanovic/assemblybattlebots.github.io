@@ -26,7 +26,15 @@
   const DASH_RE = /[\u2010-\u2015\u2212\uFE63\uFF0D]/;
   // Commas from other keyboard layouts (，、﹐﹑،), which look like a comma but don't separate operands.
   const ODD_COMMA_RE = /[\uFF0C\u3001\uFE50\uFE51\u060C]/;
+  // Invisible characters that come along when code is copied from a document or web page.
+  const INVISIBLE_RE = /[\u200B-\u200D\u2060\uFEFF]/;
+  const INVISIBLE_ALL_RE = new RegExp(INVISIBLE_RE.source, 'g');
+  // Wide punctuation from other keyboard layouts, and the plain key to type instead.
+  const WIDE_PUNCT = { '\uFF1B': ';', '\uFF3B': '[', '\uFF3D': ']', '\uFF03': '#', '\uFF1A': ':' };
+  const WIDE_PUNCT_RE = /[\uFF1B\uFF3B\uFF3D\uFF03\uFF1A]/;
+  const DECIMAL_RE = /^[+-]?\d*\.\d+$/;
   const MAX_NAME = 24;
+  const ORDINAL = ['first', 'second', 'third'];
 
   const ARG_HINT = {
     dst: 'a register or memory location',
@@ -108,6 +116,12 @@
     return `"${raw}" has a "${DASH_RE.exec(raw)[0]}" copied from a document, not a minus sign. Type the - key instead: "${fixed}".`;
   }
 
+  /** For "2.5": robots only use whole numbers, so suggest the two nearest. */
+  function decimalMessage(raw) {
+    const v = Number(raw);
+    return `Robots only use whole numbers, so "${raw}" won't work. Try ${Math.floor(v)} or ${Math.ceil(v)} instead.`;
+  }
+
   /** Split "a, b , [R1 + 2]" into trimmed operand strings. */
   function splitArgs(text) {
     if (!text.trim()) return [];
@@ -120,9 +134,14 @@
   }
 
   function assemble(source) {
-    const lines = String(source).replace(/\r\n?/g, '\n').split('\n');
     const errors = [];
     const warnings = [];
+    // Invisible characters make correct-looking code fail ("MOV​R0" is one word), so drop them and say so.
+    const lines = String(source).replace(/\r\n?/g, '\n').split('\n').map((line, i) => {
+      if (!INVISIBLE_RE.test(line)) return line;
+      warnings.push({ line: i + 1, message: 'This line has an invisible character, copied from a document or web page. It was skipped when checking your code, so you can leave it there.' });
+      return line.replace(INVISIBLE_ALL_RE, '');
+    });
     const appearance = Object.fromEntries(Object.entries(BB.ISA.APPEARANCE).map(([key, spec]) => [key, spec.default]));
     const appearanceSeen = new Set();
     let inHeader = true;
@@ -168,6 +187,12 @@
     for (let i = 1; i < lines.length; i++) {
       const lineNo = i + 1;
       const raw = lines[i];
+      const wide = WIDE_PUNCT_RE.exec(stripComment(raw));
+      if (wide) {
+        const plain = WIDE_PUNCT[wide[0]];
+        err(lineNo, `The "${wide[0]}" isn't a plain "${plain}": it comes from another keyboard layout. Type the ${plain} key instead.`);
+        continue;
+      }
       let text = stripComment(raw).trim();
       if (!text) continue;
 
@@ -206,7 +231,7 @@
           if (parts.length !== 3) { err(lineNo, `${dir} expects a name and a value, e.g. ".def RANGE 200".`); continue; }
           const id = parts[1].toUpperCase();
           const v = parseNumber(parts[2].toUpperCase());
-          if (v === null) { err(lineNo, `${dir} value "${parts[2]}" is not a number.`); continue; }
+          if (v === null) { err(lineNo, DECIMAL_RE.test(parts[2]) ? decimalMessage(parts[2]) : `${dir} value "${parts[2]}" is not a number.`); continue; }
           if (v > 2147483647 || v < -2147483648) {
             err(lineNo, `Number ${parts[2]} does not fit in 32 bits.`);
             continue;
@@ -250,6 +275,7 @@
     function parseMemory(inner, lineNo) {
       // [R1], [12], [R1+4], [R1-CONST], [CONST]
       const t = inner.replace(/\s+/g, '');
+      if (/^-\d+$/.test(t)) { err(lineNo, `Memory slots go from [0] to [${MEMORY_SIZE - 1}], so [${t}] would crash your robot.`); return null; }
       const m = /^([A-Z0-9_]+)(?:([+-])([A-Z0-9_]+))?$/.exec(t);
       if (!m) { err(lineNo, `Bad memory operand "[${inner}]". Use [n], [Rx] or [Rx+n].`); return null; }
       let r = -1, off = 0;
@@ -264,11 +290,12 @@
         off = v;
       }
       if (m[2]) {
-        if (r < 0) { err(lineNo, `Memory operand must look like [Rx+n]; the register comes first.`); return null; }
+        if (resolveReg(m[3]) !== -1) { err(lineNo, `In [${inner}], the register comes first: write [${m[3]}${m[2]}${m[1]}].`); return null; }
         const v = resolveValue(m[3], lineNo);
         if (v === undefined) { err(lineNo, `Offset "${m[3]}" must be a number or constant.`); return null; }
         if (v === null) return null;
-        off = m[2] === '-' ? -v : v;
+        // [BASE+4] with no register: a fixed address worked out now, checked below like [14].
+        off += m[2] === '-' ? -v : v;
       }
       // A fixed address outside memory would crash the robot every time it runs.
       if (r < 0 && (off < 0 || off >= MEMORY_SIZE)) {
@@ -280,12 +307,17 @@
 
     function parseOperand(raw, kind, lineNo, op, idx) {
       const tok = raw.toUpperCase();
-      const where = `${op} operand ${idx + 1}`;
+      const where = `${op}'s ${ORDINAL[idx]} value`;
       if (!tok) { err(lineNo, `${where} is empty.`); return null; }
       if (DASH_RE.test(raw)) { err(lineNo, dashMessage(raw)); return null; }
+      if (/["'‘’“”]/.test(raw)) {
+        err(lineNo, `Values don't go in quotes: write ${raw.replace(/["'‘’“”]/g, '')}, not ${raw}.`);
+        return null;
+      }
 
       if (kind === 'target') {
         if (labels[tok] !== undefined) return { k: 'imm', v: labels[tok] };
+        if (REG_RE.test(tok)) { err(lineNo, `${op} needs a label to jump to, like "${op} main". It can't jump to a register.`); return null; }
         const n = parseNumber(tok);
         if (n !== null) {
           // Legal, but beginners read it as a line number, which it isn't.
@@ -333,6 +365,7 @@
       const v = resolveValue(tok, lineNo);
       if (v === null) return null;
       if (v !== undefined) return { k: 'imm', v };
+      if (DECIMAL_RE.test(tok)) { err(lineNo, decimalMessage(raw)); return null; }
 
       // A label that shares a sensor's name (x: and X) is still a label here.
       let hint = '';
@@ -356,6 +389,7 @@
     /** "Unknown instruction", with the hint that fits what was probably meant. */
     const unknownInstruction = (st) => {
       if (colonless(st)) return `"${st.word}" is used as a label, so it needs a colon at the end: write "${st.word}:".`;
+      if (/^(\/\/|\/\*|--)/.test(st.word)) return `"${st.word}" isn't a comment here. Comments start with ; or #, like "; ${st.text.replace(/^(\/\/|\/\*|--)\s*/, '')}".`;
       const base = `Unknown instruction "${st.op}".`;
       const assign = /^([+\-*/]?)=\s*(.*)$/.exec(st.argText.trim()); // "R0 = 5", "x += 1"
       if (assign) {
@@ -413,13 +447,21 @@
         err(st.line, unknownInstruction(st));
         continue;
       }
+      // "MOV R0, #5": the # starts a comment, so the 5 is cut off.
+      if (/,\s*#\s*[-+]?\d/.test(st.text)) {
+        err(st.line, `Numbers don't need a # in front. # starts a comment, so everything after it is ignored. Write "${st.text.replace(/#\s*(?=[-+]?\d)/, '')}".`);
+        continue;
+      }
       if (st.args.length > 1 && st.args.some((a) => !a)) {
         err(st.line, `${spec.op} has an extra comma, or a value missing between commas.`);
         continue;
       }
       if (st.args.length !== spec.args.length) {
-        const form = spec.args.length ? `${spec.op} ${spec.args.join(', ')}` : spec.op;
-        err(st.line, `${spec.op} takes ${spec.args.length} operand${spec.args.length === 1 ? '' : 's'} (${form}), but got ${st.args.length}.${commaTip(st, spec)}`);
+        const n = spec.args.length, got = st.args.length;
+        const gave = `this line gives ${got}`;
+        err(st.line, (n
+          ? `${spec.op} needs ${n} value${n === 1 ? '' : 's'}, like "${spec.example}", but ${gave}.`
+          : `${spec.op} doesn't take any values, but ${gave}.`) + commaTip(st, spec));
         continue;
       }
       const args = [];

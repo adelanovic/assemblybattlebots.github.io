@@ -155,19 +155,23 @@ main {
   overflow: hidden;
   font: 13px/var(--lh) var(--mono);
 }
+/* The caret alone is easy to miss: show keyboard users where focus is. */
+.code-editor:has(.ce-input:focus-visible) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .ce-gutter {
   flex: none;
   width: 44px;
   overflow: hidden;
   padding: 8px 0 30px;
   text-align: right;
-  color: #4b5366;
+  color: #8590a6; /* 5.5:1 on the gutter, readable on a projector */
   background: #11151c;
   border-right: 1px solid var(--border);
   user-select: none;
 }
 .ce-gutter-lines > div { padding-right: 8px; height: var(--lh); }
 .ce-gutter .err { color: #fff; background: #8a2c2c; }
+/* A mark as well as the colour, for students who can't tell red apart. */
+.ce-gutter .err::after { content: '\2717'; position: absolute; left: 4px; font-weight: 700; }
 .ce-gutter .exec { color: #000; background: var(--warn); }
 .ce-gutter .err.exec { background: linear-gradient(90deg, #8a2c2c 50%, var(--warn) 50%); }
 .ce-gutter .fault { color: #fff; background: var(--bad); }
@@ -184,7 +188,7 @@ main {
    and run counts. Over the code (.ce-cover): dimming for lines that never ran. */
 .ce-marks { position: absolute; top: 8px; left: 0; right: 0; pointer-events: none; }
 .ce-band, .ce-count { position: absolute; left: 0; right: 0; height: var(--lh); }
-.ce-count { left: auto; right: 10px; font-size: 11px; color: #5f6b80; }
+.ce-count { left: auto; right: 10px; font-size: 11px; color: #8590a6; }
 .ce-band.never { background: rgba(13, 16, 21, .6); }
 .ce-band.exec { background: rgba(255, 201, 77, .14); box-shadow: inset 3px 0 0 var(--warn); }
 .ce-band.fault { background: rgba(255, 107, 107, .18); box-shadow: inset 3px 0 0 var(--bad); }
