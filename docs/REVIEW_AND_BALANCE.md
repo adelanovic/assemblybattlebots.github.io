@@ -14,8 +14,9 @@ The study runs:
 - **Eight single-constant robot variants**, changing one `.def` in one of Sentinel, Hunter, Dodger or Orbiter. Stacker has no variants yet.
 - **Eleven single-rule variants** of `CONFIG` values, with every robot program unchanged.
 - **Homogeneous 2v2 teams** for every pair of examples, with both sides swapped on every seed and arena: 400 games per arena. Each composition plays 480 games in total.
+- **1v1 duels** for every pair of examples, each robot starting on each side once: 40 games per pair per arena, 1200 in total.
 
-The 20-seed run completed **7200 matches** with **zero runtime faults**. Roster rotations and side swaps are correlated observations, not extra independent seeds. Mixed teams, 3v3 and combinations of several changed parameters are outside this study.
+The 20-seed run completed **8400 matches** with **zero runtime faults**. Roster rotations and side swaps are correlated observations, not extra independent seeds. Mixed teams, 3v3 and combinations of several changed parameters are outside this study.
 
 ## What players can adjust
 

@@ -929,7 +929,9 @@ look:
         dummies: [{ source: RIVAL, x: 680, y: 300, heading: 180, health: 60 }],
         maxTicks: 3000,
         check: (w) => (!w.robots[1].alive ? { ok: true, text: 'You beat Rival. Congratulations, graduate!' } : null),
-        timeUp: (w, me) => (me.health > w.robots[1].health
+        // Winning on time needs at least one hit: health alone could be won by Rival bumping into walls.
+        timeUp: (w, me) => (!me.stats.hits ? { ok: false, text: 'Time\'s up, and Rival was never hit. Is "attack" being called, and does it FIRE?' }
+          : me.health > w.robots[1].health
           ? { ok: true, text: `Time's up, and you have more health (${Math.ceil(me.health)} vs ${Math.ceil(w.robots[1].health)}). You win, graduate!` }
           : { ok: false, text: `Time's up, and Rival has more health (${Math.ceil(w.robots[1].health)} vs ${Math.ceil(me.health)}).` }),
         starter: `Graduate

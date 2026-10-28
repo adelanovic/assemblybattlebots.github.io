@@ -51,6 +51,10 @@ test('common beginner slips get a message that says what to type', () => {
   assert.match(msg('T\n.def X 1.5\nNOP'), /whole numbers/);
   assert.match(msg('T\n// hello\nNOP'), /Comments start with ; or #, like "; hello"/);
   assert.match(msg('T\nMOV R0, #5'), /Numbers don't need a # in front.*Write "MOV R0, 5"/);
+  assert.match(msg('T\nSPEED #5'), /Numbers don't need a # in front.*Write "SPEED 5"/, 'the only value');
+  for (const fine of ['MOV R0, 5 ; options, #1 best', 'MOV R0, 5 # note 2', 'AIM R1 # 45 degrees', 'FIRE #1 shot']) {
+    assert.deepStrictEqual(BB.assemble(`T\n${fine}\nHALT`).errors, [], `a real comment: ${fine}`);
+  }
   assert.match(msg('T\nmain: JMP R0'), /needs a label to jump to.*can't jump to a register/);
   assert.match(msg('T\nMOV R0, “5”'), /Values don't go in quotes: write 5/);
   assert.match(msg('T\nMOV R0, 5； hi'), /isn't a plain ";"/);
@@ -816,7 +820,9 @@ test('every Insert-menu snippet assembles, alone and inserted twice into one pro
 });
 test('the Insert menu knows where code may go, and when it could never run there', () => {
   const A = BB.assist;
-  assert.strictEqual(A.headerEnd(BB.NEW_ROBOT_TEMPLATE), 3, 'below .shape, .drive and .turret');
+  const template = BB.NEW_ROBOT_TEMPLATE.split('\n');
+  assert.strictEqual(A.headerEnd(BB.NEW_ROBOT_TEMPLATE), template.findIndex((l) => l.startsWith('.shot')), 'below all nine appearance settings');
+  assert.strictEqual(A.headerEnd('Bot\n.color red\n.boom confetti\nmain:\n    WAIT'), 2, 'the newer settings count as header too');
   assert.strictEqual(A.headerEnd('Bot\nmain:\n    WAIT'), 0, 'no header: just below the name');
   assert.strictEqual(A.headerEnd('Bot\n; a comment\n.shape circle\n\nmain:'), 2);
   const prog = 'Bot\nmain:\n    SPEED 3\n    JMP main\n    FIRE\nfunc:\n    RET\n    FIRE\n    HALT\n    WAIT';
@@ -1303,6 +1309,10 @@ test('unit 3: sensible answers pass, mistakes get feedback that points the right
   const gr = M('graduate');
   assert.ok(play('graduate', gr.withDodge).ok, 'adding the dodge still wins');
   assert.ok(!play('graduate', gr.solution.replace('    CALL move\n', '')).ok, 'attacking without moving loses');
+  // Rival can lose health to walls, so out-lasting it without ever firing must not count as a win.
+  const noAttack = gr.solution.replace(/attack:[\s\S]*?\n {4}RET\nturn_turret:[\s\S]*?RET/, 'attack:\n    RET');
+  assert.notStrictEqual(noAttack, gr.solution, 'the attack function was removed');
+  assert.match(play('graduate', noAttack).text, /Rival was never hit/, 'moving without attacking fails');
 });
 
 test('Mission control keeps the target\'s coordinates in memory, even after a program reload', () => {

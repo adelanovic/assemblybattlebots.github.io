@@ -141,6 +141,7 @@
       this.mode = 'ffa';
       this.lastPanelUpdate = 0;
       this.lastDrawTime = 0;     // paused frames are drawn less often (see frameBody)
+      this.smoothUntil = 0;      // ...except just after a match stops
       this.renderedLogKey = null;
       this.showCounts = false;  // editor shows how often each line ran
       this.simple = true;       // Simple view: plain-language help, smaller inspector
@@ -488,9 +489,11 @@
         if (this.world.over) this.running = false;
         this.checkMissionResult();
       }
-      // While paused, little moves (explosions fading, the selection ring), so 15 frames
-      // a second is plenty and saves battery on school laptops.
-      if (this.world && (this.running || now - this.lastDrawTime >= 66)) {
+      // While paused, little moves (the selection ring), so 15 frames a second is plenty and saves
+      // battery on school laptops. But for 2 s after it stops (the match ended, or Pause), keep full
+      // speed so the last explosion and the victory card play smoothly, not in slow motion.
+      if (this.running) this.smoothUntil = now + 2000;
+      if (this.world && (now < this.smoothUntil || now - this.lastDrawTime >= 66)) {
         this.lastDrawTime = now;
         this.renderer.addEvents(this.world.drainEvents());
         this.renderer.draw(this.world, this.selectedId, { paused: !this.running });
@@ -678,9 +681,9 @@
         <div class="card ${e.id === this.selectedId ? 'selected' : ''} ${teams && e.team ? `team-${e.team.toLowerCase()}` : ''}" data-id="${e.id}">
           <div class="card-head">
             <span class="swatch"></span>
-            <span class="card-name">${esc(e.compiled.name)}</span>
-            <button class="icon" data-act="dup" title="Duplicate robot">⧉</button>
-            <button class="icon danger" data-act="remove" title="Remove robot">✕</button>
+            <button class="card-name" title="Select this robot to see and edit its code"${e.id === this.selectedId ? ' aria-current="true"' : ''}>${esc(e.compiled.name)}</button>
+            <button class="icon" data-act="dup" title="Duplicate robot" aria-label="Duplicate ${esc(e.compiled.name)}">⧉</button>
+            <button class="icon danger" data-act="remove" title="Remove robot" aria-label="Remove ${esc(e.compiled.name)}">✕</button>
           </div>
           <div class="hp"><div class="hp-fill"></div></div>
           <div class="card-status"></div>${picker(e)}

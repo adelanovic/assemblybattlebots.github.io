@@ -195,7 +195,8 @@
     let end = 0;
     for (let i = 1; i < lines.length; i++) {
       const code = codeOf(lines[i]);
-      if (/^\.(shape|drive|turret)\b/i.test(code)) end = i;
+      const setting = /^\.([A-Za-z]+)\b/.exec(code);
+      if (setting && Object.prototype.hasOwnProperty.call(BB.ISA.APPEARANCE, setting[1].toLowerCase())) end = i; // any appearance setting
       else if (code) break;
     }
     return end;

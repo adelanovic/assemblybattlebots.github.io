@@ -16,7 +16,7 @@ If you prefer to serve it, any static server works, for example `python -m http.
 
 **Hosting:** the repository root is a complete static site, so it can be served as-is from GitHub Pages or any other static host.
 
-Node.js (v16+) is only needed for the optional command-line tools:
+Node.js (v20+) is only needed for the optional command-line tools:
 
 ```sh
 npm test              # assembler, VM and simulation tests
@@ -115,7 +115,7 @@ The arena shows each robot as a tank. The hull points where it's driving, and th
 
 ## Robot files
 
-Customize your bot with up to three optional lines below its name, before any labels, constants or instructions:
+Customize your bot with up to nine optional lines below its name, before any labels, constants or instructions. This example uses three; the table below lists all nine:
 
 ```asm
 Iron Beetle
@@ -227,7 +227,7 @@ Out-of-range values are clamped, so `SPEED 100` gives 5 and `SCAN 500` gives 90.
 | Robot name | 24 characters |
 | Match length | 6000 ticks |
 
-There's no limit on the number of robots in a match or on program length. Colors repeat after 8 robots, and a very crowded arena spawns extra robots at a fallback point. All values live in `CONFIG` in `js/core/isa.js`.
+There's no limit on the number of robots in a match or on program length. Colors repeat after 13 robots, and a very crowded arena spawns extra robots at a fallback point. All values live in `CONFIG` in `js/core/isa.js`.
 
 ## How the virtual CPU works
 

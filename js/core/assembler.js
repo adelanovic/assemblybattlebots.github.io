@@ -463,9 +463,12 @@
         err(st.line, unknownInstruction(st));
         continue;
       }
-      // "MOV R0, #5": the # starts a comment, so the 5 is cut off.
-      if (/,\s*#\s*[-+]?\d/.test(st.text)) {
-        err(st.line, `Numbers don't need a # in front. # starts a comment, so everything after it is ignored. Write "${st.text.replace(/#\s*(?=[-+]?\d)/, '')}".`);
+      // "MOV R0, #5" or "SPEED #5": the # starts a comment, so the 5 is cut off. Only when that # is
+      // where the comment begins, a value is missing before it, and a number follows ("; note, #1" is fine).
+      const hash = st.text.search(/[;#]/);
+      if (hash >= 0 && st.text[hash] === '#' && /^\s*[-+]?\d/.test(st.text.slice(hash + 1))
+        && (/,\s*$/.test(st.text.slice(0, hash)) || st.args.length < spec.args.length)) {
+        err(st.line, `Numbers don't need a # in front. # starts a comment, so everything after it is ignored. Write "${st.text.slice(0, hash)}${st.text.slice(hash + 1).trimStart()}".`);
         continue;
       }
       if (st.args.length > 1 && st.args.some((a) => !a)) {

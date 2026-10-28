@@ -19,7 +19,7 @@
   const C = BB.CONFIG;
   const G = BB.geo;
 
-  // Robot colours. The first 8 are the `auto` slot colours; later ones extend them for big rosters.
+  // Robot colours, in the order `auto` hands them out by roster slot (the first 8 were the original set).
   // All stay readable on the dark arena (no black or navy) and distinct from each other.
   const COLORS = ['#ff5c5c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#ff9f43', '#4dd0e1', '#f06292',
     '#eceff1', '#90a4ae', '#aee03a', '#7986cb', '#bc8a5f'];
@@ -265,7 +265,7 @@
       const notes = [];
       this.robots.forEach((r, i) => {
         if (owner.get(r.color) === r) return; // got the colour it chose
-        // Its slot colour if free, else the next free one round the list (with 9+ robots, colours repeat).
+        // Its slot colour if free, else the next free one round the list (with 14+ robots, colours repeat).
         const free = COLORS.map((_, k) => COLORS[(i + k) % COLORS.length]).find((c) => !owner.has(c));
         r.color = free || COLORS[i % COLORS.length];
         if (free) owner.set(free, r);
