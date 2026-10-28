@@ -7,6 +7,7 @@ Orbiter
 .badge crown
 .trail bubbles
 .boom fireworks
+.shot plasma
 ; STRATEGY: circle-strafer.
 ; Locks onto an enemy and orbits it at a preferred distance while firing.
 ; Moving sideways makes it hard to hit; reverses direction near walls.

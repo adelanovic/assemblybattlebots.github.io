@@ -39,7 +39,7 @@ Health, damage, fire cooldown, bullet speed, turn rates, acceleration, CPU budge
 - **Mud punishes constant motion.** Robots that keep moving (Orbiter's circling, Dodger's evasion) cross mud often; robots that hold position (Sentinel) rarely do. This is why mud cuts Orbiter's wins most.
 - **Sweep rate saturates.** The turret turns at most 20°/tick, so a search step above 20 does not search faster. Hunter asks for 45; Sentinel asks for 9.
 - **The CPU budget changes timing unevenly.** Sentinel's lead and dodge paths run longer than 50 cycles and resume the next tick, so budget changes affect advanced robots more than short loops.
-- **Bullet speed is coupled to robot code.** Sentinel's lead calculation divides by 10000, which is the 1000 trig scale times bullet speed 10 (`js/core/examples.js:79` and `:82`). Changing `BULLET_SPEED` without updating it miscalibrates its aim.
+- **Bullet speed is coupled to robot code.** Sentinel's lead calculation divides by 10000, which is the 1000 trig scale times bullet speed 10 (the two `DIV ..., 10000` lines in Sentinel, `js/core/examples.js`). Changing `BULLET_SPEED` without updating it miscalibrates its aim.
 - **Avoid changing the geometry casually.** Map spacing, hull drawings, the Classic layout, mirrored spawns and spawn margins all assume the current radius and arena size.
 
 ## Results

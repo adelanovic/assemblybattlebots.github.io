@@ -1026,7 +1026,7 @@
       }
       if (role === 'directive' || role === 'preset') {
         const spec = BB.ISA.APPEARANCE[ctx.key];
-        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style', color: 'paint color (first come, first served if two robots pick the same)', decal: 'paint job', badge: 'badge (shown by its name too)', trail: 'trail when it drives', boom: 'explosion when it is destroyed' }[ctx.key] || 'look';
+        const what = { shape: 'body shape', drive: 'wheels or tracks', turret: 'turret style', color: 'paint color (first come, first served if two robots pick the same)', decal: 'paint job', badge: 'badge (shown by its name too)', trail: 'trail when it drives', boom: 'explosion when it is destroyed', shot: 'bullet style (looks only: every style flies and hits the same)' }[ctx.key] || 'look';
         return head(`.${ctx.key} preset`, 'appearance') +
           `<div>Picks your robot's ${what}. Choices: ${spec.choices.map((c) => `<code>${c}</code>`).join(', ')}${spec.numbers ? `, or a number from 1 to ${spec.numbers}` : ''} (default ${spec.default}). Looks only: it doesn't change how the robot plays.</div>` +
           more('sec:appearance');

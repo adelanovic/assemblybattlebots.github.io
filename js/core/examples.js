@@ -13,6 +13,7 @@
 .decal spots
 .badge shield
 .boom fire
+.shot laser
 ; STRATEGY: turret sniper.
 ; Holds its ground, sweeps the turret with a narrow scan, leads moving
 ; targets (predicts where they will be when the bullet arrives) and
@@ -139,6 +140,7 @@ dodge_end:
 .badge paw
 .trail sparks
 .boom fireworks
+.shot rocket
 ; STRATEGY: aggressive chaser.
 ; Sweeps a wide scan, charges at the nearest enemy and opens fire as soon
 ; as the turret lines up. Never dodges: it trusts speed and firepower.
@@ -198,6 +200,7 @@ search:
 .badge bolt
 .trail rainbow
 .boom confetti
+.shot star
 ; STRATEGY: evasive skirmisher.
 ; Always on the move: bounces off walls, wanders randomly, swerves away
 ; from every incoming projectile, and snipes with an independent turret.
@@ -289,6 +292,7 @@ dodge_go:
 .badge crown
 .trail bubbles
 .boom fireworks
+.shot plasma
 ; STRATEGY: circle-strafer.
 ; Locks onto an enemy and orbits it at a preferred distance while firing.
 ; Moving sideways makes it hard to hit; reverses direction near walls.
@@ -380,6 +384,7 @@ walls_done:
 .badge 64       ; the stack holds 64 entries
 .trail smoke
 .boom pixels
+.shot shell
 ; STRATEGY: cautious patrol with a sweeping turret.
 ; STACK LESSON: CALL/RET share the stack with saved register values.
 ; Every helper restores its saved registers in reverse order before RET.
@@ -532,6 +537,7 @@ angle_error:
 .badge none       ; star, bolt, heart, crown, paw, shield, or 1 to 99
 .trail none       ; smoke, sparks, bubbles, rainbow
 .boom fire        ; fire, confetti, pixels, fireworks
+.shot shell       ; shell, laser, plasma, rocket, star
 ; Line 1 is the robot's name. Write your program below.
 ; Open the Reference tab for every instruction and sensor.
 

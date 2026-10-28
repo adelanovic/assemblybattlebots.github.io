@@ -149,11 +149,12 @@
     badge: { default: 'none', choices: ['none', 'star', 'bolt', 'heart', 'crown', 'paw', 'shield'], numbers: 99 },
     trail: { default: 'none', choices: ['none', 'smoke', 'sparks', 'bubbles', 'rainbow'] },
     boom: { default: 'fire', choices: ['fire', 'confetti', 'pixels', 'fireworks'] }, // how it explodes when destroyed
+    shot: { default: 'shell', choices: ['shell', 'laser', 'plasma', 'rocket', 'star'] }, // how its bullets look
   };
 
   const LANGUAGE_NOTES = [
     'Line 1 is the robot\'s name (required, truncated to 24 characters with a warning). The whole trimmed line is the name; do not add an inline comment. Leading ; or # markers are stripped. Code starts on line 2.',
-    'Optional appearance header below the name: `.shape tank`, `.drive tracks`, `.turret standard`, `.color green`, `.decal stripes`, `.badge star` (or a number from 1 to 99), `.trail smoke`, `.boom confetti`. Each accepts a preset and may appear once, before any label, constant or instruction. Comments and blank lines are allowed between header directives. Appearance is cosmetic and uses no CPU cycles.',
+    'Optional appearance header below the name: `.shape tank`, `.drive tracks`, `.turret standard`, `.color green`, `.decal stripes`, `.badge star` (or a number from 1 to 99), `.trail smoke`, `.boom confetti`, `.shot laser`. Each accepts a preset and may appear once, before any label, constant or instruction. Comments and blank lines are allowed between header directives. Appearance is cosmetic and uses no CPU cycles.',
     'From line 2 onward, comments start with `;` or `#` and continue to the end of the line. Blank lines are ignored. Mnemonics, registers, sensors, labels and constants are case-insensitive. Separate operands with commas.',
     'Labels end with a colon (`loop:`) and may share a line with an instruction. Names use letters, digits and underscores, starting with a letter or underscore. Labels and constants cannot share names or use instruction/register names.',
     'Constants: `.def NAME value` (`.const` and `.equ` are aliases). The value must be a numeric literal. Constants may be referenced before their definition and used as source values or memory addresses/offsets, but not as jump targets or sensor operands.',

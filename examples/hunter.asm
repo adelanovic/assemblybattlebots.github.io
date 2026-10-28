@@ -7,6 +7,7 @@ Hunter
 .badge paw
 .trail sparks
 .boom fireworks
+.shot rocket
 ; STRATEGY: aggressive chaser.
 ; Sweeps a wide scan, charges at the nearest enemy and opens fire as soon
 ; as the turret lines up. Never dodges: it trusts speed and firepower.

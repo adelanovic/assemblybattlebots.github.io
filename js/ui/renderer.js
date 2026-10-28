@@ -1013,10 +1013,17 @@
       }
     }
 
-    /** A hot shell with a team-coloured tracer streak, trailing thin smoke while the match runs. */
+    /**
+     * A bullet in its owner's `.shot` style (looks only: every style flies and hits the same).
+     * The default `shell` is a hot shell with a team-coloured tracer streak, trailing thin smoke.
+     */
     drawProjectile(ctx, p, moving = true) {
       const speed = Math.hypot(p.vx, p.vy) || 1;
       const dx = p.vx / speed, dy = p.vy / speed;
+      if (p.shot === 'laser') { this.drawLaser(ctx, p, dx, dy); return; }
+      if (p.shot === 'plasma') { this.drawPlasma(ctx, p, dx, dy, moving); return; }
+      if (p.shot === 'rocket') { this.drawRocket(ctx, p, dx, dy, moving); return; }
+      if (p.shot === 'star') { this.drawStarShot(ctx, p, dx, dy, moving); return; }
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       const tx = p.x - dx * 24, ty = p.y - dy * 24;
@@ -1050,6 +1057,91 @@
           vx: (Math.random() - 0.5) * 0.15, vy: (Math.random() - 0.5) * 0.15 - 0.03,
           size: 1.2, life: 34, max: 34,
         });
+      }
+    }
+
+    /** .shot laser: a bright bolt in the robot's colour with a white-hot core. No smoke. */
+    drawLaser(ctx, p, dx, dy) {
+      const tx = p.x - dx * 16, ty = p.y - dy * 16;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = hexA(p.color, 0.35);
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.strokeStyle = hexA(p.color, 0.95);
+      ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath(); ctx.moveTo(tx + dx * 3, ty + dy * 3); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.restore();
+    }
+
+    /** .shot plasma: a pulsing glowing orb, shedding a few glowing motes. */
+    drawPlasma(ctx, p, dx, dy, moving) {
+      const pulse = 1 + Math.sin(performance.now() / 60 + p.id) * 0.15;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 8 * pulse);
+      glow.addColorStop(0, '#ffffff');
+      glow.addColorStop(0.3, hexA(p.color, 0.9));
+      glow.addColorStop(1, hexA(p.color, 0));
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 8 * pulse, 0, TAU); ctx.fill();
+      ctx.restore();
+      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.5) {
+        this.particles.push({ kind: 'puff', x: p.x - dx * 5, y: p.y - dy * 5, vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+          size: 1.3, life: 14, max: 14, color: p.color, alpha: 0.6 });
+      }
+    }
+
+    /** .shot rocket: a little rocket with fins and a flickering flame, trailing thick smoke. */
+    drawRocket(ctx, p, dx, dy, moving) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(Math.atan2(dy, dx));
+      ctx.scale(1.6, 1.6); // drawn bigger than a shell so it reads as a rocket; it still hits the same
+      // Flame, flickering.
+      const flame = 3 + Math.random() * 3;
+      ctx.fillStyle = '#ffb347';
+      ctx.beginPath(); ctx.moveTo(-4, -1.4); ctx.lineTo(-4 - flame, 0); ctx.lineTo(-4, 1.4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff1c1';
+      ctx.beginPath(); ctx.moveTo(-4, -0.7); ctx.lineTo(-4 - flame * 0.5, 0); ctx.lineTo(-4, 0.7); ctx.closePath(); ctx.fill();
+      // Fins in the robot's colour, then the body and a red nose.
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.moveTo(-4, -1.2); ctx.lineTo(-5.5, -3); ctx.lineTo(-2, -1.2); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-4, 1.2); ctx.lineTo(-5.5, 3); ctx.lineTo(-2, 1.2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#e6e9ee';
+      roundRect(ctx, -4.5, -1.3, 7, 2.6, 1); ctx.fill();
+      ctx.fillStyle = '#ff5c5c';
+      ctx.beginPath(); ctx.moveTo(2.5, -1.3); ctx.lineTo(5, 0); ctx.lineTo(2.5, 1.3); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.8) {
+        this.particles.push({ kind: 'trail', x: p.x - dx * 13, y: p.y - dy * 13,
+          vx: (Math.random() - 0.5) * 0.2, vy: (Math.random() - 0.5) * 0.2 - 0.03, size: 1.8, life: 40, max: 40 });
+      }
+    }
+
+    /** .shot star: a spinning star in the robot's colour, leaving a sparkle trail. */
+    drawStarShot(ctx, p, dx, dy, moving) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(performance.now() / 90 + p.id);
+      ctx.fillStyle = p.color;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5, d = i % 2 ? 2.2 : 5;
+        if (i) ctx.lineTo(Math.cos(a) * d, Math.sin(a) * d); else ctx.moveTo(Math.cos(a) * d, Math.sin(a) * d);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      if (moving && this.particles.length < MAX_PARTICLES * 0.7 && Math.random() < 0.6) {
+        this.particles.push({ kind: 'spark', x: p.x - dx * 4 + (Math.random() - 0.5) * 3, y: p.y - dy * 4 + (Math.random() - 0.5) * 3,
+          vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4, size: 0.9, life: 14, max: 14,
+          color: Math.random() < 0.5 ? '#ffffff' : '#fff1a8' });
       }
     }
 

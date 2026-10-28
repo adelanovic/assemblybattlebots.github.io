@@ -621,6 +621,7 @@
         id: this.nextProjectileId++,
         owner: r.id,
         color: r.color,
+        shot: r.appearance.shot, // looks only, kept from when it was fired
         x: r.x + dx * muzzle, y: r.y + dy * muzzle,
         px: r.x, py: r.y,
         vx: dx * C.BULLET_SPEED, vy: dy * C.BULLET_SPEED,
