@@ -15,6 +15,9 @@
     const ci = line.search(/[;#]/);
     const code = ci >= 0 ? line.slice(0, ci) : line;
     const comment = ci >= 0 ? line.slice(ci) : '';
+    // `.boom fire`: after an appearance setting, a word is a style name, not the FIRE instruction.
+    const setting = /^\s*\.([A-Za-z]+)/.exec(code);
+    const isStyle = !!setting && Object.prototype.hasOwnProperty.call(BB.ISA.APPEARANCE, setting[1].toLowerCase());
     let html = code.replace(/(\.[A-Za-z]+)|(\[|\])|([A-Za-z_][A-Za-z0-9_]*:)|([A-Za-z_][A-Za-z0-9_]*)|(-?0x[0-9a-fA-F]+|-?\d+)|([^\w.\[\]-]+|.)/g,
       (m, dir, br, label, word, num, other) => {
         if (dir) return `<span class="t-dir">${esc(m)}</span>`;
@@ -22,6 +25,7 @@
         if (label) return `<span class="t-label">${esc(m)}</span>`;
         if (word) {
           const u = word.toUpperCase();
+          if (isStyle) return `<span class="t-ident">${esc(m)}</span>`;
           if (INSTRUCTION_MAP[u]) return `<span class="t-op">${esc(m)}</span>`;
           if (/^R[0-7]$/.test(u)) return `<span class="t-reg">${esc(m)}</span>`;
           if (SENSOR_MAP[u]) return `<span class="t-sensor">${esc(m)}</span>`;
