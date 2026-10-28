@@ -99,15 +99,54 @@
             this.burst(e.x, e.y, 4, ['#ffcc80', '#ffffff'], 1, 2, 7, 1.5);
             break;
           case 'explode':
-            this.particles.push({ kind: 'flash', x: e.x, y: e.y, size: 34, life: 12, max: 12, color: '#ffe2a8' });
-            this.particles.push({ kind: 'ring', x: e.x, y: e.y, size: 70, life: 22, max: 22, color: '#ffffff' });
-            this.burst(e.x, e.y, 22, ['#ffb347', '#ff6a3d', '#fff1c1', e.color], 1.5, 5.5, 28, 2.6);
-            for (let i = 0; i < 8; i++) this.smoke(e.x, e.y, 1.6);
+            this.explode(e);
             this.addScar({ kind: 'crater', x: e.x, y: e.y, r: 15 + Math.random() * 5 });
             break;
         }
       }
       if (this.particles.length > MAX_PARTICLES) this.particles.splice(0, this.particles.length - MAX_PARTICLES);
+    }
+
+    /** A robot was destroyed: its `.boom` style (looks only; the wreck and crater are the same for all). */
+    explode(e) {
+      const { x, y } = e;
+      const outward = (vmin, vmax) => {
+        const a = Math.random() * TAU, v = vmin + Math.random() * (vmax - vmin);
+        return { vx: Math.cos(a) * v, vy: Math.sin(a) * v };
+      };
+      if (e.boom === 'confetti') {
+        // A pop of paper that flutters down.
+        this.particles.push({ kind: 'flash', x, y, size: 18, life: 6, max: 6, color: '#fff3c4' });
+        const colors = ['#ff5c5c', '#4fc3f7', '#ffd54f', '#81c784', '#ba68c8', '#f06292', '#ffffff', e.color];
+        for (let i = 0; i < 40; i++) {
+          const v = outward(1.2, 4.2), life = 60 + Math.random() * 35;
+          this.particles.push({ kind: 'confetti', x, y, vx: v.vx, vy: v.vy - 1.4, angle: Math.random() * TAU, spin: (Math.random() - 0.5) * 0.5,
+            size: 1.5 + Math.random(), life, max: life, color: colors[i % colors.length] });
+        }
+      } else if (e.boom === 'pixels') {
+        // 8-bit style: square pixels that snap to a grid and blink out.
+        this.particles.push({ kind: 'pixel', x, y, vx: 0, vy: 0, size: 9, life: 6, max: 6, color: '#ffffff' });
+        const colors = [e.color, shade(e.color, 0.5), '#ffffff', shade(e.color, -0.3)];
+        for (let i = 0; i < 30; i++) {
+          const v = outward(0.8, 3.6), life = 40 + Math.random() * 20;
+          this.particles.push({ kind: 'pixel', x, y, ...v, size: 3, life, max: life, color: colors[i % colors.length] });
+        }
+      } else if (e.boom === 'fireworks') {
+        // A round shell of sparks in the robot's colour, with gold and white, drooping as it falls.
+        this.particles.push({ kind: 'flash', x, y, size: 22, life: 8, max: 8, color: '#ffffff' });
+        this.particles.push({ kind: 'ring', x, y, size: 75, life: 24, max: 24, color: e.color });
+        for (let i = 0; i < 36; i++) {
+          const a = (i / 36) * TAU + Math.random() * 0.1, v = (i % 3 ? 4.3 : 2.6) + Math.random() * 0.5, life = 55 + Math.random() * 20;
+          this.particles.push({ kind: 'firework', x, y, px: x, py: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+            size: 1.4, life, max: life, color: i % 3 ? e.color : ['#fff3c4', '#ffd54f'][i % 2] });
+        }
+      } else {
+        // fire: the original explosion.
+        this.particles.push({ kind: 'flash', x, y, size: 34, life: 12, max: 12, color: '#ffe2a8' });
+        this.particles.push({ kind: 'ring', x, y, size: 70, life: 22, max: 22, color: '#ffffff' });
+        this.burst(x, y, 22, ['#ffb347', '#ff6a3d', '#fff1c1', e.color], 1.5, 5.5, 28, 2.6);
+        for (let i = 0; i < 8; i++) this.smoke(x, y, 1.6);
+      }
     }
 
     burst(x, y, n, colors, vmin, vmax, life, size) {
@@ -1064,6 +1103,32 @@
             ctx.globalAlpha = p.alpha * (1 - t);
             ctx.fillStyle = p.color;
             ctx.beginPath(); ctx.arc(p.x, p.y, p.size + t * 3, 0, TAU); ctx.fill();
+            break;
+          case 'confetti': // .boom confetti: flutters down, turning so it flickers
+            p.vx *= 0.96; p.vy = p.vy * 0.96 + 0.06; p.x += p.vx + Math.sin(p.life * 0.25) * 0.2; p.y += p.vy; p.angle += p.spin;
+            ctx.globalAlpha = Math.min(1, 2.5 * (1 - t));
+            ctx.fillStyle = p.color;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            ctx.fillRect(-p.size, -p.size * 0.6 * Math.abs(Math.cos(p.angle * 2)) - 0.2, p.size * 2, p.size * 1.2 * Math.abs(Math.cos(p.angle * 2)) + 0.4);
+            ctx.restore();
+            break;
+          case 'pixel': { // .boom pixels: on a 3-unit grid, fading in steps like an old game
+            p.x += p.vx; p.y += p.vy; p.vx *= 0.94; p.vy *= 0.94;
+            ctx.globalAlpha = Math.ceil((1 - t) * 4) / 4;
+            ctx.fillStyle = p.color;
+            const gx = Math.round(p.x / 3) * 3, gy = Math.round(p.y / 3) * 3;
+            ctx.fillRect(gx - p.size / 2, gy - p.size / 2, p.size, p.size);
+            break;
+          }
+          case 'firework': // .boom fireworks: a spark with a short tail, slowing and drooping
+            p.px = p.x; p.py = p.y;
+            p.vx *= 0.95; p.vy = p.vy * 0.95 + 0.035; p.x += p.vx; p.y += p.vy;
+            ctx.globalAlpha = Math.min(1, 1.8 * (1 - t));
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = p.size;
+            ctx.beginPath(); ctx.moveTo(p.px - p.vx * 2, p.py - p.vy * 2); ctx.lineTo(p.x, p.y); ctx.stroke();
             break;
           case 'bubble': // .trail bubbles: rings that float up a little
             p.x += p.vx + Math.sin(p.life * 0.3) * 0.12; p.y += p.vy - 0.05;

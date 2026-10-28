@@ -670,7 +670,7 @@
           ? (cause === 'wall' ? ` by ${source.name}, shoved into a wall` : ` by ${source.name}`)
           : cause === 'wall' ? ' by crashing into a wall' : '';
         this.addLog(`${r.name} was destroyed${by}.`, 'death');
-        this.emit({ type: 'explode', x: r.x, y: r.y, color: r.color });
+        this.emit({ type: 'explode', x: r.x, y: r.y, color: r.color, boom: r.appearance.boom });
       }
     }
 

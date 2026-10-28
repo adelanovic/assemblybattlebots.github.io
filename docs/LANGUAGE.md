@@ -5,7 +5,7 @@
 ## Program structure
 
 - Line 1 is the robot's name (required, truncated to 24 characters with a warning). The whole trimmed line is the name; do not add an inline comment. Leading ; or # markers are stripped. Code starts on line 2.
-- Optional appearance header below the name: `.shape tank`, `.drive tracks`, `.turret standard`, `.color green`, `.decal stripes`, `.badge star` (or a number from 1 to 99), `.trail smoke`. Each accepts a preset and may appear once, before any label, constant or instruction. Comments and blank lines are allowed between header directives. Appearance is cosmetic and uses no CPU cycles.
+- Optional appearance header below the name: `.shape tank`, `.drive tracks`, `.turret standard`, `.color green`, `.decal stripes`, `.badge star` (or a number from 1 to 99), `.trail smoke`, `.boom confetti`. Each accepts a preset and may appear once, before any label, constant or instruction. Comments and blank lines are allowed between header directives. Appearance is cosmetic and uses no CPU cycles.
 - From line 2 onward, comments start with `;` or `#` and continue to the end of the line. Blank lines are ignored. Mnemonics, registers, sensors, labels and constants are case-insensitive. Separate operands with commas.
 - Labels end with a colon (`loop:`) and may share a line with an instruction. Names use letters, digits and underscores, starting with a letter or underscore. Labels and constants cannot share names or use instruction/register names.
 - Constants: `.def NAME value` (`.const` and `.equ` are aliases). The value must be a numeric literal. Constants may be referenced before their definition and used as source values or memory addresses/offsets, but not as jump targets or sensor operands.
@@ -18,7 +18,7 @@
 
 ### Appearance header
 
-Choose up to seven cosmetic presets immediately below the name. Comments and blank lines may appear between them. Values and directive names are case-insensitive. Each directive may appear once, before any label, constant or instruction. Omitted settings use the defaults below.
+Choose up to eight cosmetic presets immediately below the name. Comments and blank lines may appear between them. Values and directive names are case-insensitive. Each directive may appear once, before any label, constant or instruction. Omitted settings use the defaults below.
 
 | Directive | Presets | Default |
 |---|---|---|
@@ -29,6 +29,7 @@ Choose up to seven cosmetic presets immediately below the name. Comments and bla
 | `.decal preset` | `none`, `stripes`, `flames`, `lightning`, `spots`, `checker` | `none` |
 | `.badge preset` | `none`, `star`, `bolt`, `heart`, `crown`, `paw`, `shield`, or a number from 1 to 99 | `none` |
 | `.trail preset` | `none`, `smoke`, `sparks`, `bubbles`, `rainbow` | `none` |
+| `.boom preset` | `fire`, `confetti`, `pixels`, `fireworks` | `fire` |
 
 ```asm
 Iron Beetle
@@ -77,7 +78,7 @@ The turret follows `TURRET` and your `AIM` commands independently of the hull. T
 | `short` | One shorter barrel on the same dome. Range, bullet speed, damage and bullet origin are unchanged. |
 | `twin` | Two parallel full-length barrels. Each successful FIRE still creates one projectile from the normal central bullet origin, with the normal cooldown. |
 
-#### Color, paint, badge and trail: `.color`, `.decal`, `.badge`, `.trail`
+#### Color, paint, badge, trail and explosion: `.color`, `.decal`, `.badge`, `.trail`, `.boom`
 
 These add personality without changing anything about how the robot plays.
 
@@ -86,9 +87,10 @@ These add personality without changing anything about how the robot plays.
 | `.color` | `red`, `blue`, `yellow`, `green`, `purple`, `orange`, `cyan`, `pink`, `white`, `gray`, `lime`, `indigo`, `brown` | The paint color of the robot. With `auto` (the default) the game picks by roster position. If two robots choose the same color, the first in the roster keeps it and the other gets the next free color; the match log says so. Robots on `auto` step aside for robots that chose. Team matches ignore it and keep team colors (warm for A, cool for B). |
 | `.decal` | `stripes`, `flames`, `lightning`, `spots`, `checker` | A paint job on the hull, under the scratches and dents. `spots` sit in the same place every match (they follow the robot's name). |
 | `.badge` | `star`, `bolt`, `heart`, `crown`, `paw`, `shield`, or a number from 1 to 99 | A small round badge on the back of the hull, and next to the name above the robot, where it is easy to read during a match. Numbers suit teams: `.badge 7`. `07` means 7. |
+| `.boom` | `fire`, `confetti`, `pixels`, `fireworks` | How the robot explodes when destroyed. `fire` is the classic fireball (the default); `confetti` is a pop of paper that flutters down; `pixels` is an 8-bit burst of squares; `fireworks` is a ring of sparks in the robot color. The wreck and crater left behind are the same for all. |
 | `.trail` | `smoke`, `sparks`, `bubbles`, `rainbow` | Left behind the robot while it drives at speed 1 or more. Trails only use spare effect budget, so a busy fight may thin them out. |
 
-Every combination of all seven directives is supported. Hit flashes follow your hull shape, and wrecks retain your selected hull, drive and turret.
+Every combination of all eight directives is supported. Hit flashes follow your hull shape, and wrecks retain your selected hull, drive and turret.
 
 #### Header syntax and defaults
 
@@ -96,7 +98,7 @@ Every combination of all seven directives is supported. Hit flashes follow your 
 - Directives can appear in any order. Use one literal preset word after each directive, separated by whitespace: `.shape circle`. Do not add commas or quotes, or use a register or `.def` constant in place of the preset.
 - Case does not matter: `.SHAPE HEXAGON` and `.shape hexagon` mean the same thing. Inline comments work normally, such as `.drive wheels ; four wheels`.
 - Specify each directive at most once. Repeating a setting is an assembly error even when both values are identical. Unsupported, missing or extra preset words are also errors, reported at their source line.
-- Every omitted setting receives its default independently: `tank`, `tracks`, `standard`, `auto` for color, and `none` for decal, badge and trail. Existing robot files without an appearance header keep the original look. A file still needs at least one executable instruction after its name/header.
+- Every omitted setting receives its default independently: `tank`, `tracks`, `standard`, `auto` for color, `none` for decal, badge and trail, and `fire` for boom. Existing robot files without an appearance header keep the original look. A file still needs at least one executable instruction after its name/header.
 
 For example, this changes only the drive. The hull remains `tank` and the turret remains `standard`:
 
@@ -129,13 +131,13 @@ Typing a change edits the draft; press Apply to use it (▶ Start and Step apply
 
 #### Built-in example combinations
 
-| Robot | Shape | Drive | Turret | Color | Decal | Badge | Trail |
-|---|---|---|---|---|---|---|---|
-| Sentinel | `hexagon` | `tracks` | `standard` | `green` | `spots` | `shield` | `none` |
-| Hunter | `wedge` | `wheels` | `twin` | `red` | `flames` | `paw` | `sparks` |
-| Dodger | `circle` | `wheels` | `short` | `yellow` | `lightning` | `bolt` | `rainbow` |
-| Orbiter | `tank` | `hover` | `standard` | `purple` | `stripes` | `crown` | `bubbles` |
-| Stacker | `hexagon` | `wheels` | `twin` | `blue` | `checker` | `64` | `smoke` |
+| Robot | Shape | Drive | Turret | Color | Decal | Badge | Trail | Boom |
+|---|---|---|---|---|---|---|---|---|
+| Sentinel | `hexagon` | `tracks` | `standard` | `green` | `spots` | `shield` | `none` | `fire` |
+| Hunter | `wedge` | `wheels` | `twin` | `red` | `flames` | `paw` | `sparks` | `fireworks` |
+| Dodger | `circle` | `wheels` | `short` | `yellow` | `lightning` | `bolt` | `rainbow` | `confetti` |
+| Orbiter | `tank` | `hover` | `standard` | `purple` | `stripes` | `crown` | `bubbles` | `fireworks` |
+| Stacker | `hexagon` | `wheels` | `twin` | `blue` | `checker` | `64` | `smoke` | `pixels` |
 
 #### Stack tutorial bot
 

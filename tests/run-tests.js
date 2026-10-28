@@ -1771,7 +1771,7 @@ test('CLI rejects malformed and missing integer options before reading robot fil
 });
 
 test('appearance presets are optional, case-insensitive metadata with unchanged instruction indices', () => {
-  const plain = { color: 'auto', decal: 'none', badge: 'none', trail: 'none' }; // the paint-job options left at their defaults
+  const plain = { color: 'auto', decal: 'none', badge: 'none', trail: 'none', boom: 'fire' }; // the paint-job options left at their defaults
   assert.deepStrictEqual(BB.assemble('A\nWAIT').appearance, { shape: 'tank', drive: 'tracks', turret: 'standard', ...plain });
   const code = 'main: INC R0\nWAIT\nJMP main';
   const baseline = BB.assemble(`A\n${code}`).program.map(({ op, args, cost }) => ({ op, args, cost }));
@@ -1825,7 +1825,7 @@ test('appearance hot-swaps and survives duplication without changing the robot b
   const robot = app.robotFor(0), body = [robot.x, robot.y, robot.health];
   app.selected.draft = 'A\n.shape wedge\n.drive hover\n.turret twin\n.decal flames\n.badge 7\n.trail sparks\nWAIT';
   app.applyDraft();
-  assert.deepStrictEqual({ ...robot.appearance }, { shape: 'wedge', drive: 'hover', turret: 'twin', color: 'auto', decal: 'flames', badge: '7', trail: 'sparks' });
+  assert.deepStrictEqual({ ...robot.appearance }, { shape: 'wedge', drive: 'hover', turret: 'twin', color: 'auto', decal: 'flames', badge: '7', trail: 'sparks', boom: 'fire' });
   assert.deepStrictEqual([robot.x, robot.y, robot.health], body);
   app.nextId = 2;
   app.resetMatch = () => {};
@@ -1892,6 +1892,20 @@ test('every decal, badge and trail draws with finite numbers, and trails only us
     assert.ok(t === 'none' ? renderer.particles.length === 0 : renderer.particles.length > 20, `${t}: ${renderer.particles.length} particles`);
     for (let i = 0; i < 50; i++) renderer.drawParticles(context);
     assert.strictEqual(renderer.particles.length, 0, `${t}: particles fade out`);
+  }
+  // Every .boom style: the destroyed robot's choice reaches the renderer, draws, and fades out.
+  for (const boom of BB.ISA.APPEARANCE.boom.choices) {
+    const w = new BB.World({ entries: [compile(`A\n.boom ${boom}\nWAIT`, 0), compile('B\nWAIT', 1)], arena: 'open' });
+    w.damage(w.robots[0], 999, w.robots[1], 'shot');
+    const events = w.drainEvents();
+    assert.strictEqual(events.find((e) => e.type === 'explode').boom, boom);
+    renderer.particles = [];
+    renderer.scars = [];
+    renderer.addScar = () => {};
+    renderer.addEvents(events.filter((e) => e.type === 'explode'));
+    assert.ok(renderer.particles.length >= 10, `${boom}: ${renderer.particles.length} particles`);
+    for (let i = 0; i < 120; i++) renderer.drawParticles(context);
+    assert.strictEqual(renderer.particles.length, 0, `${boom}: fades out`);
   }
   // A busy screen (explosions) leaves no room for trails.
   const world = new BB.World({ entries: [compile('A\n.trail smoke\nWAIT', 0)], arena: 'open' });

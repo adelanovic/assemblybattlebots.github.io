@@ -5,6 +5,7 @@ Sentinel
 .color green
 .decal spots
 .badge shield
+.boom fire
 ; STRATEGY: turret sniper.
 ; Holds its ground, sweeps the turret with a narrow scan, leads moving
 ; targets (predicts where they will be when the bullet arrives) and
