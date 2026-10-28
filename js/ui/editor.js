@@ -184,6 +184,12 @@
         if (comment >= 0 && m.index > comment) break;
         if (col >= vis[m.index] && col < vis[m.index + m[0].length]) return { word: m[0], line: row + 1, index: m.index };
       }
+      // A memory operand like [0] or [R1+4]: the brackets and numbers (names inside got their own help above).
+      const mem = /\[[^\]]*\]/g;
+      while ((m = mem.exec(text))) {
+        if (comment >= 0 && m.index > comment) break;
+        if (col >= vis[m.index] && col < vis[m.index + m[0].length]) return { word: m[0], line: row + 1, index: m.index, memory: true };
+      }
       return null;
     }
 

@@ -869,6 +869,18 @@ test('damaged saved robots are skipped or repaired, never shown as "[object Obje
   assert.deepStrictEqual(clean(good), good, 'a healthy save is kept as is');
 });
 
+test('the CPU inspector shows memory slots the program names, and any that hold a value', () => {
+  const app = uiHarness();
+  const vm = new BB.VM(BB.assemble('T\nMOV R1, 40\nMOV [R1+2], 9\nMOV R0, [3]\nHALT').program, {});
+  assert.strictEqual(app.memoryRow(vm, 'tip'), '<div class="kv memory"><span title="tip"><i>[3]</i>0</span></div>', 'before running: just the named slot');
+  vm.run(50);
+  assert.match(app.memoryRow(vm, 'tip'), /<i>\[3\]<\/i>0<\/span><span title="tip"><i>\[42\]<\/i>9</, 'after: [42] holds 9');
+  assert.strictEqual(app.memoryRow(new BB.VM(BB.assemble('T\nHALT').program, {}), 'tip'), '', 'no memory used: no row');
+  const busy = new BB.VM(BB.assemble('T\nHALT').program, {});
+  for (let i = 0; i < 20; i++) busy.mem[i] = 1;
+  assert.match(app.memoryRow(busy, 'tip'), /\+8 more/, 'capped at 12 slots');
+});
+
 test('invalid Apply preserves the applied program and reports rejection', () => {
   for (const tick of [0, 1]) {
     const app = uiHarness();

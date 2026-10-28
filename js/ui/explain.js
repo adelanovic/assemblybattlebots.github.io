@@ -85,6 +85,7 @@
   };
 
   const REGISTER = 'A box that holds one number. Your robot has 8 of them: R0 to R7.';
+  const MEMORY = 'Memory: 256 numbered slots, [0] to [255], for keeping numbers until later. Each one starts at 0. It is not the stack: PUSH, POP, CALL and RET use the stack.';
 
   /** Plain words for the VM's crash messages (vm.js), most common first. */
   const FAULTS = [
@@ -196,6 +197,7 @@
     instruction: (op) => INSTRUCTIONS[op] || null,
     sensor: (name) => SENSORS[name] || null,
     REGISTER,
+    MEMORY,
     fault,
     traceNote,
     traceNotes,

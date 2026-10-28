@@ -324,6 +324,7 @@ main {
   .mission-bar .mb-answer { max-height: 130px; }
 }
 .kv.sensors { grid-template-columns: repeat(3, 1fr); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.kv.memory { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 
 /* ---------- reference ---------- */
 .reference h3 { margin: 18px 0 6px; font-size: 14px; color: var(--accent); }

@@ -46,6 +46,18 @@
   }
 
   /**
+   * Memory slots worth showing in the CPU inspector: those the program names
+   * ([0], [BASE+2]) and any holding a value. At most `max`; returns { slots, more }.
+   */
+  function memorySlots(vm, max = 12) {
+    const named = new Set();
+    for (const ins of vm.program) for (const a of ins.args) if (a.k === 'mem' && a.r < 0) named.add(a.off);
+    for (let i = 0; i < vm.mem.length; i++) if (vm.mem[i] !== 0) named.add(i);
+    const all = [...named].sort((x, y) => x - y);
+    return { slots: all.slice(0, max), more: Math.max(0, all.length - max) };
+  }
+
+  /**
    * Where 1-based `lines` of `before` end up in `after`. Text is compared from
    * both ends: lines above the edited block keep their number, lines below it
    * shift by the change in length, and a line inside the edited block keeps its
@@ -737,7 +749,8 @@
         show(`
           <div class="dbg-line"><b>${esc(r.name)}</b> · ${state}</div>
           ${regs ? `<div class="kv">${regs}</div>` : '<div class="muted">This program doesn\'t use any boxes (registers) yet.</div>'}
-          ${sens ? `<div class="kv sensors">${sens}</div>` : ''}`);
+          ${sens ? `<div class="kv sensors">${sens}</div>` : ''}
+          ${this.memoryRow(vm, BB.explain.MEMORY)}`);
       } else {
         const sensors = ['X', 'Y', 'HEADING', 'SPEED', 'HEALTH', 'COOLDOWN', 'TURRET', 'FRONT', 'SCAN_DIST', 'SCAN_ANGLE', 'SCAN_RANGE', 'THREAT_DIST', 'THREAT_ANGLE'];
         const regs = [...vm.regs].map((v, i) => cell(`R${i}`, v)).join('');
@@ -745,7 +758,8 @@
         show(`
           <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
           <div class="kv">${regs}</div>
-          <div class="kv sensors">${sens}</div>`);
+          <div class="kv sensors">${sens}</div>
+          ${this.memoryRow(vm, 'Memory words [0]..[255]: those the program names, and any that are not 0.')}`);
       }
       // Only mark lines if the editor shows the code the robot is running.
       // A fault marks the crashing line; otherwise, while paused, the next line.
@@ -758,6 +772,14 @@
       this.editor.setExecLine(line, kind);
       this.editor.setCounts(counts);
       this.updateTrace(r);
+    }
+
+    /** Inspector row for memory slots (memorySlots), or '' when the program uses none. */
+    memoryRow(vm, tip) {
+      const { slots, more } = memorySlots(vm);
+      if (!slots.length) return '';
+      const cells = slots.map((a) => `<span title="${esc(tip)}"><i>[${a}]</i>${vm.mem[a]}</span>`).join('');
+      return `<div class="kv memory">${cells}${more ? `<span class="muted">+${more} more</span>` : ''}</div>`;
     }
 
     /** The selected robot's last CPU turn, one row per instruction, shown while paused. */
@@ -979,6 +1001,20 @@
       const live = (v) => `<div class="tip-live">Right now: <b>${v}</b></div>`;
       const more = (ref) => `<button class="tip-more" data-ref="${ref}">More in Reference →</button>`;
       const head = (code, kind) => `<div class="tip-head"><code>${esc(code)}</code> <span class="tip-kind">${kind}</span></div>`;
+      if (at && at.memory) {
+        // Which slot it means right now, from the running program (only when the editor shows that program).
+        let now = '';
+        const ins = r && e.runningSource === this.editor.value && r.vm.program.find((i) => i.line === at.line);
+        const a = ins && ins.args.find((x) => x.k === 'mem');
+        if (a) {
+          const addr = (a.r >= 0 ? r.vm.regs[a.r] : 0) + a.off;
+          now = live(addr >= 0 && addr < C.MEMORY_SIZE ? `[${addr}] holds ${r.vm.mem[addr]}` : `[${addr}], outside memory: this would crash`);
+        }
+        return head(word, 'memory') +
+          `<div>${esc(simple ? X.MEMORY : `Memory: ${C.MEMORY_SIZE} words, [0]..[${C.MEMORY_SIZE - 1}], all starting at 0. Separate from the stack.`)}</div>` +
+          '<div class="tip-ex"><code>[5]</code> is slot 5. <code>[R1]</code> is the slot whose number is in R1, and <code>[R1+2]</code> is 2 slots after that.</div>' +
+          now + more('sec:operands');
+      }
       const ctx = at && BB.assist.wordContext(this.editor.value, at.line - 1, at.index);
       if (at && !ctx) return null;
       const role = ctx && ctx.role;
