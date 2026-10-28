@@ -391,22 +391,26 @@ walls_done:
 ; Nested calls reach 11 stack entries, safely below the 64-entry limit.
 ; A routine may span CPU ticks: its stack remains intact between ticks.
 ;
-; Main owns R6 (completed patrol/turret passes) and R7 (cruise speed).
-; drive and combat preserve R0..R3 as described at their entry points.
+; Main keeps two values the whole time: R2 counts completed passes and
+; R3 is the cruise speed. The helpers below also use R2 and R3 as scratch,
+; so each one PUSHes them first and POPs them back before RET. Watch the
+; Stack row in the CPU inspector: those saved values are main's R2 and R3.
+; Try it: delete combat's "PUSH R3" and "POP R3" lines, and turret_search
+; overwrites the cruise speed with a turret angle. Stacker races off!
 
 .def WALL_GAP 70
 .def ALIGN 6
 
-    MOV R6, 0
-    MOV R7, 3
+    MOV R2, 0             ; passes completed
+    MOV R3, 3             ; cruise speed
 main:
     CALL drive
     CALL combat
-    INC  R6
+    INC  R2               ; still main's counter: every helper put R2 back
     WAIT                  ; both routines returned; stack is empty here
     JMP  main
 
-; drive: preserve R0/R1; R7 remains the caller's cruise speed.
+; drive: preserve R0/R1; reads main's cruise speed from R3.
 ; wall_check returns R0=1 when it has requested an evasive turn.
 drive:
     PUSH R0
@@ -420,7 +424,7 @@ drive:
     SPEED 2               ; cruise more cautiously when damaged
     JMP  drive_done
 drive_cruise:
-    SPEED R7
+    SPEED R3
 drive_done:
     POP  R1               ; last saved register comes back first
     POP  R0

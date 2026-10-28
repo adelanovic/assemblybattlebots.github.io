@@ -984,6 +984,27 @@ test('the CPU inspector shows memory slots the program names, and any that hold 
   assert.match(app.memoryRow(busy, 'tip'), /\+8 more/, 'capped at 12 slots');
 });
 
+test('the CPU inspector shows the stack top first, saying which PUSH or CALL saved each entry', () => {
+  const app = uiHarness();
+  const vm = new BB.VM(BB.assemble('T\nmain: CALL f\nHALT\nf: PUSH 7\nMOV R1, 3\nPUSH R1\nWAIT\nPOP R1\nPOP R2\nRET').program, {});
+  vm.run(50); // stops at WAIT inside f: [return to line 3, 7, 3] with 3 on top
+  assert.deepStrictEqual([...vm.stack], [1, 7, 3]);
+  assert.deepStrictEqual([...vm.pushedAt], [2, 4, 6], 'kept in step with the stack');
+  const html = app.stackRow(vm, 'tip');
+  const items = [...html.matchAll(/<li[^>]*><b>([^<]*)<\/b><span>([^<]*)<\/span>/g)].map((m) => `${m[1]} | ${m[2]}`);
+  assert.deepStrictEqual(items, ['3 | PUSH R1', '7 | PUSH 7', '↩ line 3 | CALL f']);
+  assert.match(html, /Stack 3\/64/);
+  app.running = true;
+  const running = app.stackRow(vm, 'tip');
+  assert.match(running, /class="stack-row compact".*Stack 3\/64.*pause or Step/, 'one steady line while the match runs');
+  assert.doesNotMatch(running, /<li/, 'no list to grow and shrink');
+  app.running = false;
+  vm.run(50);
+  assert.deepStrictEqual([vm.stack.length, vm.pushedAt.length, vm.isReturn.length], [0, 0, 0], 'popped together');
+  assert.match(app.stackRow(vm, 'tip'), /empty/);
+  assert.strictEqual(app.stackRow(new BB.VM(BB.assemble('T\nWAIT').program, {}), 'tip'), '', 'no stack use: no row');
+});
+
 test('invalid Apply preserves the applied program and reports rejection', () => {
   for (const tick of [0, 1]) {
     const app = uiHarness();
@@ -2195,9 +2216,10 @@ test('Stacker balances nested calls and register saves across CPU budget boundar
       cpu.run(BB.CONFIG.CYCLES_PER_TICK);
       assert.strictEqual(cpu.fault, null);
       if (cpu.stack.length) partialTicks++;
-      else if (cpu.regs[6] > 0) {
-        assert.deepStrictEqual([...cpu.regs.slice(0, 4)], preserved);
-        assert.strictEqual(cpu.regs[7], 3);
+      else if (cpu.regs[2] > 0) {
+        // Main owns R2 (passes) and R3 (cruise speed); the helpers' saves keep R0/R1 and R3 intact.
+        assert.deepStrictEqual([...cpu.regs.slice(0, 2)], preserved.slice(0, 2));
+        assert.strictEqual(cpu.regs[3], 3, 'cruise speed survives every helper');
         checks++;
       }
     }
@@ -2212,6 +2234,19 @@ test('Stacker balances nested calls and register saves across CPU budget boundar
   assert.ok(overallPartialTicks > 0, 'routines should span CPU ticks');
 });
 
+test('Stacker\'s lesson works: delete combat\'s PUSH R3/POP R3 and the cruise speed is lost', () => {
+  const source = BB.EXAMPLES.find((ex) => ex.file === 'stacker.asm').source;
+  const broken = source.replace('    PUSH R2\n    PUSH R3\n    SCAN 45', '    PUSH R2\n    SCAN 45').replace('combat_done:\n    POP  R3\n', 'combat_done:\n');
+  assert.notStrictEqual(broken, source, 'the two lines were found and removed');
+  const topSpeed = (src) => {
+    const world = new BB.World({ entries: [compile(src, 0)], arena: 'open', seed: 1 });
+    let top = 0;
+    for (let tick = 0; tick < 1200; tick++) { world.step(); top = Math.max(top, Math.abs(world.robots[0].speed)); }
+    return top;
+  };
+  assert.strictEqual(topSpeed(source), 3, 'normally it cruises at R3 = 3');
+  assert.strictEqual(topSpeed(broken), BB.CONFIG.MAX_SPEED, 'without the save, a turret angle lands in R3 and it races off');
+});
 test('Stacker runs full practice sessions on every arena without stack growth or faults', () => {
   const source = BB.EXAMPLES.find((ex) => ex.file === 'stacker.asm').source;
   for (const arena of ['classic', 'random', 'open']) for (const seed of [1, 7, 42]) {
@@ -2222,7 +2257,7 @@ test('Stacker runs full practice sessions on every arena without stack growth or
     for (let tick = 0; tick < BB.CONFIG.MAX_TICKS; tick++) world.step();
     assert.strictEqual(robot.vm.fault, null, `${arena}/${seed}`);
     assert.ok(peak <= 11);
-    assert.ok(robot.vm.regs[6] > 20, `${arena}/${seed}: patrol/turret passes did not progress`);
+    assert.ok(robot.vm.regs[2] > 20, `${arena}/${seed}: patrol/turret passes did not progress`);
     assert.ok(robot.stats.shots === 0, 'solo robot should not fire at nonexistent targets');
   }
 });

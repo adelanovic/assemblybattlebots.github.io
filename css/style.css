@@ -329,6 +329,17 @@ button.card-name:focus-visible { outline: 2px solid var(--accent); outline-offse
 }
 .kv.sensors { grid-template-columns: repeat(3, 1fr); margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
 .kv.memory { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); }
+/* The stack, top entry first: value (or return line) plus the PUSH/CALL that saved it. */
+.stack-row { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border); font-family: var(--mono); }
+.stack-row > i { display: block; font-style: normal; color: var(--muted); margin-bottom: 3px; }
+.stack-row.compact { display: flex; gap: 10px; white-space: nowrap; overflow: hidden; } /* one line while running */
+.stack-row.compact > i { display: inline; margin: 0; }
+.stack-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.stack-list li { display: flex; gap: 10px; padding: 1px 6px; border-left: 3px solid var(--border); }
+.stack-list li:first-child { border-left-color: var(--accent); } /* the top: what POP or RET takes next */
+.stack-list li b { min-width: 7ch; font-weight: 600; }
+.stack-list li span { color: var(--muted); }
+.stack-list .st-ret b { color: var(--warn); }
 
 /* ---------- reference ---------- */
 .reference h3 { margin: 18px 0 6px; font-size: 14px; color: var(--accent); }

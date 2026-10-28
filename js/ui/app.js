@@ -760,7 +760,8 @@
           <div class="dbg-line"><b>${esc(r.name)}</b> · ${state}</div>
           ${regs ? `<div class="kv">${regs}</div>` : '<div class="muted">This program doesn\'t use any boxes (registers) yet.</div>'}
           ${sens ? `<div class="kv sensors">${sens}</div>` : ''}
-          ${this.memoryRow(vm, BB.explain.MEMORY)}`);
+          ${this.memoryRow(vm, BB.explain.MEMORY)}
+          ${this.stackRow(vm, BB.explain.STACK)}`);
       } else {
         const sensors = ['X', 'Y', 'HEADING', 'SPEED', 'HEALTH', 'COOLDOWN', 'TURRET', 'FRONT', 'SCAN_DIST', 'SCAN_ANGLE', 'SCAN_RANGE', 'THREAT_DIST', 'THREAT_ANGLE'];
         const regs = [...vm.regs].map((v, i) => cell(`R${i}`, v)).join('');
@@ -769,7 +770,8 @@
           <div class="dbg-line"><b>${esc(r.name)}</b> · ${state} · ${r.cyclesLastTick}/${C.CYCLES_PER_TICK} cycles last tick · stack ${vm.stack.length}/${C.STACK_SIZE} · cmp ${vm.cmp}</div>
           <div class="kv">${regs}</div>
           <div class="kv sensors">${sens}</div>
-          ${this.memoryRow(vm, 'Memory words [0]..[255]: those the program names, and any that are not 0.')}`);
+          ${this.memoryRow(vm, 'Memory words [0]..[255]: those the program names, and any that are not 0.')}
+          ${this.stackRow(vm, `Stack, top first: ${C.STACK_SIZE} entries shared by PUSH/POP and CALL/RET.`)}`);
       }
       // Only mark lines if the editor shows the code the robot is running.
       // A fault marks the crashing line; otherwise, while paused, the next line.
@@ -782,6 +784,31 @@
       this.editor.setExecLine(line, kind);
       this.editor.setCounts(counts);
       this.updateTrace(r);
+    }
+
+    /**
+     * Inspector row for the stack, top entry first, each labelled with the PUSH or CALL that saved it:
+     * a return address shows the line RET will go back to. '' when the program never uses the stack.
+     * While the match runs it's one fixed-height line: a list growing and shrinking ten times a
+     * second would make the whole inspector jump, and couldn't be read anyway.
+     */
+    stackRow(vm, tip, max = 8) {
+      if (!vm.program.some((ins) => ['PUSH', 'POP', 'CALL', 'RET'].includes(ins.op))) return '';
+      const n = vm.stack.length;
+      if (this.running) {
+        return `<div class="stack-row compact" title="${esc(tip)}"><i>Stack ${n}/${C.STACK_SIZE}</i><span class="muted">pause or Step to see what's on it</span></div>`;
+      }
+      const from = (line) => { const ins = vm.program.find((i) => i.line === line); return ins ? esc(ins.asm) : ''; };
+      const rows = [];
+      for (let k = n - 1; k >= Math.max(0, n - max); k--) {
+        const v = vm.stack[k], src = from(vm.pushedAt[k]);
+        rows.push(vm.isReturn[k]
+          ? `<li class="st-ret"><b>↩ line ${vm.lineAt(v)}</b><span>${src}</span></li>`
+          : `<li><b>${v}</b><span>${src}</span></li>`);
+      }
+      const more = n > max ? `<li class="muted">+${n - max} more below</li>` : '';
+      const body = n ? `<ol class="stack-list">${rows.join('')}${more}</ol>` : '<span class="muted">empty</span>';
+      return `<div class="stack-row" title="${esc(tip)}"><i>Stack ${n}/${C.STACK_SIZE}</i>${body}</div>`;
     }
 
     /** Inspector row for memory slots (memorySlots), or '' when the program uses none. */
