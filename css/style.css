@@ -41,6 +41,10 @@ button, select, input[type=number] {
 button:hover, select:hover { border-color: #3d4556; background: #252b37; }
 button.primary { background: #1f5fae; border-color: #2a72cc; }
 button.primary:hover { background: #2a72cc; }
+/* First visit: Start glows until it's pressed, so new players know what to do. */
+#btn-run.nudge { animation: nudge 1.6s ease-in-out infinite; }
+@keyframes nudge { 50% { box-shadow: 0 0 0 6px rgba(79, 163, 255, .45); } }
+@media (prefers-reduced-motion: reduce) { #btn-run.nudge { animation: none; box-shadow: 0 0 0 3px rgba(79, 163, 255, .6); } }
 button.primary.active { background: #8a5a12; border-color: #b07519; }
 button.icon { padding: 0 6px; background: none; border: none; color: var(--muted); }
 button.icon:hover { color: var(--text); }
@@ -141,6 +145,10 @@ main {
 .bp-state { color: var(--bad); }
 .editor-head .opt { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; white-space: nowrap; cursor: pointer; }
 .editor-title { flex: 1 1 120px; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.font-size { display: inline-flex; }
+.font-size button { padding-left: 7px; padding-right: 7px; }
+.font-size button:first-child { border-radius: 6px 0 0 6px; }
+.font-size button:last-child { border-radius: 0 6px 6px 0; border-left: none; }
 #btn-apply.dirty { background: #a8661a; border-color: #c97d22; }
 
 /* ---------- code editor ---------- */

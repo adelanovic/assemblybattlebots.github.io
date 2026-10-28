@@ -25,7 +25,7 @@ npm run tournament    # 50 seeds, win counts per robot
 node tools/headless.js --seed 7 my_bot.asm examples/hunter.asm
 node tools/headless.js --rounds 50 --arena random my_bot.asm examples/*.asm   # test across 50 random maps
 node tools/headless.js --teams 2 a.asm b.asm c.asm d.asm   # 2v2: first two files are team A, the rest team B
-npm run build         # regenerate examples/*.asm and docs/LANGUAGE.md from the JS sources
+npm run build         # regenerate examples/*.asm, docs/LANGUAGE.md and index.html ?v= tags (run after editing JS or CSS)
 node tools/balance.js 20 --out docs/balance-results.json  # compare arenas, bot constants, rules and 1v1 duels
 ```
 
@@ -260,7 +260,7 @@ See [docs/LANGUAGE.md](docs/LANGUAGE.md) for instruction details, sensor behavio
 
 ## Keeping robots private
 
-Robot files you don't want published, such as competition entries, can stay in the folder: just list them in `.gitignore`. They still load in your local copy through **📂 Load .asm files…**, but they're never committed or served from GitHub Pages.
+Robot files you don't want published, such as competition entries, can stay in the folder: name them `something.private.asm` or put them in a `private/` folder, and `.gitignore` keeps them out of Git. They still load in your local copy through **📂 Load .asm files…**, but they're never committed or served from GitHub Pages.
 
 ## Architecture
 

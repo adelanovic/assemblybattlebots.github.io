@@ -43,6 +43,7 @@
 
   class CodeEditor {
     constructor(root) {
+      this.root = root;
       root.classList.add('code-editor');
       root.innerHTML = `
         <div class="ce-gutter" title="Click a line number to set or clear a breakpoint"><div class="ce-gutter-lines"></div></div>
@@ -75,6 +76,12 @@
       this.tipKey = '';
       this.input.addEventListener('mousemove', (ev) => this.onHover(ev));
       for (const type of ['mousedown', 'keydown', 'scroll']) this.input.addEventListener(type, () => this.hideTip());
+      // The pop-ups are placed in window coordinates, so scrolling the page or a panel would leave them behind.
+      document.addEventListener('scroll', (ev) => {
+        if (ev.target === this.input || this.complete.contains(ev.target)) return;
+        this.hideTip();
+        this.closeCompletions();
+      }, { capture: true, passive: true });
       // The tooltip is clickable ("More in Reference"), so leaving the code gives
       // the mouse a moment to reach it before it closes.
       this.input.addEventListener('mouseleave', () => this.hideTipSoon());
@@ -298,6 +305,14 @@
 
     lineHeight() { return parseFloat(getComputedStyle(this.input).lineHeight) || 18; }
 
+    /** Text size in px (bigger for projectors); line height keeps the same proportion. */
+    setFontSize(px) {
+      this.root.style.fontSize = `${px}px`;
+      this.root.style.setProperty('--lh', `${Math.round(px * 19 / 13)}px`);
+      this.cw = null; // character width is measured again at the new size
+      this.render();
+    }
+
     /** Scroll just enough to bring `n` into view, e.g. after a jump. */
     revealLine(n) {
       const ta = this.input;
@@ -399,10 +414,14 @@
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
           e.preventDefault();
           c.index = (c.index + (e.key === 'ArrowDown' ? 1 : c.items.length - 1)) % c.items.length;
+          c.moved = true;
           this.renderCompletions();
           return;
         }
-        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); this.acceptCompletion(c.index); return; }
+        // When the word is already complete ("JG", "loop"), Enter means a new line, not "JGE" or "loop2".
+        // Arrowing to a suggestion first, or Tab, still picks it.
+        if (e.key === 'Enter' && c.exact && !c.moved) this.closeCompletions();
+        else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); this.acceptCompletion(c.index); return; }
         if (e.key === 'Escape') { e.preventDefault(); this.closeCompletions(); return; }
       }
       // Esc then Tab moves on to the next button, so keyboard users can leave the editor.

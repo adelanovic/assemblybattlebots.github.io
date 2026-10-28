@@ -27,6 +27,9 @@
 
   const MISSION_KEY = 'battlebots.missions.v1';
   const WELCOME_KEY = 'battlebots.welcomed';
+  const MAX_FILE_BYTES = 100 * 1024;
+  const FONT_KEY = 'battlebots.fontsize';
+  const FONT_SIZES = [11, 13, 15, 17, 20, 24]; // code text sizes, px
   const LAYOUT_KEY = 'battlebots.layout.v1';
 
   /** Registers (sorted) and sensors (in order of first use) a program refers to. */
@@ -97,6 +100,21 @@
   }
 
   class App {
+    /**
+     * One robot from the saved roster, checked field by field, since a save can be
+     * damaged or from an older version. null when there's no code to restore.
+     */
+    static cleanSavedEntry(e) {
+      if (!e || typeof e.source !== 'string') return null;
+      return {
+        filename: typeof e.filename === 'string' && e.filename ? e.filename : 'robot.asm', // never "[object Object]"
+        source: e.source,
+        draft: typeof e.draft === 'string' ? e.draft : undefined,
+        team: TEAMS.includes(e.team) ? e.team : null,
+        breakpoints: Array.isArray(e.breakpoints) ? e.breakpoints.filter(Number.isInteger) : [],
+      };
+    }
+
     constructor() {
       this.entries = [];
       this.nextId = 1;
@@ -572,7 +590,11 @@
     }
 
     loadFiles(files) {
-      const list = [...files].filter((f) => /\.(asm|txt)$/i.test(f.name) || !f.type || f.type.startsWith('text'));
+      const text = [...files].filter((f) => /\.(asm|txt)$/i.test(f.name) || !f.type || f.type.startsWith('text'));
+      // A robot program is a few KB; a huge file would freeze the editor.
+      const tooBig = text.filter((f) => f.size > MAX_FILE_BYTES).map((f) => f.name);
+      if (tooBig.length) this.flash(`${tooBig.join(', ')} ${tooBig.length > 1 ? 'are' : 'is'} too big to be a robot program (over 100 KB), so it wasn't loaded.`, 6000);
+      const list = text.filter((f) => f.size <= MAX_FILE_BYTES);
       if (!list.length) return;
       let pending = list.length;
       let last = null;
@@ -607,6 +629,7 @@
       const runBtn = $('#btn-run');
       runBtn.textContent = this.running ? '❚❚ Pause' : (w && w.over ? (this.mission ? '▶ Try again' : '▶ Rematch') : '▶ Start');
       runBtn.classList.toggle('active', this.running);
+      if (this.running) runBtn.classList.remove('nudge'); // first-visit glow (lookAround) has done its job
       let status = 'Paused';
       if (w && w.over) {
         if (w.mission && w.mission.result) status = w.mission.result.ok ? '✓ Mission complete' : 'Not yet: try again';
@@ -876,6 +899,13 @@
     closeWelcome() {
       try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) { /* fine: it just shows again next time */ }
       $('#welcome').hidden = true;
+    }
+
+    /** "Look around first": say what to do next, and make Start stand out until it's pressed. */
+    lookAround() {
+      this.closeWelcome();
+      $('#btn-run').classList.add('nudge');
+      this.flash('Press ▶ Start to watch the robots fight. Click a robot\'s card to see its code.', 7000);
     }
 
     showShortcuts(open) {
@@ -1157,10 +1187,9 @@
         if (BB.World.ARENAS[saved.arena]) $('#arena-type').value = saved.arena;
         if (MODES[saved.mode]) this.mode = saved.mode;
         $('#mode-type').value = this.mode;
-        for (const e of saved.entries) {
-          if (!e || typeof e.source !== 'string') continue; // damaged save: nothing to restore
-          const team = TEAMS.includes(e.team) ? e.team : null;
-          this.addEntry(e.filename, e.source, { select: false, draft: e.draft, team, breakpoints: e.breakpoints });
+        for (const entry of saved.entries.map(App.cleanSavedEntry)) {
+          if (!entry) continue; // damaged: nothing to restore
+          this.addEntry(entry.filename, entry.source, { select: false, draft: entry.draft, team: entry.team, breakpoints: entry.breakpoints });
         }
       }
       // First visit, an emptied roster, or a save too damaged to use: start with the examples.
@@ -1247,7 +1276,7 @@
 
       // First visit: a short welcome that points beginners at the missions.
       $('#welcome-mission').onclick = () => { this.closeWelcome(); this.startMission(BB.MISSIONS[0].id); };
-      $('#welcome-explore').onclick = () => this.closeWelcome();
+      $('#welcome-explore').onclick = () => this.lookAround();
       $('#missions').addEventListener('click', (ev) => {
         const b = ev.target.closest('[data-mission]');
         if (b) this.startMission(b.dataset.mission);
@@ -1305,6 +1334,19 @@
       });
       $('#btn-apply').onclick = () => this.applyDraft();
       $('#btn-save').onclick = () => this.saveFile();
+      // Code text size: A− / A+, remembered in this browser.
+      let fontAt = FONT_SIZES.indexOf(13);
+      try { const saved = FONT_SIZES.indexOf(Number(localStorage.getItem(FONT_KEY))); if (saved >= 0) fontAt = saved; } catch (_) { /* default size */ }
+      const applyFont = (step) => {
+        fontAt = Math.max(0, Math.min(FONT_SIZES.length - 1, fontAt + step));
+        this.editor.setFontSize(FONT_SIZES[fontAt]);
+        $('#btn-font-down').disabled = fontAt === 0;
+        $('#btn-font-up').disabled = fontAt === FONT_SIZES.length - 1;
+        try { localStorage.setItem(FONT_KEY, String(FONT_SIZES[fontAt])); } catch (_) { /* fine: resets next visit */ }
+      };
+      $('#btn-font-down').onclick = () => applyFont(-1);
+      $('#btn-font-up').onclick = () => applyFont(1);
+      applyFont(0);
       $('#btn-revert').onclick = () => {
         const e = this.selected;
         if (!e || e.draft === e.source) return;
@@ -1330,7 +1372,7 @@
         const inField = /^(TEXTAREA|INPUT|SELECT|BUTTON|SUMMARY)$/.test(document.activeElement && document.activeElement.tagName);
         // While the welcome card is open, Esc closes it ("look around first") and nothing else reacts.
         if (!$('#welcome').hidden) {
-          if (ev.key === 'Escape') { ev.preventDefault(); this.closeWelcome(); }
+          if (ev.key === 'Escape') { ev.preventDefault(); this.lookAround(); }
           return;
         }
         // While the shortcuts list is open, Esc or ? closes it and nothing else reacts.
@@ -1341,9 +1383,11 @@
         if (!inField && isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(true); }
         else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); this.applyDraft(); }
         else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); this.saveFile(); }
-        else if (!inField && ev.key === ' ') { ev.preventDefault(); this.toggleRun(); }
-        else if (!inField && ev.key === '.') { this.stepOnce(); }
-        else if (!inField && ev.key.toLowerCase() === 'r') { this.resetMatch(); }
+        // Single keys only without Ctrl/Alt/⌘: Ctrl+R is the browser's reload, not Reset.
+        else if (inField || ev.ctrlKey || ev.metaKey || ev.altKey) { /* not a shortcut */ }
+        else if (ev.key === ' ') { ev.preventDefault(); this.toggleRun(); }
+        else if (ev.key === '.') { this.stepOnce(); }
+        else if (ev.key.toLowerCase() === 'r') { this.resetMatch(); }
       });
 
       // Mouse clicks shouldn't leave buttons focused, so Space keeps meaning start/pause.
@@ -1351,6 +1395,15 @@
         const b = ev.target.closest('button');
         if (b && ev.detail > 0) b.blur();
       });
+
+      // Another tab saving the same roster: the two would keep overwriting each other's work.
+      window.addEventListener('storage', (ev) => {
+        if (ev.key !== STORAGE_KEY || this.otherTabWarned) return;
+        this.otherTabWarned = true;
+        this.flash('Battle Bots is open in another tab too. Both tabs save over each other, so close one of them to keep your work safe.', 10000);
+      });
+      // Save the very latest edits (the editor saves 250 ms after typing stops) when the page closes.
+      window.addEventListener('pagehide', () => this.persist());
 
       // Drag & drop .asm files anywhere on the page.
       document.addEventListener('dragover', (ev) => { ev.preventDefault(); document.body.classList.add('dropping'); });

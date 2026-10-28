@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Regenerates derived files from the core sources:
+//   index.html          ?v= version tags on its scripts and stylesheet
 //   examples/*.asm      from js/core/examples.js
 //   docs/LANGUAGE.md    from js/core/isa.js
 'use strict';
@@ -135,4 +136,14 @@ out.push('', `At 0 health a robot is destroyed. In free-for-all, the last living
 out.push('');
 fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
 fs.writeFileSync(path.join(root, 'docs', 'LANGUAGE.md'), out.join('\n'));
-console.log(`Wrote ${BB.EXAMPLES.length} examples and docs/LANGUAGE.md`);
+
+// index.html: tag each script and stylesheet with a hash of its contents (app.js?v=1a2b3c4d), so
+// after a deploy browsers fetch the files that changed instead of mixing old and new from their cache.
+const crypto = require('crypto');
+const indexPath = path.join(root, 'index.html');
+const html = fs.readFileSync(indexPath, 'utf8').replace(/((?:src|href)=")((?:js|css)\/[\w/.-]+\.(?:js|css))(?:\?v=\w+)?"/g, (_, attr, file) => {
+  const hash = crypto.createHash('sha1').update(fs.readFileSync(path.join(root, file))).digest('hex').slice(0, 8);
+  return `${attr}${file}?v=${hash}"`;
+});
+fs.writeFileSync(indexPath, html);
+console.log(`Wrote ${BB.EXAMPLES.length} examples, docs/LANGUAGE.md and index.html version tags`);

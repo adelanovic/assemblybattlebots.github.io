@@ -10,5 +10,6 @@ desktop.ini
 .idea/
 *.swp
 
-# Private robots (kept out of the public repo)
-terminator.asm
+# Private robots (kept out of the public repo): name them *.private.asm or put them in private/
+*.private.asm
+private/

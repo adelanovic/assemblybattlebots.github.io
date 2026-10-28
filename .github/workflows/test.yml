@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: npm test
-      # Generated files must match their sources (examples/*.asm, docs/LANGUAGE.md).
+      # Generated files must match their sources (examples/*.asm, docs/LANGUAGE.md, index.html ?v= tags).
       # status --porcelain also catches newly generated files that were never committed.
       - run: |
           npm run build

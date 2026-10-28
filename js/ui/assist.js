@@ -106,7 +106,13 @@
     if (/\[[^\]]*$/.test(head)) head = head.replace(/\[[^\]]*$/, ''); // inside [ ]: an operand
     head = head.replace(/^\s*([A-Za-z_]\w*\s*:\s*)*/, '');
     const P = prefix.toUpperCase();
-    const starts = (s) => s.toUpperCase().startsWith(P) && s.toUpperCase() !== P;
+    // `exact`: the word is already a whole name ("JG" next to JGE, "loop" next to loop2).
+    let exact = false;
+    const starts = (s) => {
+      const u = s.toUpperCase();
+      if (u === P) exact = true;
+      return u.startsWith(P) && u !== P;
+    };
     let items = [];
     if (!head.trim()) {
       // Start of a statement: an instruction (or a directive like .def, handled by the assembler).
@@ -134,7 +140,7 @@
           .concat(kind === 'src' ? constants.filter(starts).map((c) => ({ text: c, kind: 'constant', insert: c, detail: 'a constant (.def)' })) : []);
       }
     }
-    return items.length ? { start, prefix, items: items.slice(0, 8) } : null;
+    return items.length ? { start, prefix, exact, items: items.slice(0, 8) } : null;
   }
 
   /**

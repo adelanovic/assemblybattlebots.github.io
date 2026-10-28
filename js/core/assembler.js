@@ -65,6 +65,8 @@
 
   function suggest(word, candidates) {
     if (word.length < 3) return ''; // "5" -> "X" or "IF" -> "DIV" would mislead
+    // Real names are short; a pasted wall of text or thousands of labels would freeze the page.
+    if (word.length > 32 || candidates.length > 500) return '';
     let best = null, bestD = 3;
     for (const c of candidates) {
       const d = levenshtein(word, c);
@@ -115,6 +117,9 @@
     const fixed = raw.replace(new RegExp(DASH_RE.source, 'g'), '-');
     return `"${raw}" has a "${DASH_RE.exec(raw)[0]}" copied from a document, not a minus sign. Type the - key instead: "${fixed}".`;
   }
+
+  /** A word to quote in a message, cut short if someone pasted something huge. */
+  const quote = (s) => (s.length > 40 ? `${s.slice(0, 37)}...` : s);
 
   /** For "2.5": robots only use whole numbers, so suggest the two nearest. */
   function decimalMessage(raw) {
@@ -168,10 +173,11 @@
     // ---- Pass 1: labels, constants, raw statements ----
     const labels = Object.create(null);
     const constants = Object.create(null);
+    const definedAt = Object.create(null); // name -> line, for "already used on line N"
     const statements = [];
     const rejectedLabels = new Set(); // already reported; don't also flag each jump to them
 
-    const checkNewName = (lineNo, id, what) => {
+    const checkNewName = (lineNo, id, what, shown = id) => {
       if (!IDENT_RE.test(id)) { err(lineNo, `"${id}" is not a valid ${what} name (use letters, digits and _, not starting with a digit).`); return false; }
       if (REG_RE.test(id)) { err(lineNo, `"${id}" is a register and cannot be used as a ${what} name.`); return false; }
       if (INSTRUCTION_MAP[id]) {
@@ -179,8 +185,10 @@
         return false;
       }
       if (labels[id] !== undefined || constants[id] !== undefined) {
-        err(lineNo, `"${id}" is already defined.`); return false;
+        err(lineNo, `"${shown}" is already used on line ${definedAt[id]}. Each name can only be defined once (upper and lower case count as the same name).`);
+        return false;
       }
+      definedAt[id] = lineNo;
       return true;
     };
 
@@ -214,7 +222,7 @@
       let m;
       while ((m = /^([^\s:,\[\]]+)\s*:/.exec(text))) {
         const id = m[1].toUpperCase();
-        if (checkNewName(lineNo, id, 'label')) labels[id] = statements.length;
+        if (checkNewName(lineNo, id, 'label', m[1])) labels[id] = statements.length;
         else rejectedLabels.add(id);
         text = text.slice(m[0].length).trim();
       }
@@ -236,7 +244,11 @@
             err(lineNo, `Number ${parts[2]} does not fit in 32 bits.`);
             continue;
           }
-          if (checkNewName(lineNo, id, 'constant')) constants[id] = v;
+          if (checkNewName(lineNo, id, 'constant', parts[1])) {
+            constants[id] = v;
+            // MOV R0, FRONT would then use the constant, while GET R0, FRONT still reads the sensor.
+            if (SENSOR_MAP[id]) warnings.push({ line: lineNo, message: `${parts[1]} is also a sensor's name. "MOV R0, ${parts[1]}" will use your constant, but "GET R0, ${parts[1]}" still reads the sensor. A different name avoids the mix-up.` });
+          }
         } else if (Object.prototype.hasOwnProperty.call(BB.ISA.APPEARANCE, late)) {
           // "loop: .shape tank": a header line after a label is too late, not unknown.
           err(lineNo, `.${late} must appear in the appearance header below the name, before labels, constants or instructions.`);
@@ -320,6 +332,7 @@
         if (REG_RE.test(tok)) { err(lineNo, `${op} needs a label to jump to, like "${op} main". It can't jump to a register.`); return null; }
         const n = parseNumber(tok);
         if (n !== null) {
+          if (n < 0 || n > statements.length) return { k: 'imm', v: n }; // out of range: reported once, below
           // Legal, but beginners read it as a line number, which it isn't.
           const where = n === 0 ? 'the first instruction' : `instruction number ${n} (counting from 0), not line ${n}`;
           warnings.push({ line: lineNo, message: `"${op} ${raw}" goes to ${where}. A label, like "${op} main", is clearer.` });
@@ -333,7 +346,7 @@
         const hint = nameCode && nameCode.label === tok
           ? ` Line 1 is your robot's name, so the "${raw}:" there doesn't count as a label.`
           : suggest(tok, Object.keys(labels));
-        err(lineNo, `Unknown label "${raw}".${hint}`);
+        err(lineNo, `Unknown label "${quote(raw)}".${hint}`);
         return null;
       }
 
@@ -372,7 +385,7 @@
       if (labels[tok] !== undefined) hint = ' Labels can only be used as jump targets.';
       else if (SENSOR_MAP[tok]) hint = ` To read a sensor, use GET first, e.g. "GET R0, ${tok}".`;
       else hint = suggest(tok, Object.keys(constants));
-      err(lineNo, `Unknown name "${raw}" — expected ${ARG_HINT[kind]}.${hint}`);
+      err(lineNo, `Unknown name "${quote(raw)}" — expected ${ARG_HINT[kind]}.${hint}`);
       return null;
     }
 
@@ -390,7 +403,7 @@
     const unknownInstruction = (st) => {
       if (colonless(st)) return `"${st.word}" is used as a label, so it needs a colon at the end: write "${st.word}:".`;
       if (/^(\/\/|\/\*|--)/.test(st.word)) return `"${st.word}" isn't a comment here. Comments start with ; or #, like "; ${st.text.replace(/^(\/\/|\/\*|--)\s*/, '')}".`;
-      const base = `Unknown instruction "${st.op}".`;
+      const base = `Unknown instruction "${quote(st.op)}".`;
       const assign = /^([+\-*/]?)=\s*(.*)$/.exec(st.argText.trim()); // "R0 = 5", "x += 1"
       if (assign) {
         const op = { '': 'MOV', '+': 'ADD', '-': 'SUB', '*': 'MUL', '/': 'DIV' }[assign[1]];

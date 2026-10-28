@@ -72,7 +72,8 @@ test('undefined label', () => {
   assert.match(errorsOf('Bot\nJMP nowhere')[0].message, /Unknown label/);
 });
 test('duplicate label', () => {
-  assert.match(errorsOf('Bot\na:\na: NOP')[0].message, /already defined/);
+  assert.match(errorsOf('Bot\na:\nA: NOP')[0].message, /"A" is already used on line 2\. .*upper and lower case count as the same name/);
+  assert.match(errorsOf('Bot\n.def A 1\n.def a 2\nNOP')[0].message, /"a" is already used on line 2/);
 });
 test('immediate cannot be a destination', () => {
   assert.match(errorsOf('Bot\nMOV 5, R0')[0].message, /must be a register or memory/);
@@ -305,6 +306,10 @@ test('division by zero faults with line number', () => {
   assert.ok(vm.halted);
   assert.match(vm.fault, /Line 3: division by zero/);
 });
+test('AND, OR and XOR work bit by bit', () => {
+  const vm = runVM('T\nMOV R0, 12\nAND R0, 10\nMOV R1, 12\nOR R1, 10\nMOV R2, 12\nXOR R2, 10\nMOV R3, -1\nXOR R3, 5\nHALT');
+  assert.deepStrictEqual([...vm.regs.slice(0, 4)], [8, 14, 6, -6]);
+});
 test('stack overflow faults', () => {
   const vm = runVM('T\nf: CALL f');
   assert.match(vm.fault, /stack overflow/);
@@ -384,6 +389,65 @@ test('example free-for-all always terminates with a result', () => {
     assert.ok(w.tick <= BB.CONFIG.MAX_TICKS);
     for (const r of w.robots) assert.strictEqual(r.vm.fault, null, `${r.name} faulted: ${r.vm.fault}`);
   }
+});
+
+/** A world on the open arena with `robots` placed by hand: [{ src, x, y, heading, speed, health, team }]. */
+function placed(robots) {
+  const w = new BB.World({ entries: robots.map((r, i) => ({ ...compile(r.src || `R${i}\nl: WAIT\nJMP l`, i), team: r.team ?? null })), arena: 'open' });
+  robots.forEach((p, i) => {
+    const r = w.robots[i];
+    Object.assign(r, { x: p.x, y: p.y });
+    r.heading = r.targetHeading = r.turret = r.targetTurret = p.heading || 0;
+    r.speed = r.targetSpeed = p.speed || 0;
+    if (p.health !== undefined) r.health = p.health;
+  });
+  return w;
+}
+const sensor = (w, r, name) => w.sense(r, BB.ISA.SENSOR_MAP[name].id);
+
+test('driving into a wall costs floor(|speed| / 2) health and stops the robot', () => {
+  const { ARENA_W: W, ROBOT_RADIUS: R, MAX_HEALTH } = BB.CONFIG;
+  for (const [speed, lost] of [[5, 2], [3, 1], [1, 0]]) {
+    const w = placed([{ x: W - R - 0.5, y: 300, heading: 0, speed }]);
+    w.step();
+    assert.strictEqual(w.robots[0].health, MAX_HEALTH - lost, `speed ${speed}`);
+    assert.strictEqual(w.robots[0].speed, 0);
+  }
+});
+test('ramming costs both robots 1 health, but only when they close faster than 1 unit a tick', () => {
+  const { ROBOT_RADIUS: R, MAX_HEALTH } = BB.CONFIG;
+  const bump = (speed) => {
+    const w = placed([{ x: 300, y: 300, heading: 0, speed }, { x: 300 + 2 * R + 0.5, y: 300, heading: 180, speed }]);
+    w.step();
+    return w.robots.map((r) => MAX_HEALTH - r.health);
+  };
+  assert.deepStrictEqual(bump(2), [1, 1], 'closing at 4');
+  assert.deepStrictEqual(bump(0.4), [0, 0], 'closing at 0.8: a gentle touch');
+});
+test('time limit: highest health wins, equal health is a draw, teams compare total health', () => {
+  const end = (robots) => { const w = placed(robots); w.tick = BB.CONFIG.MAX_TICKS - 1; w.step(); return w; };
+  const won = end([{ x: 100, y: 100, health: 40 }, { x: 600, y: 500, health: 70 }]);
+  assert.ok(won.over && won.winner === won.robots[1]);
+  const tie = end([{ x: 100, y: 100, health: 50 }, { x: 600, y: 500, health: 50 }]);
+  assert.ok(tie.over && tie.winner === null, 'equal health: draw');
+  const teams = end([{ x: 100, y: 100, health: 90, team: 0 }, { x: 100, y: 500, health: 10, team: 0 },
+    { x: 700, y: 100, health: 60, team: 1 }, { x: 700, y: 500, health: 60, team: 1 }]);
+  assert.strictEqual(teams.winnerTeam, 1, '100 vs 120 total: team B, though team A has the healthiest robot');
+});
+test('LAST_HIT counts ticks since the last shot hit, and is -1 before any', () => {
+  const w = placed([{ x: 100, y: 300 }, { x: 600, y: 300 }]);
+  const [me, other] = w.robots;
+  assert.strictEqual(sensor(w, me, 'LAST_HIT'), -1);
+  w.damage(me, 10, other, 'wall');
+  assert.strictEqual(sensor(w, me, 'LAST_HIT'), -1, 'only shots count');
+  w.damage(me, 10, other, 'shot');
+  for (let i = 0; i < 7; i++) w.step();
+  assert.strictEqual(sensor(w, me, 'LAST_HIT'), 7);
+});
+test('SCAN reports the found robot\'s heading and speed', () => {
+  const w = placed([{ x: 200, y: 300, heading: 0 }, { x: 400, y: 300, heading: 90, speed: 3 }]);
+  w.doScan(w.robots[0], 10);
+  assert.deepStrictEqual(['SCAN_DIST', 'SCAN_HEADING', 'SCAN_SPEED'].map((s) => sensor(w, w.robots[0], s)), [200, 90, 3]);
 });
 
 test('FRONT is not 0 when touching an obstacle corner while facing away from it', () => {
@@ -794,6 +858,16 @@ function uiHarness(mode = 'ffa') {
   app.editor = { setBreakpoints(lines) { this.breakpoints = [...lines]; } };
   return app;
 }
+
+test('damaged saved robots are skipped or repaired, never shown as "[object Object]"', () => {
+  // app.js runs in its own context, so copy its arrays before comparing them strictly.
+  const clean = (e) => { const r = uiBB.App.cleanSavedEntry(e); return r && { ...r, breakpoints: [...r.breakpoints] }; };
+  for (const junk of [null, 5, 'text', {}, { source: 42 }, { filename: 'a.asm' }]) assert.strictEqual(clean(junk), null, JSON.stringify(junk));
+  const fixed = clean({ filename: { oops: 1 }, source: 'A\nWAIT', draft: 7, team: 'Z', breakpoints: [3, 'x', 2.5, 4] });
+  assert.deepStrictEqual(fixed, { filename: 'robot.asm', source: 'A\nWAIT', draft: undefined, team: null, breakpoints: [3, 4] });
+  const good = { filename: 'b.asm', source: 'B\nWAIT', draft: 'B\nNOP', team: 'A', breakpoints: [2] };
+  assert.deepStrictEqual(clean(good), good, 'a healthy save is kept as is');
+});
 
 test('invalid Apply preserves the applied program and reports rejection', () => {
   for (const tick of [0, 1]) {

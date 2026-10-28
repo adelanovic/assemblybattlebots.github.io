@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Battle Bots</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A4%96%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=95b43b62">
 </head>
 <body>
   <header class="toolbar">
@@ -80,6 +80,7 @@
             <div class="editor-title"><b id="editor-name"></b> <span id="editor-file" class="muted mono"></span></div>
             <select id="insert-select" title="Insert a ready-made code pattern where the cursor is"></select>
             <label class="opt" title="Show how many times each line has run this match; lines that never ran are dimmed"><input id="show-counts" type="checkbox"> Run counts</label>
+            <span class="font-size" role="group" aria-label="Code text size"><button id="btn-font-down" title="Smaller code text" aria-label="Smaller code text">A−</button><button id="btn-font-up" title="Bigger code text, for projectors" aria-label="Bigger code text">A+</button></span>
             <button id="btn-revert" title="Go back to the code you last applied. Ctrl+Z brings your edits back.">Undo changes</button>
             <button id="btn-save" title="Download as .asm (Ctrl+S)">💾 Save .asm</button>
             <button id="btn-apply" class="primary" title="Assemble and use this code (Ctrl+Enter)">Apply</button>
@@ -152,20 +153,20 @@
   <div class="drop-hint">Drop .asm files to add robots</div>
 
   <!-- Core: no DOM access, also runs in Node (see tools/ and tests/) -->
-  <script src="js/core/isa.js"></script>
-  <script src="js/core/geometry.js"></script>
-  <script src="js/core/assembler.js"></script>
-  <script src="js/core/vm.js"></script>
-  <script src="js/core/world.js"></script>
-  <script src="js/core/examples.js"></script>
-  <script src="js/core/missions.js"></script>
+  <script src="js/core/isa.js?v=8c26bba4"></script>
+  <script src="js/core/geometry.js?v=cdcf7b83"></script>
+  <script src="js/core/assembler.js?v=4ca8d678"></script>
+  <script src="js/core/vm.js?v=ac3666dd"></script>
+  <script src="js/core/world.js?v=9edda783"></script>
+  <script src="js/core/examples.js?v=008715d6"></script>
+  <script src="js/core/missions.js?v=7067d439"></script>
   <!-- UI -->
-  <script src="js/ui/explain.js"></script>
-  <script src="js/ui/snippets.js"></script>
-  <script src="js/ui/assist.js"></script>
-  <script src="js/ui/terrain.js"></script>
-  <script src="js/ui/renderer.js"></script>
-  <script src="js/ui/editor.js"></script>
-  <script src="js/ui/app.js"></script>
+  <script src="js/ui/explain.js?v=dc2f2e56"></script>
+  <script src="js/ui/snippets.js?v=5ddb5a78"></script>
+  <script src="js/ui/assist.js?v=1fa7c1cc"></script>
+  <script src="js/ui/terrain.js?v=e5c45fad"></script>
+  <script src="js/ui/renderer.js?v=00c2232a"></script>
+  <script src="js/ui/editor.js?v=292ec6b3"></script>
+  <script src="js/ui/app.js?v=c8ceaa1f"></script>
 </body>
 </html>
