@@ -860,7 +860,11 @@ main:
         maxTicks: 900,
         check: (w, me) => {
           const s = w.mission.state, t = w.robots[1];
-          if (!t.alive) return { ok: true, text: 'Three hits on a moving target. Great experimenting!' };
+          if (!t.alive) {
+            // The message says three hits, so ramming damage doesn't count (like Coords).
+            return me.stats.hits >= 3 ? { ok: true, text: 'Three hits on a moving target. Great experimenting!' }
+              : { ok: false, text: 'You rammed it! That works in a real fight, but this mission is about aiming ahead: hit it with 3 shots. Stay back and experiment with LEAD.' };
+          }
           // Follow each of our fires: where did it pass the target, in front or behind?
           s.live = s.live || new Map();
           const vx = Math.cos(t.heading * BB.geo.DEG), vy = Math.sin(t.heading * BB.geo.DEG);

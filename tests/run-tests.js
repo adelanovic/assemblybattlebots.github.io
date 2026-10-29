@@ -502,6 +502,14 @@ test('third review: whole-number decimals, badge typos, and Coords needs a real 
     if (!w.robots[1].alive) rammed = w.mission.result;
   }
   assert.ok(rammed && !rammed.ok && /rammed it/.test(rammed.text), 'destroying it by ramming does not pass');
+  // Lead says "three hits", so ramming the moving target to death doesn't pass either.
+  const lead = BB.MISSIONS.find((m) => m.id === 'lead');
+  const charge = 'Rammer\nmain:\n    SCAN 40\n    GET  R1, SCAN_DIST\n    CMP  R1, -1\n    JE   search\n    GET  R2, SCAN_ANGLE\n'
+    + '    HEAD R2\n    AIM  R2\n    SPEED 5\n    WAIT\n    JMP  main\nsearch:\n    GET  R2, TURRET\n    ADD  R2, 20\n    AIM  R2\n    WAIT\n    JMP  main';
+  const w = BB.buildMission(lead, BB.assemble(charge), 1);
+  for (let t = 0; t <= lead.maxTicks && !w.over; t++) w.step();
+  assert.ok(!w.robots[1].alive && w.robots[0].stats.hits === 0, 'the charge destroys it without a shot');
+  assert.ok(!w.mission.result.ok && /rammed it/.test(w.mission.result.text), 'but that does not pass Lead');
 });
 test('driving into a wall costs floor(|speed| / 2) health and stops the robot', () => {
   const { ARENA_W: W, ROBOT_RADIUS: R, MAX_HEALTH } = BB.CONFIG;
@@ -978,6 +986,10 @@ test('the CPU inspector shows memory slots the program names, and any that hold 
   assert.strictEqual(app.memoryRow(vm, 'tip'), '<div class="kv memory"><span title="tip"><i>[3]</i>0</span></div>', 'before running: just the named slot');
   vm.run(50);
   assert.match(app.memoryRow(vm, 'tip'), /<i>\[3\]<\/i>0<\/span><span title="tip"><i>\[42\]<\/i>9</, 'after: [42] holds 9');
+  app.running = true;
+  assert.doesNotMatch(app.memoryRow(vm, 'tip'), /\[42\]/, 'while running: only the slots the code names, so the row keeps its size');
+  assert.match(app.memoryRow(vm, 'tip'), /\[3\]/);
+  app.running = false;
   assert.strictEqual(app.memoryRow(new BB.VM(BB.assemble('T\nHALT').program, {}), 'tip'), '', 'no memory used: no row');
   const busy = new BB.VM(BB.assemble('T\nHALT').program, {});
   for (let i = 0; i < 20; i++) busy.mem[i] = 1;

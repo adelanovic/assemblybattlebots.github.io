@@ -141,7 +141,7 @@ main:
 | `.boom` | `fire`, `confetti`, `pixels`, `fireworks` (how it explodes when destroyed) | `fire` |
 | `.shot` | `shell`, `laser`, `plasma`, `rocket`, `star` (how its bullets look) | `shell` |
 
-These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and firing stats. Twin turrets still fire one shot. The badge also appears next to the robot's name, where it's readable during a match. If two robots choose the same `.color`, the first in the roster keeps it and the other gets the next free color (the match log says so); team matches keep team colors. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
+These are cosmetic: every bot keeps the same collision radius, movement, bullet origin and firing stats. Twin turrets still fire one shot. The badge also appears next to the robot's name, where it's readable during a match. If two robots choose the same `.color`, your own robots pick before the unchanged example robots; otherwise the first in the roster keeps it. The other robot gets the next free color, and the match log says so. Changing `.color` during a match takes the color only if no other robot chose it. Team matches keep team colors. Each setting may appear once; comments and blank lines are allowed between them. Omitted settings retain the default tank appearance. Appearance is saved in the robot source and updates when you press **Apply**.
 
 ```asm
 Sniper Sam

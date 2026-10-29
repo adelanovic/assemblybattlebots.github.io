@@ -49,10 +49,11 @@
    * Memory slots worth showing in the CPU inspector: those the program names
    * ([0], [BASE+2]) and any holding a value. At most `max`; returns { slots, more }.
    */
-  function memorySlots(vm, max = 12) {
+  function memorySlots(vm, max = 12, namedOnly = false) {
     const named = new Set();
     for (const ins of vm.program) for (const a of ins.args) if (a.k === 'mem' && a.r < 0) named.add(a.off);
-    for (let i = 0; i < vm.mem.length; i++) if (vm.mem[i] !== 0) named.add(i);
+    // namedOnly (while running): a fixed set, so the row can't grow and shrink as values change.
+    if (!namedOnly) for (let i = 0; i < vm.mem.length; i++) if (vm.mem[i] !== 0) named.add(i);
     const all = [...named].sort((x, y) => x - y);
     return { slots: all.slice(0, max), more: Math.max(0, all.length - max) };
   }
@@ -669,14 +670,37 @@
 
     renderRoster() {
       const box = $('#roster');
+      // Rebuilding replaces the buttons, so remember which one had keyboard focus and focus its twin after.
+      // Keyboard focus only (:focus-visible): after a mouse click, buttons are meant to lose focus so
+      // Space keeps meaning Start/Pause.
+      const active = document.activeElement;
+      let fromKeyboard = false;
+      try { fromKeyboard = !!active && active.matches(':focus-visible'); } catch (_) { /* old browser: don't refocus */ }
+      const oldCard = fromKeyboard && box.contains(active) ? active.closest('.card') : null;
+      const refocus = oldCard && {
+        id: oldCard.dataset.id,
+        index: [...box.querySelectorAll('.card')].indexOf(oldCard),
+        sel: active.dataset.act ? `[data-act="${active.dataset.act}"]`
+          : active.hasAttribute('data-team') ? `[data-team="${active.dataset.team}"]` : '.card-name',
+      };
+      const restoreFocus = () => {
+        if (!refocus) return;
+        const card = box.querySelector(`.card[data-id="${refocus.id}"]`);
+        const cards = box.querySelectorAll('.card');
+        // Its card was removed: the card now in its place, or "+ New robot" when the roster is empty.
+        const target = card ? card.querySelector(refocus.sel)
+          : cards.length ? cards[Math.min(refocus.index, cards.length - 1)].querySelector('.card-name') : $('#btn-new');
+        if (target) target.focus();
+      };
       if (!this.entries.length) {
         box.innerHTML = '<div class="roster-empty">No robots yet. Load .asm files, add an example, or create a new robot.</div>';
+        restoreFocus();
         return;
       }
       const teams = this.teamSize > 0;
       const picker = (e) => !teams ? '' : `
           <div class="team-pick">${[...TEAMS, null].map((t) => `
-            <button data-team="${t || ''}" class="${e.team === t ? 'on' : ''} ${t ? `team-${t.toLowerCase()}` : ''}"
+            <button data-team="${t || ''}" class="${e.team === t ? 'on' : ''} ${t ? `team-${t.toLowerCase()}` : ''}" aria-pressed="${e.team === t}"
               title="${t ? `Play for team ${t}` : 'Sit this match out'}">${t || 'Bench'}</button>`).join('')}
           </div>`;
       box.innerHTML = this.entries.map((e) => `
@@ -690,6 +714,7 @@
           <div class="hp"><div class="hp-fill"></div></div>
           <div class="card-status"></div>${picker(e)}
         </div>`).join('');
+      restoreFocus();
       this.updateRosterLive();
     }
 
@@ -813,7 +838,9 @@
 
     /** Inspector row for memory slots (memorySlots), or '' when the program uses none. */
     memoryRow(vm, tip) {
-      const { slots, more } = memorySlots(vm);
+      // While running, only the slots the code names ([0], [BASE+2]): slots used through a register
+      // come and go, which would make the inspector jump. Pause to see those too.
+      const { slots, more } = memorySlots(vm, 12, this.running);
       if (!slots.length) return '';
       const cells = slots.map((a) => `<span title="${esc(tip)}"><i>[${a}]</i>${vm.mem[a]}</span>`).join('');
       return `<div class="kv memory">${cells}${more ? `<span class="muted">+${more} more</span>` : ''}</div>`;
@@ -1001,9 +1028,19 @@
     }
 
     showShortcuts(open) {
-      $('#shortcuts').hidden = !open;
-      if (open) $('#shortcuts-close').focus();
-      else $('#btn-help').focus(); // back where the keyboard user was
+      if (open) {
+        // Remember where focus was, to put it back on close. After pressing "?" (or clicking the ? button)
+        // that's the page itself, so Space still means Start/Pause afterwards.
+        this.focusBeforeShortcuts = document.activeElement;
+        $('#shortcuts').hidden = false;
+        $('#shortcuts-close').focus();
+        return;
+      }
+      $('#shortcuts').hidden = true;
+      const back = this.focusBeforeShortcuts;
+      this.focusBeforeShortcuts = null;
+      if (back && back !== document.body && document.contains(back)) back.focus();
+      else if (document.activeElement) document.activeElement.blur();
     }
 
     /**
