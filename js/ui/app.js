@@ -374,6 +374,7 @@
       if (!e || e.draft === e.source) return true;
       if (this.compile(e.draft).errors.length) {
         this.checkDraft();
+        this.setArenaFull(false); // the errors and the editor are on the normal page
         this.flash('Your code has errors (listed under the editor). Fix them, or press Undo changes, then try again.');
         return false;
       }
@@ -499,7 +500,8 @@
       if (this.world && (now < this.smoothUntil || now - this.lastDrawTime >= 66)) {
         this.lastDrawTime = now;
         this.renderer.addEvents(this.world.drainEvents());
-        this.renderer.draw(this.world, this.selectedId, { paused: !this.running });
+        // Full screen is for watching a match: no robot is singled out (selection ring, Highlight mine).
+        this.renderer.draw(this.world, this.arenaFull ? null : this.selectedId, { paused: !this.running });
       }
       if (performance.now() - this.lastPanelUpdate > 100) this.updatePanels(false);
     }
@@ -652,6 +654,8 @@
       const runBtn = $('#btn-run');
       runBtn.textContent = this.running ? '❚❚ Pause' : (w && w.over ? (this.mission ? '▶ Try again' : '▶ Rematch') : '▶ Start');
       $('#fs-run').textContent = runBtn.textContent;
+      $('#btn-fullscreen').hidden = !!this.mission;
+      if (this.mission) this.setArenaFull(false);
       runBtn.classList.toggle('active', this.running);
       if (this.running) runBtn.classList.remove('nudge'); // first-visit glow (lookAround) has done its job
       let status = 'Paused';
@@ -1033,7 +1037,7 @@
      * everything else; if that's refused (school policy, iPhone) the arena still fills the window.
      */
     setArenaFull(on) {
-      if (on === !!this.arenaFull) return;
+      if (on === !!this.arenaFull || (on && this.mission)) return; // for matches, not missions
       this.arenaFull = on;
       document.body.classList.toggle('arena-full', on);
       $('#btn-fullscreen').setAttribute('aria-pressed', String(on));
