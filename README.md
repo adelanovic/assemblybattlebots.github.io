@@ -42,6 +42,7 @@ node tools/balance.js 20 --out docs/balance-results.json  # compare arenas, bot 
 | **Scans** | Show or hide each robot's scan cone. |
 | **Highlight mine** | The selected robot's bullets get a white ring and everyone else's are drawn fainter, so you can follow your own shots. On by default. |
 | **Calm effects** | Fewer sparks, casings and smoke so a match is easier to follow. On by default in Simple view or when the computer asks for reduced motion; ticking or unticking it by hand sticks. |
+| **Full screen** (`F`) | Make the arena fill the screen, with Start/Pause, Reset and Exit in the corner. `Esc` leaves. If the browser doesn't allow full screen, the arena fills the window instead. |
 | **⚙ Settings** | Shown in Simple view: reveals Mode, Arena, Seed, Scans, Highlight mine and Calm effects, which are tucked away to keep the toolbar simple for beginners. Untick Simple view to always see them. |
 | **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
 | **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |

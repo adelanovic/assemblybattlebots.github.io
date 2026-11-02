@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Battle Bots</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A4%96%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="css/style.css?v=a9ad2719">
+  <link rel="stylesheet" href="css/style.css?v=c759366e">
 </head>
 <body>
   <header class="toolbar">
@@ -41,6 +41,7 @@
     </div>
     <div class="group">
       <button id="btn-settings" title="Show match settings: mode, arena, seed, scan cones and effects">⚙ Settings</button>
+      <button id="btn-fullscreen" title="Make the arena fill the screen (F)" aria-pressed="false">Full screen</button>
       <button id="btn-help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
       <label title="Plain-language help and a simpler CPU inspector. Untick for every detail."><input id="simple-view" type="checkbox" checked> Simple view</label>
     </div>
@@ -53,6 +54,11 @@
     <section class="left">
       <div class="arena-wrap">
         <canvas id="arena" width="800" height="600" role="img" aria-label="The arena, where the robots run their programs. The Match log tab lists what happens."></canvas>
+        <div class="arena-bar">
+          <button id="fs-run" class="primary">▶ Start</button>
+          <button id="fs-reset">↺ Reset</button>
+          <button id="fs-exit">Exit full screen</button>
+        </div>
       </div>
       <div class="roster-bar">
         <h2>Robots</h2>
@@ -137,6 +143,7 @@
         <tr><td><kbd>Space</kbd></td><td>Start or pause the match</td></tr>
         <tr><td><kbd>.</kbd></td><td>Step: run one tick</td></tr>
         <tr><td><kbd>R</kbd></td><td>Reset the arena (asks first during a long match)</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Full screen arena on or off (<kbd>Esc</kbd> also leaves)</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Apply your code</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save your code as a .asm file</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>/</kbd></td><td>Comment the selected lines out, or back in</td></tr>
@@ -169,6 +176,6 @@
   <script src="js/ui/terrain.js?v=e5c45fad"></script>
   <script src="js/ui/renderer.js?v=37109c9f"></script>
   <script src="js/ui/editor.js?v=747a02da"></script>
-  <script src="js/ui/app.js?v=dc6afff0"></script>
+  <script src="js/ui/app.js?v=e2269c0a"></script>
 </body>
 </html>

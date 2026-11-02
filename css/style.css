@@ -44,6 +44,11 @@ button.primary:hover { background: #2a72cc; }
 /* First visit: Start glows until it's pressed, so new players know what to do. */
 #btn-run.nudge { animation: nudge 1.6s ease-in-out infinite; }
 @keyframes nudge { 50% { box-shadow: 0 0 0 6px rgba(79, 163, 255, .45); } }
+/* Full screen arena: covers the page, so messages and dialogs (above it) still show. */
+.arena-bar { display: none; }
+body.arena-full .arena-wrap { position: fixed; inset: 0; z-index: 50; min-height: 0; aspect-ratio: auto; align-items: center; background: #06070a; }
+body.arena-full .arena-bar { display: flex; gap: 6px; position: absolute; top: 8px; right: 8px; opacity: .65; }
+body.arena-full .arena-bar:hover, body.arena-full .arena-bar:focus-within { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { #btn-run.nudge { animation: none; box-shadow: 0 0 0 3px rgba(79, 163, 255, .6); } }
 button.primary.active { background: #8a5a12; border-color: #b07519; }
 button.icon { padding: 0 6px; background: none; border: none; color: var(--muted); }
@@ -365,6 +370,7 @@ button.card-name:focus-visible { outline: 2px solid var(--accent); outline-offse
 /* ---------- misc ---------- */
 .flash {
   position: fixed;
+  z-index: 110; /* above the full screen arena and dialogs */
   left: 50%;
   bottom: 24px;
   transform: translate(-50%, 20px);

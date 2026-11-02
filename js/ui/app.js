@@ -651,6 +651,7 @@
       $('#tick').textContent = w ? w.tick : 0;
       const runBtn = $('#btn-run');
       runBtn.textContent = this.running ? '❚❚ Pause' : (w && w.over ? (this.mission ? '▶ Try again' : '▶ Rematch') : '▶ Start');
+      $('#fs-run').textContent = runBtn.textContent;
       runBtn.classList.toggle('active', this.running);
       if (this.running) runBtn.classList.remove('nudge'); // first-visit glow (lookAround) has done its job
       let status = 'Paused';
@@ -1025,6 +1026,30 @@
       this.closeWelcome();
       $('#btn-run').classList.add('nudge');
       this.flash('Press ▶ Start to watch the robots fight. Click a robot\'s card to see its code.', 7000);
+    }
+
+    /**
+     * Full screen arena. CSS makes the arena cover the page, and the browser's full screen hides
+     * everything else; if that's refused (school policy, iPhone) the arena still fills the window.
+     */
+    setArenaFull(on) {
+      if (on === !!this.arenaFull) return;
+      this.arenaFull = on;
+      document.body.classList.toggle('arena-full', on);
+      $('#btn-fullscreen').setAttribute('aria-pressed', String(on));
+      if (on) {
+        // Let go of the keyboard focus so Space means Start/Pause, and give it back on the way out.
+        const a = document.activeElement;
+        this.focusBeforeFull = a && a !== document.body && a.matches(':focus-visible') ? a : null;
+        if (a && a !== document.body) a.blur();
+        const root = document.documentElement;
+        if (root.requestFullscreen) root.requestFullscreen().catch(() => { /* the window-filling version is fine */ });
+      } else {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        if (this.focusBeforeFull && document.contains(this.focusBeforeFull)) this.focusBeforeFull.focus();
+        else if (document.activeElement) document.activeElement.blur(); // the bar's buttons are hidden now
+        this.focusBeforeFull = null;
+      }
     }
 
     showShortcuts(open) {
@@ -1433,6 +1458,15 @@
       });
 
       // Shortcuts list: the ? button or key; Close, Esc or a click outside the card closes it.
+      $('#btn-fullscreen').onclick = () => this.setArenaFull(!this.arenaFull);
+      $('#fs-exit').onclick = () => this.setArenaFull(false);
+      $('#fs-run').onclick = () => this.toggleRun();
+      $('#fs-reset').onclick = () => this.resetMatch();
+      // The browser's own way out (Esc) only tells us through this event.
+      document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) this.nativeFull = true;
+        else if (this.nativeFull) { this.nativeFull = false; this.setArenaFull(false); }
+      });
       $('#btn-help').onclick = () => this.showShortcuts(true);
       $('#shortcuts-close').onclick = () => this.showShortcuts(false);
       $('#shortcuts').addEventListener('click', (ev) => { if (ev.target.id === 'shortcuts') this.showShortcuts(false); });
@@ -1561,10 +1595,12 @@
         if (!inField && isHelpKey(ev)) { ev.preventDefault(); this.showShortcuts(true); }
         else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); this.applyDraft(); }
         else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') { ev.preventDefault(); this.saveFile(); }
+        else if (ev.key === 'Escape' && this.arenaFull) { this.setArenaFull(false); }
         // Single keys only without Ctrl/Alt/⌘: Ctrl+R is the browser's reload, not Reset.
         else if (inField || ev.ctrlKey || ev.metaKey || ev.altKey) { /* not a shortcut */ }
         else if (ev.key === ' ') { ev.preventDefault(); this.toggleRun(); }
         else if (ev.key === '.') { this.stepOnce(); }
+        else if (ev.key.toLowerCase() === 'f') { this.setArenaFull(!this.arenaFull); }
         else if (ev.key.toLowerCase() === 'r') {
           // A stray "r" shouldn't wipe a long match; the Reset button never asks.
           const long = this.world && !this.world.over && this.world.tick > 600;
