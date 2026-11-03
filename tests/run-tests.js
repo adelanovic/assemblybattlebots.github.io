@@ -75,6 +75,13 @@ test('second-review messages: // anywhere, misspelled settings, two-register mem
   assert.match(crash('T\nCALL f\nHALT\nf: POP R1\nRET'), /RET has nowhere to go back to\. The POP on line 4/);
   assert.match(crash('T\nCALL f\nHALT\nf: PUSH R1\nRET'), /Every PUSH in a function needs a POP before RET/, 'the PUSH mistake keeps its own message');
 });
+test('line 1: real names that look like code are fine; code that slid up into line 1 still warns', () => {
+  const warns = (src) => BB.assemble(src).warnings.some((w) => w.line === 1);
+  for (const name of ['Destroyer: Mk 2', 'Call Me', 'Speed 5', 'Fire Away']) assert.ok(!warns(`${name}\nWAIT`), name);
+  for (const src of ['main:\n    SPEED 3\n    WAIT\n    JMP main', 'loop: MOV R0, 5\nWAIT', 'SPEED 5\nWAIT', 'speed 5\nWAIT', 'JMP main\nmain: WAIT', '.def X 3\nWAIT']) {
+    assert.ok(warns(src), JSON.stringify(src));
+  }
+});
 test('invisible characters: a zero-width space can stand for a space, emoji names stay whole, a BOM is silent', () => {
   for (const line of ['MOV​R0, 5', 'MO​V R0, 5', 'loop:​WAIT']) {
     assert.deepStrictEqual(BB.assemble(`T\n${line}\nHALT`).errors, [], JSON.stringify(line));
@@ -1386,12 +1393,15 @@ test('unit 3: sensible answers pass, mistakes get feedback that points the right
   for (const [gap, turn] of [[40, 90], [80, 90], [120, 90], [80, -90], [80, 45]]) {
     assert.ok(play('explore', ex.replace('CMP  R0, 80', `CMP  R0, ${gap}`).replace('TURN 90', `TURN ${turn}`)).ok, `explore gap ${gap} turn ${turn}`);
   }
-  assert.match(play('explore', M('explore').starter).text, /Stuck against something\? Check FRONT/);
+  // The starter reads FRONT but never decides with it (no CMP or jump yet).
+  assert.match(play('explore', M('explore').starter).text, /never decides anything with FRONT/);
   assert.match(play('explore', ex.replace('SPEED 3', 'SPEED 2').replace('CMP  R0, 80', 'CMP  R0, 60')).text, /Drive a little faster/);
-  // Driving in circles covers the distance without using FRONT.
-  for (const [speed, turn] of [[5, 90], [3, 3]]) {
-    assert.match(play('explore', `E\nloop:\n    SPEED ${speed}\n    TURN ${turn}\n    WAIT\n    JMP loop`).text, /going round in circles/, `circle ${speed}/${turn}`);
+  // Driving in circles, even a wide circle that visits many areas, never looks at FRONT.
+  for (const [speed, turn] of [[5, 90], [3, 3], [4, 1]]) {
+    assert.match(play('explore', `E\nloop:\n    SPEED ${speed}\n    TURN ${turn}\n    WAIT\n    JMP loop`).text, /never decides anything with FRONT/, `circle ${speed}/${turn}`);
   }
+  // A FRONT-based robot that only bounces back and forth still gets the "areas" message.
+  assert.match(play('explore', ex.replace('TURN 90', 'TURN 180')).text, /going round in circles, or back and forth/);
 
   const fo = M('follow').solution;
   for (const d of [60, 100, 140]) assert.ok(play('follow', fo.replace('CMP  R1, 100', `CMP  R1, ${d}`)).ok, `follow at ${d}`);

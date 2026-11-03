@@ -35,14 +35,14 @@ node tools/balance.js 20 --out docs/balance-results.json  # compare arenas, bot 
 |---|---|
 | **▶ Start / ❚❚ Pause** (Space) | Run or pause the match. |
 | **⏭ Step** (`.`) | Advance exactly one tick. While paused, the CPU inspector and the yellow line marker in the editor show the next line the selected robot will execute. |
-| **↺ Reset** (`R`) | Respawn every robot with its *applied* code. The seed decides spawn points and `RAND`, so a seed always replays the same match. The `R` key asks first if the match has been running for more than 10 seconds. |
+| **↺ Reset** (`R`) | Respawn every robot with its *applied* code. The seed decides spawn points and `RAND`, so a seed always replays the same match. The `R` key asks first if the match has run for more than 600 ticks (10 seconds at 1×), except in full screen, where a question box would end full screen. |
 | **Mode** | **Free-for-all**, **Teams 2v2** or **Teams 3v3**. In a team mode each robot card gets **A / B / Bench** buttons, and **⧉** duplicates a robot so you can field several copies. A team match only starts when both teams have exactly the right number of working robots. |
 | **Arena** | **Classic** is the fixed default layout, with four mud patches. **Random** generates a mirrored layout of obstacles and mud from the seed, so 🎲 gives a new map and the same seed always gives the same map. **Open** has no obstacles or mud, which is useful for testing aim and dodging. |
 | **Speed** | 0.1× to 60× (6 to 3600 ticks per second). |
 | **Scans** | Show or hide each robot's scan cone. |
 | **Highlight mine** | The selected robot's bullets get a white ring and everyone else's are drawn fainter, so you can follow your own shots. On by default. |
 | **Calm effects** | Fewer sparks, casings and smoke so a match is easier to follow. On by default in Simple view or when the computer asks for reduced motion; ticking or unticking it by hand sticks. |
-| **Full screen** (`F`) | Show a match on the whole screen, for a competition or a projector, with Start/Pause, Reset and Exit in the corner. No robot is singled out: the selection ring and Highlight mine are off. `Esc` leaves, and so does pressing Start with code errors. Not available in missions. If the browser doesn't allow full screen, the arena fills the window instead. |
+| **Full screen** (`F`) | Show a match on the whole screen, for a competition or a projector, with Start/Pause, Reset, 🔊 Music (`M`) and Exit in the corner. Music only plays in full screen, starts off (press 🔊 Music or `M` to turn it on), and the on/off choice is remembered. No robot is singled out: the selection ring and Highlight mine are off. `Esc` leaves, and so does pressing Start with code errors. Not available in missions. If the browser doesn't allow full screen, the arena fills the window instead. |
 | **⚙ Settings** | Shown in Simple view: reveals Mode, Arena, Seed, Scans, Highlight mine and Calm effects, which are tucked away to keep the toolbar simple for beginners. Untick Simple view to always see them. |
 | **Simple view** | On by default. Plain-language hover help and trace notes, and a CPU inspector that shows only the registers and sensors your program uses. Untick it for every detail. |
 | **🎯 Missions** tab | Short guided challenges, one idea each. See [Missions and Simple view](#missions-and-simple-view). |
@@ -92,7 +92,7 @@ The **🎯 Missions** tab has fifteen short challenges in three units. Each one 
 
 **Unit 3: Sensors, math and science** (real-world STEM ideas)
 
-11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles. The robot must visit 5 of the arena's 12 areas, so driving in circles doesn't count.
+11. **Don't crash** (sensor loops with `FRONT`): explore for 600 ticks, turning before obstacles. The robot must visit 5 of the arena's 12 areas and must decide with `FRONT` (read it, `CMP` it and jump), so driving in circles doesn't count.
 12. **Follow the leader** (IF / ELSE): drive when far, wait when close. The same feedback idea as cruise control. The IF / ELSE shape is given; students add its two jumps. The Leader circles the arena, so parking in one spot fails.
 13. **Mission control** (coordinates, memory and `ATAN2`): the target's position arrives in memory `[0]` and `[1]`; work out dx, dy and the angle. The target moves every attempt and has a stealth shield SCAN can't see, so the math has to be right, not memorized.
 14. **Lead the target** (experimenting): hit a moving target by aiming ahead. The mission reports whether misses passed in front or behind, so students adjust `LEAD` like a real experiment (8 to 14 all work).
@@ -302,6 +302,10 @@ docs/LANGUAGE.md      generated language reference
 ```
 
 Data flows one way: **source → `assemble()` → program → `VM` (one per robot) → `World.step()` → `Renderer.draw()`**. To add an instruction, add a row to `INSTRUCTIONS` in `isa.js`, a `case` in `VM.exec`, and a plain-language sentence in `js/ui/explain.js` (a test checks that every instruction and sensor has one). The assembler, the in-app reference and `docs/LANGUAGE.md` (after `npm run build`) pick it up automatically.
+
+## Credits
+
+- **Music:** "Futility Belt" by Aron Elal (iamoneabe), CC0 (public domain), from [OpenGameArt](https://opengameart.org/content/futility-belt). No credit is required, but thank you! Played only in full screen, from `audio/futilitybelt.mp3`.
 
 ## License
 

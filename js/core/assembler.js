@@ -80,15 +80,27 @@
    * the real name line is deleted. Returns null for a name, or { label } (the label
    * it would define, upper case, or null) when the line looks like code.
    */
-  function codeOnNameLine(line) {
-    const label = /^([A-Za-z_]\w*)\s*:/.exec(line);
-    if (label) return { label: label[1].toUpperCase() };
+  function codeOnNameLine(line, rest = '') {
+    // The rest of the program is the evidence: real names like "Destroyer: Mk 2", "Call Me" or
+    // "Speed 5" look like code too, but only code is jumped to, or jumps to a label that exists.
+    const jumpsTo = (id) => new RegExp(`^\\s*(?:[A-Za-z_]\\w*\\s*:\\s*)*(?:JMP|CALL|J[A-Z]{1,2})\\s+${id}\\s*(?:[;#]|$)`, 'im').test(rest);
+    const defines = (id) => new RegExp(`^\\s*(?:[A-Za-z_]\\w*\\s*:\\s*)*${id}\\s*:`, 'im').test(rest);
+    const label = /^([A-Za-z_]\w*)\s*:\s*(.*)$/.exec(line);
+    if (label) {
+      const after = label[2].trim();
+      // "main:" alone, a label something jumps to, or a label followed by real code.
+      const code = !after || jumpsTo(label[1]) || !assemble(`Name\n${after}`).errors.length;
+      return code ? { label: label[1].toUpperCase() } : null;
+    }
     if (line[0] === '.') return { label: null };
     const m = /^([A-Za-z]+)\s+(\S.*)$/.exec(line);
     const spec = m && INSTRUCTION_MAP[m[1].toUpperCase()];
     if (!spec || !spec.args.length) return null; // "Fire" or "Turn Left" are fine names
-    // A jump to a label is code even though the label is defined further down.
-    if (spec.args[0] === 'target' && /^[A-Za-z_]\w*$/.test(m[2].trim())) return { label: null };
+    // A jump is code only if its label is defined further down ("Call Me" has no "me:").
+    const target = m[2].trim();
+    if (spec.args[0] === 'target') return /^[A-Za-z_]\w*$/.test(target) && defines(target) ? { label: null } : null;
+    // "Speed 5" in Title Case reads as a name; "SPEED 5" or "speed 5" is code that slid up.
+    if (/^[A-Z][a-z]+$/.test(m[1])) return null;
     return assemble(`Name\n${line}`).errors.length ? null : { label: null };
   }
 
@@ -164,7 +176,7 @@
 
     // ---- Line 1: robot name ----
     let name = (lines[0] || '').replace(/^\s*[;#]+/, '').trim();
-    const nameCode = name ? codeOnNameLine(name) : null;
+    const nameCode = name ? codeOnNameLine(name, lines.slice(1).join('\n')) : null;
     if (nameCode) {
       warnings.push({ line: 1, message: `Line 1 is only your robot's name, so "${name}" won't run as code. Put a name on line 1 (like "Rookie") and start your code on line 2.` });
     }

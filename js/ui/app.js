@@ -30,6 +30,10 @@
   const MAX_FILE_BYTES = 100 * 1024;
   const FONT_KEY = 'battlebots.fontsize';
   const FONT_SIZES = [11, 13, 15, 17, 20, 24]; // code text sizes, px
+  // Full screen soundtrack: "Futility Belt" by Aron Elal (iamoneabe), CC0, credited in the README.
+  // https://opengameart.org/content/futility-belt
+  const MUSIC = { src: 'audio/futilitybelt.mp3' };
+  const MUSIC_KEY = 'battlebots.music';
   const LAYOUT_KEY = 'battlebots.layout.v1';
 
   /** Registers (sorted) and sensors (in order of first use) a program refers to. */
@@ -1041,6 +1045,9 @@
       this.arenaFull = on;
       document.body.classList.toggle('arena-full', on);
       $('#btn-fullscreen').setAttribute('aria-pressed', String(on));
+      // The page behind the arena is only covered up, so make it unreachable too: Tab goes straight to
+      // the corner bar, and nobody types into the hidden editor without seeing it.
+      for (const el of document.querySelectorAll('header.toolbar, .roster-bar, #roster, #splitter, section.right')) el.inert = on;
       if (on) {
         // Let go of the keyboard focus so Space means Start/Pause, and give it back on the way out.
         const a = document.activeElement;
@@ -1048,12 +1055,62 @@
         if (a && a !== document.body) a.blur();
         const root = document.documentElement;
         if (root.requestFullscreen) root.requestFullscreen().catch(() => { /* the window-filling version is fine */ });
+        this.updateMusic();
       } else {
         if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        this.updateMusic();
         if (this.focusBeforeFull && document.contains(this.focusBeforeFull)) this.focusBeforeFull.focus();
         else if (document.activeElement) document.activeElement.blur(); // the bar's buttons are hidden now
         this.focusBeforeFull = null;
       }
+    }
+
+    /** Music on/off (full screen only), remembered in this browser. */
+    setMusicOn(on) {
+      this.musicOn = on;
+      try { localStorage.setItem(MUSIC_KEY, on ? 'on' : 'off'); } catch (_) { /* fine: resets next visit */ }
+      this.showMusicButton();
+      this.updateMusic();
+    }
+
+    showMusicButton() {
+      const b = $('#fs-music');
+      b.hidden = !!this.musicMissing;
+      b.textContent = this.musicOn ? '🔊 Music' : '🔇 Music';
+      b.setAttribute('aria-pressed', String(!!this.musicOn));
+      b.title = `${this.musicOn ? 'Turn the music off' : 'Turn the music on'} (M)`;
+    }
+
+    /**
+     * The soundtrack plays only in full screen (the competition view), fading in and out.
+     * The file is only downloaded the first time it's needed; if it's missing, the button hides.
+     */
+    updateMusic() {
+      const want = !!this.arenaFull && this.musicOn && !this.musicMissing;
+      if (want && !this.music) {
+        this.music = new Audio(MUSIC.src);
+        this.music.loop = true;
+        this.music.volume = 0;
+        this.musicLevel = 0;
+        this.music.addEventListener('error', () => { this.musicMissing = true; this.music = null; this.showMusicButton(); });
+      }
+      const audio = this.music;
+      if (!audio) return;
+      clearInterval(this.musicFade);
+      const target = want ? 0.5 : 0;
+      if (want && audio.paused) audio.play().catch(() => { /* blocked until the next click; harmless */ });
+      // About half a second either way. The level is tracked here rather than read back from
+      // audio.volume: iPhones and iPads ignore volume changes (it always reads 1), and a fade
+      // waiting for it would never finish or pause.
+      this.musicFade = setInterval(() => {
+        const step = Math.sign(target - this.musicLevel) * 0.05;
+        this.musicLevel = Math.abs(target - this.musicLevel) <= 0.05 ? target : this.musicLevel + step;
+        try { audio.volume = this.musicLevel; } catch (_) { /* read-only on some devices */ }
+        if (this.musicLevel === target) {
+          clearInterval(this.musicFade);
+          if (!want) audio.pause();
+        }
+      }, 50);
     }
 
     showShortcuts(open) {
@@ -1466,6 +1523,10 @@
       $('#fs-exit').onclick = () => this.setArenaFull(false);
       $('#fs-run').onclick = () => this.toggleRun();
       $('#fs-reset').onclick = () => this.resetMatch();
+      $('#fs-music').onclick = () => this.setMusicOn(!this.musicOn);
+      // Off until someone turns it on: a lab full of laptops shouldn't all start playing at once.
+      try { this.musicOn = localStorage.getItem(MUSIC_KEY) === 'on'; } catch (_) { this.musicOn = false; }
+      this.showMusicButton();
       // The browser's own way out (Esc) only tells us through this event.
       document.addEventListener('fullscreenchange', () => {
         if (document.fullscreenElement) this.nativeFull = true;
@@ -1605,9 +1666,11 @@
         else if (ev.key === ' ') { ev.preventDefault(); this.toggleRun(); }
         else if (ev.key === '.') { this.stepOnce(); }
         else if (ev.key.toLowerCase() === 'f') { this.setArenaFull(!this.arenaFull); }
+        else if (ev.key.toLowerCase() === 'm' && this.arenaFull) { this.setMusicOn(!this.musicOn); }
         else if (ev.key.toLowerCase() === 'r') {
-          // A stray "r" shouldn't wipe a long match; the Reset button never asks.
-          const long = this.world && !this.world.over && this.world.tick > 600;
+          // A stray "r" shouldn't wipe a long match; the Reset button never asks. Not in full screen:
+          // a confirm box makes the browser leave full screen, ending the competition view.
+          const long = this.world && !this.world.over && this.world.tick > 600 && !this.arenaFull;
           if (!long || confirm('Reset the match? It will start again from the beginning.')) this.resetMatch();
         }
       });

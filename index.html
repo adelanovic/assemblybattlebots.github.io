@@ -57,6 +57,7 @@
         <div class="arena-bar">
           <button id="fs-run" class="primary">▶ Start</button>
           <button id="fs-reset">↺ Reset</button>
+          <button id="fs-music" aria-pressed="true">🔊 Music</button>
           <button id="fs-exit">Exit full screen</button>
         </div>
       </div>
@@ -143,6 +144,7 @@
         <tr><td><kbd>Space</kbd></td><td>Start or pause the match</td></tr>
         <tr><td><kbd>.</kbd></td><td>Step: run one tick</td></tr>
         <tr><td><kbd>R</kbd></td><td>Reset the arena (asks first during a long match)</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Music on or off (in full screen)</td></tr>
         <tr><td><kbd>F</kbd></td><td>Show a match on the whole screen, or go back (<kbd>Esc</kbd> also leaves)</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td><td>Apply your code</td></tr>
         <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save your code as a .asm file</td></tr>
@@ -164,11 +166,11 @@
   <!-- Core: no DOM access, also runs in Node (see tools/ and tests/) -->
   <script src="js/core/isa.js?v=ec05e4bc"></script>
   <script src="js/core/geometry.js?v=cdcf7b83"></script>
-  <script src="js/core/assembler.js?v=9644390c"></script>
+  <script src="js/core/assembler.js?v=89b781f6"></script>
   <script src="js/core/vm.js?v=018a4be4"></script>
   <script src="js/core/world.js?v=b8ad3e5a"></script>
   <script src="js/core/examples.js?v=e9dde8da"></script>
-  <script src="js/core/missions.js?v=32b03470"></script>
+  <script src="js/core/missions.js?v=052a5815"></script>
   <!-- UI -->
   <script src="js/ui/explain.js?v=549b4e7b"></script>
   <script src="js/ui/snippets.js?v=5ddb5a78"></script>
@@ -176,6 +178,6 @@
   <script src="js/ui/terrain.js?v=e5c45fad"></script>
   <script src="js/ui/renderer.js?v=37109c9f"></script>
   <script src="js/ui/editor.js?v=747a02da"></script>
-  <script src="js/ui/app.js?v=bc679b16"></script>
+  <script src="js/ui/app.js?v=8fc7c3c8"></script>
 </body>
 </html>

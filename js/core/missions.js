@@ -697,8 +697,14 @@ dodge_done:
           if (s.bumps > 2) return { ok: false, text: 'Three crashes! Check FRONT every tick and turn before you get too close.' };
           return null;
         },
-        timeUp: (w) => {
+        timeUp: (w, me) => {
           const d = Math.round(w.mission.state.dist), areas = w.mission.state.areas.size;
+          // The lesson is deciding with FRONT: a wide circle can cover the distance and the areas
+          // without ever looking, so the program must read FRONT, CMP it and make a conditional jump.
+          const prog = me.vm.program, FRONT = BB.ISA.SENSOR_MAP.FRONT.id;
+          const decides = prog.some((ins) => ins.op === 'GET' && ins.args[1].v === FRONT)
+            && prog.some((ins) => ins.op === 'CMP') && prog.some((ins) => /^J(?!MP)/.test(ins.op));
+          if (!decides) return { ok: false, text: 'Your robot never decides anything with FRONT. Read it (GET R0, FRONT), compare it (CMP R0, 80), and jump so it only turns when something is close.' };
           // Driving in circles covers the distance without exploring: count the areas visited too.
           return d < 600 ? { ok: false, text: `You only drove ${d} units. Stuck against something? Check FRONT and TURN before you reach it.` }
             : d < 1200 ? { ok: false, text: `No crashes, but you only drove ${d} units. Drive a little faster: the goal is 1200.` }
