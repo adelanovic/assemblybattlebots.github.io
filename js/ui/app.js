@@ -1452,7 +1452,7 @@
       $('#btn-run').onclick = () => this.toggleRun();
       $('#btn-step').onclick = () => this.stepOnce();
       $('#btn-reset').onclick = () => this.resetMatch();
-      $('#btn-dice').onclick = () => { $('#seed').value = 1 + Math.floor(Math.random() * 99999); this.persist(); this.resetMatch(); };
+      $('#btn-dice').onclick = $('#fs-dice').onclick = () => { $('#seed').value = 1 + Math.floor(Math.random() * 99999); this.persist(); this.resetMatch(); };
       $('#seed').onchange = () => { this.persist(); this.resetMatch(); };
       const arenaSel = $('#arena-type');
       arenaSel.innerHTML = Object.entries(BB.World.ARENAS)
